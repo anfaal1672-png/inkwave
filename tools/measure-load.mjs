@@ -47,7 +47,8 @@ function packed(pathname) {
 }
 
 async function oneRun(i) {
-  const browser = await puppeteer.launch(launchOptions({ width: profile.width, height: profile.height }));
+  // software WebGL can block the page for minutes while it compiles the high preset's shaders
+  const browser = await puppeteer.launch({ ...launchOptions({ width: profile.width, height: profile.height }), protocolTimeout: 1200000 });
   try {
     const page = await browser.newPage();
     const cdp = await applyProfile(page, profile);
