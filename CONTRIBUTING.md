@@ -18,7 +18,18 @@ Open the URL in Chrome, Edge or Firefox. Everything reloads on refresh; there is
 ```bash
 npm run check        # node --check on every module
 npm run smoke        # boots the game headlessly and plays 8 s on autopilot (needs Google Chrome installed)
+npm run smoke:mobile # the same in landscape-phone emulation (touch, 3× DPR, 4× CPU throttle, Fast 4G)
 ```
+
+The headless tools find Chrome/Chromium per platform (`tools/browser.mjs`); set `CHROME_PATH` to use another binary. The smoke runs start the dev server themselves when nothing is listening on :8490. On Linux without a GPU, WebGL runs in software (SwiftShader), so the smoke uses the low preset there and takes a few minutes.
+
+For load-time and frame-rate work, measure before and after with:
+
+```bash
+npm run measure -- --profile desktop --runs 3            # or --profile mobile, --cache warm, --settings '{"quality":"low"}'
+```
+
+It prints download size (raw and brotli), the boot timeline per loading stage, and fps / 1 % low / draw calls over 10 s of live play as JSON. Baseline numbers live in [docs/PERF_BASELINE.md](docs/PERF_BASELINE.md). Frame rates under software WebGL are only comparable with each other, never with real hardware.
 
 Keep pull requests focused. If you change gameplay tuning, say what you measured and how (see `tools/measure-handling.mjs` and `tools/film.py` for the deterministic capture helpers).
 

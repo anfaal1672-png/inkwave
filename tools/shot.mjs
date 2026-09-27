@@ -4,6 +4,7 @@
 import puppeteer from 'puppeteer-core';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { launchOptions } from './browser.mjs';
 
 const args = process.argv.slice(2);
 const url = args[0];
@@ -15,12 +16,7 @@ const evalJs = opt('eval', null);
 const evalAfter = opt('evalAfter', null);
 const waitAfter = +opt('waitAfter', 800);
 
-const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
-  defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
-});
+const browser = await puppeteer.launch(launchOptions({ width: W, height: H }));
 const page = await browser.newPage();
 const logs = [];
 page.on('console', (m) => { const t = m.type(); if (t === 'error' || t === 'warning' || t === 'warn' || process.env.ALLLOGS) logs.push(`[${t}] ${m.text()}`); });

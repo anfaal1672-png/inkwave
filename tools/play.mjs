@@ -1,31 +1,35 @@
 // Scripted play-through for audits.
-// usage: node tools/play.mjs <url> <script.json|inline-json> [--w 1600 --h 900]
+// usage: node tools/play.mjs <url> <script.json|inline-json> [--w 1600 --h 900] [--profile desktop|mobile]
+//   --settings '{"quality":"low"}' seeds inkwave.settings in localStorage before the page loads
+//   --timeout ms  limit for page load and each "until" step (default 180000)
+//   --profile mobile emulates a landscape phone (touch, 3× DPR, 4× CPU throttle, Fast 4G) — see tools/browser.mjs
 // script: [{"wait":ms},{"down":"KeyW"},{"up":"KeyW"},{"press":"Space"},{"mouse":"down"|"up"},{"move":[dx,dy]},
 //          {"shot":"/path.png"},{"eval":"js"},{"log":"label"}]
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { launchOptions, applyProfile, PROFILES } from './browser.mjs';
 
 const args = process.argv.slice(2);
 const url = args[0];
 const raw = args[1];
 const steps = JSON.parse(existsSync(raw) ? readFileSync(raw, 'utf8') : raw);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
-const W = +opt('w', 1600), H = +opt('h', 900);
+const profile = opt('profile', null);
+const TIMEOUT = +opt('timeout', 180000);
+const W = +opt('w', profile ? PROFILES[profile].width : 1600), H = +opt('h', profile ? PROFILES[profile].height : 900);
 
-const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
-  defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
-});
+const browser = await puppeteer.launch(launchOptions({ width: W, height: H }));
 const page = await browser.newPage();
+if (profile) await applyProfile(page, profile);
+const seed = opt('settings', null);
+if (seed) await page.evaluateOnNewDocument((v) => { try { localStorage.setItem('inkwave.settings', v); } catch { /* ignore */ } }, seed);
 const logs = [];
 page.on('console', (m) => { const t = m.type(); if (t === 'error' || t === 'warn' || t === 'warning' || process.env.ALLLOGS) logs.push(`[${t}] ${m.text()}`); });
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}\n${(e.stack || '').split('\n').slice(0, 5).join('\n')}`));
-await page.goto(url, { waitUntil: 'load', timeout: 180000 });
+await page.goto(url, { waitUntil: 'load', timeout: TIMEOUT });
 for (const s of steps) {
-  if (s.until) { try { await page.waitForFunction(s.until, { timeout: 180000, polling: 150 }); } catch { console.log('until timeout', s.until); } }
+  if (s.until) { try { await page.waitForFunction(s.until, { timeout: TIMEOUT, polling: 150 }); } catch { console.log('until timeout', s.until); } }
   if (s.wait) await new Promise((r) => setTimeout(r, s.wait));
   if (s.down) await page.keyboard.down(s.down);
   if (s.up) await page.keyboard.up(s.up);
