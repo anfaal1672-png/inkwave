@@ -74,6 +74,7 @@ await page.goto(base, { waitUntil: 'load', timeout: 600000 });
 await until('window.__inkwave && __inkwave.bootMs && __inkwave.menus.current === "title"', 900000);
 
 await step('title: tap to start', async () => {
+  await wait(1500);   // the title ignores taps in its first 350 ms (a tap meant for the loading screen)
   await down(1, W / 2, H * 0.6); await wait(80); await up(1);
   await until('__inkwave.menus.current === "main"', 60000);
   return await ev(() => document.querySelector('.iw-title__presstext')?.textContent || __inkwave.menus._input);
