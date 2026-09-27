@@ -161,7 +161,8 @@ export class Minimap {
     const dusk = theme === 'sunset';
     // sun from the top-left of the map; shadows fall toward the bottom-right
     const Lx = -0.62, Ly = -0.78;
-    const shadowSlope = 0.11;           // metres of height per pixel of shadow length
+    const shadowSlope = 0.11;           // metres of height per pixel of shadow length (at 7 px/m)
+    const sc = s / 7;
     const blockCol = new Map();
     const colOf = (id) => {
       let c = blockCol.get(id);
@@ -202,13 +203,15 @@ export class Minimap {
         // hillshade for tilted surfaces (ramps)
         const nx = nrm[i * 2], ny = nrm[i * 2 + 1];
         if (nx * nx + ny * ny > 0.002) lum *= 1 + (nx * Lx + ny * Ly) * 1.6;
-        // soft cast shadow from taller geometry toward the light
+        // soft cast shadow from taller geometry toward the light (steps of 3 px at the reference 7 px/m, so the
+        // shadows keep their length in metres at other densities)
         let sh = 0;
-        for (let k = 3; k <= 27; k += 3) {
+        for (let j = 3; j <= 27; j += 3) {
+          const k = j * sc;
           const qx = Math.round(px + Lx * k), qy = Math.round(py + Ly * k);
           if (qx < 0 || qy < 0 || qx >= W || qy >= H) break;
-          const dh = hgt[qx + qy * W] - h - k * shadowSlope;
-          if (dh > 0) sh = Math.max(sh, Math.min(1, dh / 0.5) * (1 - k / 30));
+          const dh = hgt[qx + qy * W] - h - j * shadowSlope;
+          if (dh > 0) sh = Math.max(sh, Math.min(1, dh / 0.5) * (1 - j / 30));
         }
         lum *= 1 - sh * 0.3;
         // contact AO at the foot of walls + crisp rims on raised edges

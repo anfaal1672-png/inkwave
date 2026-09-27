@@ -26,6 +26,6 @@ if ! curl -s -o /dev/null "http://localhost:$PORT/index.html"; then
 fi
 OUT=$(node tools/play.mjs "http://localhost:$PORT/?autostart=60&autopilot" '[{"until":"window.__inkwave && __inkwave.match && __inkwave.match.state===\"playing\" && __inkwave.match.local"},{"wait":8000},{"eval":"JSON.stringify({state:__inkwave.match.state,t:+__inkwave.match.time.toFixed(1),boot:__inkwave.bootMs,fps:__inkwave.fps,perf:__inkwave.perf,turf:__inkwave.match.actors.map(a=>Math.round(a.stats.turf))})","log":"smoke"}]' --profile "$PROFILE" --timeout $TIMEOUT $SIZE ${SMOKE_SETTINGS:+--settings "$SMOKE_SETTINGS"} 2>&1)
 echo "$OUT" | grep -v "Failed to fetch\|404\|preload"
-echo "$OUT" | grep -qiE "\[error\]|pageerror|until timeout|eval error" && { echo "SMOKE FAIL ($PROFILE $2)"; exit 1; }
-echo "$OUT" | grep -q "smoke ->" || { echo "SMOKE FAIL ($PROFILE $2, no result)"; exit 1; }
-echo "SMOKE OK ($PROFILE $2)"
+echo "$OUT" | grep -qiE "\[error\]|pageerror|until timeout|eval error" && { echo "SMOKE FAIL ($PROFILE${2:+ $2})"; exit 1; }
+echo "$OUT" | grep -q "smoke ->" || { echo "SMOKE FAIL ($PROFILE${2:+ $2}, no result)"; exit 1; }
+echo "SMOKE OK ($PROFILE${2:+ $2})"

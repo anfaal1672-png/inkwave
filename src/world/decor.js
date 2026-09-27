@@ -221,6 +221,17 @@ export class Decor {
     this._buildFlags();
   }
 
+  /** Free this layout's GPU resources (a stage change builds a new Decor). Textures shared with other systems are only
+   *  referenced by the materials and stay alive; the two canvas textures are this instance's own. */
+  dispose() {
+    this.group.removeFromParent();
+    const geos = new Set(), mats = new Set();
+    this.group.traverse((o) => { if (o.geometry) geos.add(o.geometry); if (o.material) for (const m of [].concat(o.material)) mats.add(m); });
+    for (const g of geos) g.dispose();
+    for (const m of mats) m.dispose();
+    this.emblem?.dispose(); this.flagTex?.dispose();
+  }
+
   // ------------------------------------------------------------------ spawn pads
   _buildPads() {
     const L = this.level;

@@ -19,7 +19,7 @@
 // 'head'|'bust'|'body', size, weapon }, cb(canvas)) — queued studio portraits for menu tiles (one per frame).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
-import { G, damp, lerp, rng } from '../core/ctx.js';
+import { G, damp, lerp, rng, VIEW, compileForTarget } from '../core/ctx.js';
 
 // ================================================================================================ helpers
 const TAU = Math.PI * 2;
@@ -1683,8 +1683,9 @@ export class Showcase {
         if (!PEDESTAL.has(this.mode)) this.stageL.group.visible = stageWas && PEDESTAL.has(this.mode);
         this._warmState = 'done';
       };
-      const p1 = r.compileAsync ? r.compileAsync(this.scene, this.camera) : Promise.resolve(r.compile(this.scene, this.camera));
-      const p2 = r.compileAsync ? r.compileAsync(this._presScene, this.compCam) : Promise.resolve(r.compile(this._presScene, this.compCam));
+      // both scenes are drawn into render targets (HDR stage target, 8-bit portrait target): compile those variants
+      const p1 = compileForTarget(r, this.scene, this.camera, this._target());
+      const p2 = compileForTarget(r, this._presScene, this.compCam, this._prt8 || this._target());
       Promise.all([p1, p2]).then(done, (e) => { console.warn('[showcase] warm-up', e); done(); });
     } catch (e) { console.warn('[showcase] warm-up', e); this._warmState = 'done'; }
   }
@@ -1710,7 +1711,7 @@ export class Showcase {
     if (this._pq.length) this._portraitStep();
     const mode = this.mode || (this._out > 0 ? this._lastMode : null);
     if (!mode || !this.chars.length) return;
-    const r = this.r, W = innerWidth, H = innerHeight;
+    const r = this.r, W = VIEW.w, H = VIEW.h;
     this._fdt = 1 / 60;
     if (PEDESTAL.has(mode)) this._cameraPedestal(mode, W, H); else this._cameraResults(W, H);
     this.scene.environment = G.env?.envMap || null;

@@ -1,9 +1,9 @@
 // INKWAVE — boot, main loop and game-flow orchestration (menus ⇄ attract mode ⇄ matches ⇄ results).
 import * as THREE from 'three';
-import { G, on, emit, clamp, damp } from './core/ctx.js';
+import { G, on, emit, clamp, damp, VIEW, compileForTarget } from './core/ctx.js';
 import { Renderer } from './core/renderer.js';
 import { Input } from './core/input.js';
-import { TouchControls, TOUCH_CAPABLE } from './core/touch.js';
+import { TouchControls, TOUCH_CAPABLE, TOUCH_PRIMARY } from './core/touch.js';
 import { mapTheme,
   DEFAULT_SETTINGS, QUALITY, TEAM_PALETTES, COLORBLIND_PALETTE, TEAM_NAMES, WEAPONS, WEAPON_ORDER, SUB, SPECIALS,
   MAPS, DIFFICULTY, PLAYER, PROGRESSION, VERSION, MATCH, GAME_TITLE, GAME_SUBTITLE,
@@ -52,12 +52,26 @@ async function loadModule(name, stubName) {
 }
 
 class Game {
-  get minimap() { return this._minimap || (this._minimap = new Minimap(G.level, G.paint)); }
+  // The corner map's ink refresh (per-pixel field + putImageData) scales with its pixel count: on low it is sized to the
+  // corner it is shown in (≈ 4 px/m on a phone or at 1080p) instead of the 7 px/m that stays sharp on big screens.
+  get minimap() {
+    if (this._minimap) return this._minimap;
+    let ppm = 7;
+    if (this.settings.quality === 'low') {
+      const B = G.level.bounds, u = Math.min(VIEW.w, VIEW.h * 1.7778) / 100;
+      const px = 14.5 * u * Math.min(window.devicePixelRatio || 1, 2);
+      ppm = clamp(Math.ceil((px * 1.2) / Math.max(B.maxX - B.minX, B.maxZ - B.minZ)), 4, 7);
+    }
+    return (this._minimap = new Minimap(G.level, G.paint, ppm));
+  }
   async boot() {
     const t0 = performance.now();
     // real top-down thumbnails for the stage cards, generated from each layout's geometry
     for (const m of MAPS) { try { m.thumb = layoutThumbSVG(MAP_LAYOUTS[m.layout || m.id], m.theme); } catch (e) { console.warn('thumb', m.id, e); } }
+    const firstRun = (() => { try { return !JSON.parse(localStorage.getItem('inkwave.settings'))?.quality; } catch { return true; } })();
     this.settings = G.settings = loadJSON('inkwave.settings', DEFAULT_SETTINGS);
+    // phones and tablets start on the low preset (only before any quality has been saved — a choice is never overridden)
+    if (firstRun && TOUCH_PRIMARY) { this.settings.quality = 'low'; saveJSON('inkwave.settings', this.settings); }
     // v1.1: fov became horizontal — migrate old vertical values once
     if (this.settings.fovMode !== 'h') { this.settings.fov = DEFAULT_SETTINGS.fov; this.settings.fovMode = 'h'; saveJSON('inkwave.settings', this.settings); }
     this.profile = loadJSON('inkwave.profile', DEFAULT_PROFILE);
@@ -165,8 +179,9 @@ class Game {
     // warm up: compile every shader now so the first shot/splat never hitches
     await progress(0.85, tr('Warming up…'));
     this._warmup();
-    // compile in parallel (KHR_parallel_shader_compile) so the loading screen keeps animating instead of freezing
-    try { await G.renderer.compileAsync(scene, camera); } catch { G.renderer.compile(scene, camera); }
+    // compile in parallel (KHR_parallel_shader_compile) so the loading screen keeps animating instead of freezing —
+    // for the composer's HDR target the scene is drawn into (compileForTarget), not for the canvas
+    try { await compileForTarget(G.renderer, scene, camera, this.R.composer.renderTarget1); } catch { G.renderer.compile(scene, camera); }
     await progress(0.93, tr('Warming up…'));
     for (let i = 0; i < 3; i++) { this._frame(1 / 60); await nextFrame(); }
     await progress(1, tr('Ready!'));
@@ -208,7 +223,8 @@ class Game {
     const layoutId = map.layout || map.id;
     if (this.layoutId === layoutId) { this.mapDef = map; return; }
     if (this.levelMesh) { scene.remove(this.levelMesh, this.grateMesh); this.levelMesh.geometry.dispose(); this.grateMesh?.geometry.dispose(); this.levelMat.dispose(); this.grateMat?.dispose(); }
-    if (this.decor) { scene.remove(this.decor.group); }
+    if (this.decor) { if (this.decor.dispose) this.decor.dispose(); else scene.remove(this.decor.group); }
+    this._lightmap?.dispose(); this._lightmap = null;
     if (this.props) { this.props.dispose?.(); this.props = null; }
     G.paint?.dispose();
     this.layoutId = layoutId;
@@ -228,7 +244,7 @@ class Game {
     }
     const level = (G.level = new Level(MAP_LAYOUTS[layoutId], colliders));
     G.physics = new Physics(level);
-    const lightmap = await this._loadLightmap(level, layoutId);
+    const lightmap = (this._lightmap = await this._loadLightmap(level, layoutId));
     G.paint = new PaintSystem(G.renderer, level, { atlasSize: q.paintAtlas, maxDensity: q.paintAtlas >= 4096 ? 30 : 18 });
     this.levelMat = createLevelMaterial(G.paint.texture, G.paint.size, this.murals, { lightmap, texlib: this.texlib });
     (this.swimWake || (this.swimWake = new SwimWake())).reset();
@@ -719,6 +735,9 @@ class Game {
   // keep weaker GPUs playable: when a 4 s window of a live round averages under ~40 fps, drop render density one notch.
   // Stepping back up needs 12 s of real headroom and happens at most twice, so the image never pumps between sizes
   // (re-sizing every couple of seconds read as flicker).
+  // Phones and tablets aim for a steady 30 fps instead: they step down only under ~32 fps, but as far as half density,
+  // and step back up above ~50 fps. When even half density stays under 25 fps for 12 s (a slow or throttling device)
+  // and a lower preset exists, the HUD suggests it once.
   _dynRes(dt) {
     if (dt <= 0 || dt > 0.25) return;
     const d = this._dyn || (this._dyn = { acc: 0, n: 0, t: 0, fast: 0, ups: 0 });
@@ -729,9 +748,18 @@ class Game {
     const m = this.match;
     if (this.settings.quality === 'ultra' || document.hidden || !m || m.attract || m.state !== 'playing') { d.fast = 0; return; }
     const s = this.R.dynScale || 1;
-    if (avg > 1 / 40 && s > 0.76) { this.R.setDynamicScale(s - 0.125); d.fast = 0; }
-    else if (avg < 1 / 75 && s < 1 && d.ups < 2) { if (++d.fast >= 3) { this.R.setDynamicScale(s + 0.125); d.fast = 0; d.ups++; } }
-    else d.fast = 0;
+    const phone = TOUCH_PRIMARY, floor = phone ? 0.5 : 0.75;
+    if (avg > (phone ? 1 / 32 : 1 / 40) && s > floor + 0.01) { this.R.setDynamicScale(s - 0.125, floor); d.fast = 0; d.slow = 0; }
+    else if (avg < (phone ? 1 / 50 : 1 / 75) && s < 1 && d.ups < 2) { d.slow = 0; if (++d.fast >= 3) { this.R.setDynamicScale(s + 0.125, floor); d.fast = 0; d.ups++; } }
+    else {
+      d.fast = 0;
+      d.slow = avg > 1 / 25 && s <= floor + 0.01 ? (d.slow || 0) + 1 : 0;
+      const q = this.settings.quality;
+      if (d.slow >= 3 && !this._suggestedQ && q !== 'low') {
+        this._suggestedQ = true;
+        this.hud?.feed({ text: tr('Running slowly — a lower Graphics quality in Settings will help'), color: '#ffd166', kind: 'info' });
+      }
+    }
   }
 
   _frame(dt) {
@@ -802,6 +830,7 @@ class Game {
     if (loc) g.uHurtColor.value.copy(G.teamColors[loc.enemyTeam]);
     // shadows: every frame (half-rate updates made moving shadows — your own, right under the crosshair — judder);
     // only the low preset halves it
+    this._charShadows();
     const sm = G.renderer.shadowMap;
     sm.autoUpdate = false;
     this._frameN = (this._frameN || 0) + 1;
@@ -819,6 +848,20 @@ class Game {
     if (m && !m.attract && this.hud && (m.state === 'playing' || m.state === 'intro' || m.state === 'finish')) this._updateHud(dt);
     this.menus?.update?.(dt);
     this.input.endFrame();
+  }
+
+  // low preset: only characters near the camera (and your own) cast shadows. A squid kid is ~37k shadow triangles in
+  // ~5 draws; 20 m away its shadow is a few texels of the 1024 map. Meshes keep their own flag (userData.cs0).
+  _charShadows() {
+    const low = this.settings.quality === 'low', cam = G.camera.position;
+    for (const a of G.actors) {
+      const root = a.character?.root;
+      if (!root) continue;
+      const on = !low || a.isLocal || a.pos.distanceToSquared(cam) < 400;
+      if (a._shadowOn === on) continue;
+      a._shadowOn = on;
+      root.traverse((o) => { if (!o.isMesh) return; if (o.userData.cs0 === undefined) o.userData.cs0 = o.castShadow; o.castShadow = on && o.userData.cs0; });
+    }
   }
 
   // continuous sounds tied to the local player's state (swim gurgle, wall climb, enemy-ink sizzle)
@@ -899,7 +942,7 @@ class Game {
     // crosshair spread = the weapon's live cone (first-shot accurate, blooms with sustained fire / in the air)
     const vHalf = (G.camera.fov * Math.PI) / 360;
     const coneDeg = a.weaponRunner.spread ?? (w.kind === 'shooter' ? 5.5 : w.kind === 'blaster' ? 1.2 : 0);
-    const spread = w.kind === 'roller' ? 28 : Math.min(90, (Math.tan((coneDeg * Math.PI) / 180) / Math.tan(vHalf)) * (innerHeight / 2));
+    const spread = w.kind === 'roller' ? 28 : Math.min(90, (Math.tan((coneDeg * Math.PI) / 180) / Math.tan(vHalf)) * (VIEW.h / 2));
     const players = [];
     const t = { x: 0, y: 0 };
     for (const o of m.actors) {
@@ -914,7 +957,7 @@ class Game {
     // ally markers
     const markers = [];
     const v = this._mv || (this._mv = new THREE.Vector3());
-    const W = innerWidth, H = innerHeight;
+    const W = VIEW.w, H = VIEW.h;
     for (const o of m.actors) {
       if (o.isLocal || o.team !== a.team || !o.alive) continue;
       if (o.character.getHeadPosition && o.form !== 'squid') { o.character.getHeadPosition(v); v.y += 0.45; }

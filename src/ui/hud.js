@@ -23,7 +23,7 @@
 import { h, clamp, colorVars, toHex, fmtTime, fmtInt, splatSVG, splatShape, pct, shade, lerp, easeOutBack, easeOutCubic, restartAnim, prefersReducedMotion } from './ui-util.js';
 import { SQUID, SPLAT_ICON, DEATH_ICON, GLYPHS, SUB_ICONS, richText, keycap, specialIcon, weaponIcon } from './ui-icons.js';
 import { WEAPONS, SPECIALS, TEAM_NAMES, SUB, PLAYER, MATCH } from '../config.js';
-import { on, G } from '../core/ctx.js';
+import { on, G, VIEW } from '../core/ctx.js';
 import { tr, N_, label } from '../i18n/index.js';
 
 let HUD_ID = 0;
@@ -144,6 +144,9 @@ export class HUD {
     this.subChip = h('div', { class: 'iw-subaim' }, h('i', { html: SUB_ICONS.bomb }), h('span', { class: 'iw-subaim__bar' }, h('i')), h('b', null, `${Math.round(SUB.bomb.inkCost)}%`));
     this.tankCanvas = h('canvas', { class: 'iw-tank__cv' });
     this.tankCtx = this.tankCanvas.getContext('2d');
+    // the tank's CSS box, kept current by a ResizeObserver (reading clientWidth per frame forced a layout)
+    this._tankBox = null;
+    if (typeof ResizeObserver === 'function') new ResizeObserver(([e]) => { this._tankBox = [e.contentRect.width, e.contentRect.height]; }).observe(this.tankCanvas);
     this.tank = h('div', { class: 'iw-tank' }, this.tankCanvas, h('div', { class: 'iw-tank__low', ...label('LOW INK') }, tr('LOW INK')));
     this.tpops = h('div', { class: 'iw-tpops' });
     this.xh = h('div', { class: 'iw-xh' }, this.shield, this.ret, this.hitEl, this.killEl, this.tank, this.subChip, this.tpops);
@@ -698,7 +701,7 @@ export class HUD {
   _updDowns(dt) {
     if (!this._downs.length) return;
     const cam = G.camera;
-    const W = innerWidth, H = innerHeight;
+    const W = VIEW.w, H = VIEW.h;
     for (let i = this._downs.length - 1; i >= 0; i--) {
       const d = this._downs[i];
       d.t += dt;
@@ -935,7 +938,8 @@ export class HUD {
   _drawTank(dt, sub, low, nosub) {
     const T = this._tank, c = this.tankCtx, cv = this.tankCanvas;
     const dpr = Math.min(2, devicePixelRatio || 1);
-    const cw = cv.clientWidth || 18, chh = cv.clientHeight || 74;
+    const box = this._tankBox || [cv.clientWidth, cv.clientHeight];
+    const cw = box[0] || 18, chh = box[1] || 74;
     const W = Math.round(cw * dpr), H = Math.round(chh * dpr);
     if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
     const L = this._L;
@@ -1095,7 +1099,7 @@ export class HUD {
     const a = k * (target - this._mapT) - c * this._mapV;
     this._mapV += a * Math.min(dt, 0.05); this._mapT += this._mapV * Math.min(dt, 0.05);
     if (Math.abs(target - this._mapT) < 0.001 && Math.abs(this._mapV) < 0.001) { this._mapT = target; this._mapV = 0; }
-    const W = innerWidth, H = innerHeight;
+    const W = VIEW.w, H = VIEW.h;
     const u = Math.min(W / 100, (H * 1.7778) / 100);
     const asp = (m.canvas.width || 1) / (m.canvas.height || 1);
     const fit = (sz) => (asp >= 1 ? [sz, sz / asp] : [sz * asp, sz]);

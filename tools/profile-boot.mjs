@@ -1,6 +1,7 @@
-// CPU profile of the boot (navigation → title screen): where the main thread spends its time.
+// CPU profile of the boot (navigation → title screen), or with --match <s> of <s> seconds of live play on autopilot:
+// where the main thread spends its time.
 // usage: node tools/profile-boot.mjs [--profile desktop|mobile] [--settings '{"quality":"low"}'] [--top 40]
-//                                    [--url http://localhost:8490/] [--out boot.cpuprofile] [--shaders]
+//                                    [--url http://localhost:8490/] [--out boot.cpuprofile] [--shaders] [--match 8]
 //   --shaders: also time every shader program's compile + link (measured at the first query on the linked program,
 //              where the main thread blocks), grouped by three.js SHADER_NAME and by loading stage
 // Prints self time per function and per source file, plus the boot marks. Time inside blocking WebGL calls
@@ -18,6 +19,7 @@ const settings = opt('settings', null);
 const top = +opt('top', 40);
 const base = opt('url', 'http://localhost:8490/');
 const out = opt('out', null);
+const matchSec = +opt('match', 0);
 
 const browser = await puppeteer.launch({ ...launchOptions({ width: profile.width, height: profile.height }), protocolTimeout: 1200000 });
 const page = await browser.newPage();
@@ -62,9 +64,23 @@ if (args.includes('--shaders')) await page.evaluateOnNewDocument(() => {
 });
 await cdp.send('Profiler.enable');
 await cdp.send('Profiler.setSamplingInterval', { interval: 500 });
-await cdp.send('Profiler.start');
-await page.goto(base, { waitUntil: 'load', timeout: 600000 });
-await page.waitForFunction('window.__inkwave && __inkwave.bootMs', { timeout: 900000, polling: 250 });
+let perf = null;
+if (matchSec) {
+  const u = new URL(base); u.searchParams.set('autostart', '120'); u.searchParams.set('autopilot', '');
+  await page.goto(u.href, { waitUntil: 'load', timeout: 600000 });
+  await page.waitForFunction('window.__inkwave && __inkwave.match && __inkwave.match.state === "playing" && __inkwave.match.local', { timeout: 900000, polling: 250 });
+  await new Promise((r) => setTimeout(r, 3000));
+  await cdp.send('Profiler.start');
+  perf = await page.evaluate((sec) => new Promise((done) => {
+    const sims = [], t0 = performance.now(); let n = 0;
+    const tick = () => { n++; if (__inkwave.perf) sims.push(__inkwave.perf.sim); if (performance.now() - t0 < sec * 1000) requestAnimationFrame(tick); else done({ frames: n, simAvg: sims.reduce((a, b) => a + b, 0) / (sims.length || 1), calls: __inkwave.perf?.calls, tris: __inkwave.perf?.tris }); };
+    requestAnimationFrame(tick);
+  }), matchSec);
+} else {
+  await cdp.send('Profiler.start');
+  await page.goto(base, { waitUntil: 'load', timeout: 600000 });
+  await page.waitForFunction('window.__inkwave && __inkwave.bootMs', { timeout: 900000, polling: 250 });
+}
 const { profile: prof } = await cdp.send('Profiler.stop');
 const marks = await page.evaluate(() => ({ bootMs: __inkwave.bootMs, marks: __inkwave.bootMarks }));
 const shaderLog = await page.evaluate(() => window.__shaderLog || null);
@@ -92,7 +108,8 @@ for (const [id, ms] of self) {
 }
 const fmt = (m) => `${m.toFixed(0).padStart(7)} ms`;
 console.log(`boot ${marks.bootMs} ms · profiled ${total.toFixed(0)} ms (${profileName}${settings ? ' ' + settings : ''})`);
-console.log('stages:', marks.marks.map(([l, t], i, a) => `${l} ${t - (i ? a[i - 1][1] : 0)}`).join(' | '));
+if (perf) console.log(`match: ${perf.frames} frames, sim ${perf.simAvg.toFixed(1)} ms avg, ${perf.calls} draw calls, ${perf.tris} tris`);
+else console.log('stages:', marks.marks.map(([l, t], i, a) => `${l} ${t - (i ? a[i - 1][1] : 0)}`).join(' | '));
 console.log('\n-- self time by function');
 for (const [k, v] of [...fn].sort((a, b) => b[1] - a[1]).slice(0, top)) console.log(fmt(v), k);
 if (shaderLog) {

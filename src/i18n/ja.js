@@ -259,6 +259,7 @@ export const JA = {
   'Controls reference': '操作一覧',
   'Every keyboard, mouse and controller binding in one place.': 'キーボード・マウス・コントローラーの操作をまとめて確認できます。',
   'Graphics quality': 'グラフィック品質',
+  'Running slowly — a lower Graphics quality in Settings will help': '動作が重くなっています。設定で「グラフィック品質」を下げると軽くなります',
   'Low': '低',
   'Med': '中',
   'High': '高',

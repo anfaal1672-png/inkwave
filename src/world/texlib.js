@@ -1368,7 +1368,13 @@ export async function createTextureLibrary(renderer, { size = 512 } = {}) {
   const scene = new THREE.Scene();
   const quads = progs.map((p) => { const q = new THREE.Mesh(geo, p); q.frustumCulled = false; scene.add(q); return q; });
   const groupOf = new Map(groups.flatMap((list, k) => list.map(([, i]) => [i, k])));
-  await renderer.compileAsync(scene, cam);   // async (and parallel) where KHR_parallel_shader_compile exists
+  // async (and parallel) where KHR_parallel_shader_compile exists; for the array target the layers are drawn into —
+  // programs are keyed by the output colour space, which differs between the canvas and a render target
+  const rt0 = renderer.getRenderTarget();
+  renderer.setRenderTarget(out);
+  const compiled = renderer.compileAsync(scene, cam);
+  renderer.setRenderTarget(rt0);
+  await compiled;
   const tCompiled = performance.now();
 
   const prevRT = renderer.getRenderTarget();

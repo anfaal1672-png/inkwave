@@ -5,12 +5,14 @@
 //                  bomb (hold to aim, release to throw), special, map (hold; tap a pin to Super Jump), pause
 // Mirrored for left-handed play (settings.touchLeftHanded); size / opacity from settings.touchScale / touchOpacity.
 // State is read by PlayerController each frame (move, lookDx/lookDy, held.*) and cleared by Input.endFrame().
-import { G } from './ctx.js';
+import { G, VIEW } from './ctx.js';
 import { tr, N_ } from '../i18n/index.js';
 import { GLYPHS, SQUID, SUB_ICONS, weaponIcon, specialIcon } from '../ui/ui-icons.js';
 
 export const TOUCH_CAPABLE = typeof navigator !== 'undefined' && typeof window !== 'undefined'
   && ((navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window);
+// phones and tablets: touch is the primary input (a touch-screen laptop with a mouse/trackpad is not)
+export const TOUCH_PRIMARY = TOUCH_CAPABLE && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 
 const JUMP_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M32 10 L50 32 H39 V52 H25 V32 H14 Z" fill="currentColor" stroke="#15121c" stroke-width="4" stroke-linejoin="round"/></svg>';
 const PAUSE_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><rect x="16" y="12" width="11" height="40" rx="4" fill="currentColor"/><rect x="37" y="12" width="11" height="40" rx="4" fill="currentColor"/></svg>';
@@ -170,7 +172,7 @@ export class TouchControls {
     const dx = e.clientX - p.x, dy = e.clientY - p.y;
     p.x = e.clientX; p.y = e.clientY;
     if (p.role === 'stick') {
-      const r = Math.max(24, innerHeight * STICK_R * (G.settings?.touchScale ?? 1));
+      const r = Math.max(24, VIEW.h * STICK_R * (G.settings?.touchScale ?? 1));
       let sx = (p.x - p.ox) / r, sy = (p.y - p.oy) / r;
       const m = Math.hypot(sx, sy);
       // the stick base follows a thumb that slides past the rim, so reversing direction is instant
