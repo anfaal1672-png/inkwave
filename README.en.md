@@ -94,7 +94,7 @@ Rendering is three.js r186 (vendored, plain ES modules with an import map) with 
 
 ## Browser support
 
-Chrome and Edge are the target; Firefox works. Safari runs but is slower. A discrete or recent integrated GPU is recommended for the High preset; the settings menu has Medium and Low tiers. Phones and tablets play in landscape (the match goes full screen where the browser allows it); so far this is tested in Chrome's phone emulation, not on real devices.
+Chrome and Edge are the target; Firefox works. Safari runs but is slower. A discrete or recent integrated GPU is recommended for the High preset; the settings menu has Medium and Low tiers. Phones and tablets play in landscape (the match goes full screen where the browser allows it); so far this is tested in Chrome's phone emulation, not on real devices. On an iPhone, Safari has no Fullscreen API: add the game to the Home Screen and launch it from there to play without the browser bars. [`docs/DEPLOY.md`](docs/DEPLOY.md) (Japanese) walks through hosting it privately on Cloudflare Pages behind Cloudflare Access.
 
 ## Contributing
 

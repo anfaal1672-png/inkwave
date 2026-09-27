@@ -21,7 +21,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     extensions_map = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
         '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm',
-        '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.webp': 'image/webp',
+        '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.webmanifest': 'application/manifest+json',
     }
 
     def end_headers(self):

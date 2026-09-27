@@ -57,8 +57,10 @@ const css = await esbuild.build({
   external: ['*.woff2', '*.webp', '*.png', '*.svg'], metafile: true, logLevel: 'warning',
 });
 
-// ---- assets (stage art, fonts, lightmaps) as-is, except the lightmaps: lossless PNG → lossy WebP (~5× smaller)
+// ---- assets (stage art, fonts, lightmaps, app icons) and the web app manifest as-is, except the lightmaps: lossless
+// PNG → lossy WebP (~5× smaller)
 cpSync(join(ROOT, 'assets'), join(DIST, 'assets'), { recursive: true });
+cpSync(join(ROOT, 'manifest.webmanifest'), join(DIST, 'manifest.webmanifest'));
 const lm = spawnSync('python3', [join(ROOT, 'tools/lightmaps-webp.py'), join(DIST, 'assets/lightmaps')], { stdio: 'inherit' });
 if (lm.status !== 0) console.warn('lightmaps: WebP conversion failed (needs python3 + pillow) — shipping the PNGs');
 
