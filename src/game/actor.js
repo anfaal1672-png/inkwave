@@ -16,6 +16,7 @@ import { G, emit, clamp, damp, angleDiff, smoothstep } from '../core/ctx.js';
 import { PLAYER, WEAPONS, SPECIALS } from '../config.js';
 import { makeContacts, Hit, GroundHit, WALKABLE } from './physics.js';
 import { WeaponRunner } from './weapons.js';
+import { CHEATS, cheatInvincible, cheatMove } from './cheats.js';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _fwd = new THREE.Vector3();
 const _ZERO_MOVE = Object.freeze(new THREE.Vector3());   // move input while planted after a dodge roll
@@ -157,7 +158,7 @@ export class Actor {
   // ------------------------------------------------------------------ damage
   damage(amount, attacker, source = 'weapon') {
     if (!this.alive || amount <= 0) return false;
-    if (this.invuln > 0) return false;
+    if (this.invuln > 0 || cheatInvincible(this)) return false;
     if (this.specialActive && this.specialActive.armor) amount *= 0.25;
     this.hp -= amount;
     this.lastDamage = 0;
@@ -184,9 +185,11 @@ export class Actor {
 
   splat(attacker, cause = 'weapon') {
     if (!this.alive) return;
+    // invincible (cheat): nothing splats you; the sea just drops you back onto your spawn pad
+    if (cheatInvincible(this)) { if (!attacker) this.respawn(); return; }
     this.alive = false;
     this.hp = 0;
-    this.respawnTimer = PLAYER.respawnTime;
+    this.respawnTimer = CHEATS.cheatRespawn && this.isLocal && !G.match?.attract ? 0.5 : PLAYER.respawnTime;
     this.stats.deaths++;
     this.special *= 0.5;
     this.specialActive = null;
@@ -280,7 +283,7 @@ export class Actor {
     this.coyote = this.grounded ? P.coyoteTime : this.coyote - dt;
     let jumped = false;
     if (this.jumpBuffer > 0 && (this.grounded || this.coyote > 0) && !this.climbing) {
-      let jv = this.submerged ? P.swimJumpVel : P.jumpVel;
+      let jv = (this.submerged ? P.swimJumpVel : P.jumpVel) * cheatMove(this, 'cheatJump');
       if (onEnemy) jv *= 0.72;
       this.vel.y = jv;
       this.grounded = false; this.coyote = 0; this.jumpBuffer = 0;
@@ -374,6 +377,8 @@ export class Actor {
       let target, accel, decel;
       if (isSquid) { target = Math.max(P.squidDrySpeed, sp); accel = P.squidAirAccel; decel = P.squidAirDecel; }
       else { target = Math.max(this.weaponRunner.moveSpeed(), P.airMinSpeed); accel = P.airAccel; decel = P.airDecel; }
+      const ks = cheatMove(this, 'cheatSpeed');
+      target *= ks; accel *= ks;
       const tvx = mh > 0.01 ? (mv.x / mh) * target * mag : 0, tvz = mh > 0.01 ? (mv.z / mh) * target * mag : 0;
       const dvx = tvx - vx, dvz = tvz - vz, dl = Math.hypot(dvx, dvz);
       const rate = (mh > 0.01 ? accel : decel) * dt;
@@ -391,7 +396,9 @@ export class Actor {
       D = P.runDecel; dMin = P.runDecelMin; dKnee = P.runDecelKnee; W = P.turnRate;
       if (this.hardLand > 0) vt *= 1 - (1 - P.hardLandSlow) * this.hardLand;
     }
-    if (onEnemy) { vt = Math.min(vt, P.enemyInkSpeed); A = Math.min(A, P.enemyInkAccel); D = Math.max(P.enemyInkDecel, 0); }
+    const ks = cheatMove(this, 'cheatSpeed');
+    vt *= ks; A *= ks;
+    if (onEnemy) { vt = Math.min(vt, P.enemyInkSpeed * ks); A = Math.min(A, P.enemyInkAccel * ks); D = Math.max(P.enemyInkDecel, 0); }
     if (mh < 0.01) {
       // brake: strong at speed, easing into the stop
       if (sp < 1e-4) { this.vel.x = 0; this.vel.z = 0; return; }
@@ -449,7 +456,7 @@ export class Actor {
       const n = this.groundN;
       this.vel.y = -(this.vel.x * n.x + this.vel.z * n.z) / Math.max(0.35, n.y);
     } else {
-      let g = P.gravity;
+      let g = P.gravity * cheatMove(this, 'cheatGravity');
       if (this.vel.y < 0) g *= P.fallGravityMul;
       if (Math.abs(this.vel.y) < P.apexBand) g *= P.apexGravityMul;
       this.vel.y = Math.max(-P.maxFall, this.vel.y - g * dt);
@@ -577,7 +584,7 @@ export class Actor {
     const capped = hu.hit && Math.abs(hu.normal.y) < 0.5 && !(hu.face >= 0 && G.paint.sample(hu.face, hu.u, hu.v) - 1 === this.team);
     // climb speed eases in (no instant 0 → 7.5 m/s snap), cling when the stick is neutral, and eases toward the
     // ledge-pop speed as the top comes into reach (so the pop never yanks the squid's vertical speed)
-    let want = capped ? 0 : P.climbSpeed * clamp(into, 0, 1) * mag;
+    let want = capped ? 0 : P.climbSpeed * cheatMove(this, 'cheatSpeed') * clamp(into, 0, 1) * mag;
     if (!hu.hit && want > 0) want = Math.min(want, Math.sqrt(2 * P.gravity * P.apexGravityMul * (P.ledgePopClear + 0.3)));
     const a = P.climbAccel * dt * (want > this.climbV ? 1 : 1.6);
     this.climbV = this.climbV < want ? Math.min(want, this.climbV + a) : Math.max(want, this.climbV - a);

@@ -1,8 +1,10 @@
 // Rendered-text audit: opens every menu screen (and each settings / locker tab) plus the in-match HUD states in the
 // browser, collects the visible text and flags English words that slipped through the translation. Saves a
 // screenshot of each state for a visual check (overflow, clipping, font fallback).
-// usage: node tools/i18n-audit.mjs [--lang ja] [--shots dir] [--url http://localhost:8490/] [--no-match] [--mobile]
+// usage: node tools/i18n-audit.mjs [--lang ja] [--shots dir] [--url http://localhost:8490/] [--no-match] [--mobile | --iphone]
 //   --mobile: a landscape phone (844×390, touch) — also a layout check for the small screen
+//   --iphone: iPhone 17 in landscape as a home-screen app (874×402 with the notch / home-bar safe areas: 62 px left and
+//             right, 21 px bottom) — the tightest real layout
 // Needs the dev server. Exit 1 when a screen shows an English word that is not a name, key cap, unit or brand.
 import puppeteer from 'puppeteer-core';
 import { mkdirSync } from 'node:fs';
@@ -14,8 +16,9 @@ const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i
 const lang = opt('lang', 'ja');
 const shots = opt('shots', null);
 const base = opt('url', 'http://localhost:8490/');
-const mobile = args.includes('--mobile');
-const W = mobile ? 844 : 1280, H = mobile ? 390 : 720;
+const iphone = args.includes('--iphone');
+const mobile = iphone || args.includes('--mobile');
+const W = iphone ? 874 : mobile ? 844 : 1280, H = iphone ? 402 : mobile ? 390 : 720;
 if (shots) mkdirSync(shots, { recursive: true });
 
 // Latin words allowed on a Japanese screen: proper nouns, units, key/pad glyph labels, brand and licence names
@@ -29,6 +32,7 @@ const ALLOW = new Set([
 const browser = await puppeteer.launch({ ...launchOptions({ width: W, height: H }), protocolTimeout: 1200000 });
 const page = await browser.newPage();
 if (mobile) await page.setViewport({ width: W, height: H, deviceScaleFactor: 1, isMobile: true, hasTouch: true, isLandscape: true });
+if (iphone) await (await page.createCDPSession()).send('Emulation.setSafeAreaInsetsOverride', { insets: { left: 62, right: 62, bottom: 21, top: 0 } });
 await page.evaluateOnNewDocument((l) => {
   try { localStorage.setItem('inkwave.settings', JSON.stringify({ lang: l, quality: 'low', fovMode: 'h' })); } catch { /* ignore */ }
 }, lang);

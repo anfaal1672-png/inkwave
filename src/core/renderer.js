@@ -94,7 +94,7 @@ export class Renderer {
     const r = this.renderer, q = this.q;
     if (this.composer) { this.composer.renderTarget1.dispose(); this.composer.renderTarget2.dispose(); }
     this.dynScale = this.dynScale || 1;
-    const pr = Math.min(window.devicePixelRatio || 1, q.pixelRatio) * this.dynScale;
+    const pr = this._pixelRatio();
     r.setPixelRatio(pr);
     const w = window.innerWidth, h = window.innerHeight;
     r.setSize(w, h);
@@ -146,16 +146,21 @@ export class Renderer {
     if (this.bloom) this.bloom.enabled = !!(this.q.bloom && settings.bloom);
   }
 
-  // Dynamic resolution (never on ultra): scale the render density between `min` (0.75; 0.5 on phones) and 1 of the
-  // quality preset.
+  // Dynamic resolution (never on ultra): scale the render density between `min` (0.75) and 1 of the quality preset.
   setDynamicScale(s, min = 0.75) {
     s = Math.max(min, Math.min(1, s));
     if (Math.abs(s - this.dynScale) < 0.01) return;
     this.dynScale = s;
-    const pr = Math.min(window.devicePixelRatio || 1, this.q.pixelRatio) * s;
+    const pr = this._pixelRatio();
     this.renderer.setPixelRatio(pr);
     this.composer.setPixelRatio(pr);
     this.composer.setSize(this._w, this._h);
+  }
+
+  // device pixels per CSS px: the preset's cap (pixelRatioPhone on phones — main.js sets .phone) × dynamic scale
+  _pixelRatio() {
+    const cap = (this.phone && this.q.pixelRatioPhone) || this.q.pixelRatio;
+    return Math.min(window.devicePixelRatio || 1, cap) * (this.dynScale || 1);
   }
 
   resize() {

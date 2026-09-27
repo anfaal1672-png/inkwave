@@ -6,6 +6,7 @@ import { Actor } from './actor.js';
 import { BotBrain } from './bots.js';
 import { randomStyle } from './character-style.js';
 import { PlayerController } from './player.js';
+import { CHEATS, cheatEnemyFrozen, cheatEnemyPassive } from './cheats.js';
 
 const _v = new THREE.Vector3();
 
@@ -106,7 +107,7 @@ export class Match {
         if (this.stateT > 4.2) this.setState('playing');
         break;
       case 'playing': {
-        this.time -= dt;
+        if (!(CHEATS.cheatTimer && !this.attract)) this.time -= dt;
         if (!this.attract) {
           if (!this.lastMinuteFired && this.time <= 60 && this.duration > 60) { this.lastMinuteFired = true; emit('match:oneminute', {}); }
           const c = Math.ceil(this.time);
@@ -126,8 +127,9 @@ export class Match {
     const live = this.state === 'playing';
     for (const a of this.actors) {
       if (a.bot) {
-        if (live) a.bot.update(dt);
+        if (live && !cheatEnemyFrozen(a)) a.bot.update(dt);
         else { a.intent.move.set(0, 0, 0); a.intent.fire = a.intent.squid = a.intent.sub = a.intent.jump = a.intent.special = false; }
+        if (live && cheatEnemyPassive(a)) { a.intent.fire = a.intent.sub = a.intent.special = false; }
       }
     }
     for (const a of this.actors) a.update(dt);
