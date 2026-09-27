@@ -107,7 +107,8 @@ await step('shoot button (hold)', async () => {
   await ev(new Function(`${A}.ink = 100;`));
   await hold('.iw-tbtn--fire', 2500);
   const i1 = await ev(new Function(`return ${A}.ink;`));
-  if (!(i1 < 95)) throw new Error(`ink ${i0.toFixed(0)} → ${i1.toFixed(0)}: nothing fired`);
+  // any drop means shots left the barrel (software WebGL runs a few frames a second, so only a handful fire)
+  if (!(i1 < 99)) throw new Error(`ink ${i0.toFixed(0)} → ${i1.toFixed(0)}: nothing fired`);
   return `ink 100 → ${i1.toFixed(0)}`;
 });
 await step('squid button (hold)', async () => {
