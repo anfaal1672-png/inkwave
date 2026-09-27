@@ -227,6 +227,7 @@ export const DEFAULT_SETTINGS = {
   bloom: true,
   cameraShake: 1.0,         // 0..1
   showFps: false,
+  fpsCap: 0,                // frame rate limit: 0 (the display's rate) | 60 | 30 — phones start on 30 (cooler, longer battery)
   master: 0.8, music: 0.6, sfx: 0.85,
   colorblind: false,
   minimap: true,
@@ -246,10 +247,13 @@ export const DEFAULT_SETTINGS = {
 
 // Quality presets consumed by the renderer + fx. bake = resolution scale of the one-off sky bakes at boot (cloud dome,
 // far-scenery reflection cube; default 1): soft content, and on a phone GPU the full-size bakes cost most of a second.
+// pixelRatioPhone: the cap on phones and tablets instead (3× screens: 0.75 CSS px per pixel was a quarter of the panel's
+// resolution — blurry — and phones run at 30 fps by default, which pays for the sharper image).
+// lite: the ink surface skips the swim-wake and ripple loops (per-pixel loops over every inked pixel; eye candy).
 export const QUALITY = {
   // pixelRatio = cap on devicePixelRatio (Retina screens render at up to this density)
-  low:    { pixelRatio: 0.75, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4, bake: 0.5 },
-  medium: { pixelRatio: 1.0,  shadowSize: 2048, msaa: 2, bloom: true,  ao: false, paintAtlas: 2048, particles: 0.7 },
+  low:    { pixelRatio: 0.75, pixelRatioPhone: 1.0, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4, bake: 0.5, lite: true },
+  medium: { pixelRatio: 1.0,  pixelRatioPhone: 1.3, shadowSize: 2048, msaa: 2, bloom: true,  ao: false, paintAtlas: 2048, particles: 0.7 },
   high:   { pixelRatio: 1.5,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },
   ultra:  { pixelRatio: 2.0,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },
 };

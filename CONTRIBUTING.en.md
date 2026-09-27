@@ -58,6 +58,7 @@ The UI is Japanese by default, with English selectable under Settings → Gamepl
 node tools/i18n-check.mjs                  # every key has a Japanese entry with the same {placeholders}
 node tools/i18n-audit.mjs --shots out/ja   # renders every screen + HUD state, flags leftover English, saves screenshots
 python3 tools/subset-fonts.py              # after adding new kanji: rebuild the Japanese font subsets
+node tools/ui-shots.mjs out/phone          # every menu screen on an iPhone in landscape (notch insets included): overlap check
 ```
 
 ## Project map

@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { G, emit, clamp, lerp, smoothstep } from '../core/ctx.js';
 import { WEAPONS, SUB, SPECIALS, PLAYER } from '../config.js';
 import { Physics, Hit } from './physics.js';
+import { CHEATS, cheatMove } from './cheats.js';
 
 // local-player gamepad rumble (subtle; no-op without a pad or with settings.rumble = 0)
 function rumble(a, strong, weak, ms) { if (a && a.isLocal && !a.isBot) G.input?.rumble?.(strong, weak, ms); }
@@ -67,6 +68,7 @@ export class WeaponRunner {
   // current shot cone half-angle in degrees (HUD crosshair should use this)
   _spreadDeg(w) {
     const a = this.a;
+    if (CHEATS.cheatSteady && a.isLocal && !G.match?.attract) return 0;   // perfect aim (cheat)
     if (w.kind === 'shooter' || w.kind === 'splatling' || w.kind === 'dualies') {
       if (w.kind === 'dualies' && this.lockT > 0) return w.spreadLock;   // locked turret: tight
       const base = a.grounded ? w.spreadGround : w.spreadAir;
@@ -78,7 +80,7 @@ export class WeaponRunner {
 
   update(dt, inp) {
     const a = this.a, w = a.weapon;
-    this.cooldown -= dt; this.emptyCd -= dt; this.rumbleT -= dt;
+    this.cooldown -= dt * cheatMove(a, 'cheatFire'); this.emptyCd -= dt; this.rumbleT -= dt;
     this.firingT = Math.max(0, this.firingT - dt);
     this.flickRecover = Math.max(0, this.flickRecover - dt);
     // spread bloom recovers when the trigger is released (and slowly while still firing between shots)
@@ -1019,6 +1021,7 @@ export class Projectiles {
   // ---- damage routing
   applyHit(attacker, victim, dmg, weaponId) {
     if (!victim.alive || victim.team === attacker.team) return;
+    dmg *= cheatMove(attacker, 'cheatDamage');
     const killed = victim.damage(dmg, attacker, weaponId);
     emit('hit', { attacker, victim, damage: dmg, killed, weaponId });
     // ink smacking the body, at the body (heavier + lower for big hits); the UI tick / kill sting are main.js's

@@ -99,6 +99,7 @@ const SETTINGS_TABS = [
   ] },
   { id: 'video', label: N_('Video'), icon: 'monitor', rows: [
     { key: 'quality', label: N_('Graphics quality'), type: 'seg', options: [['low', N_('Low')], ['medium', N_('Med')], ['high', N_('High')], ['ultra', N_('Ultra')]], help: N_('Resolution scale, shadow detail, anti-aliasing and particle counts.') },
+    { key: 'fpsCap', label: N_('Frame rate limit'), type: 'seg', options: [[30, '30'], [60, '60'], [0, N_('Max')]], help: N_('30 fps keeps a phone much cooler and the battery lasts longer; 60 is smoother. Max follows the screen.') },
     { key: 'fov', label: N_('Field of view'), type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: N_('Wider shows more of the turf around you.') },
     { key: 'shadows', label: N_('Shadows'), type: 'toggle', help: N_('Soft sun shadows. Turn off for extra speed on older machines.') },
     { key: 'bloom', label: N_('Bloom glow'), type: 'toggle', help: N_('A soft glow around bright ink and specials.') },
@@ -118,8 +119,32 @@ const SETTINGS_TABS = [
     { key: 'difficulty', label: N_('Default bot skill'), type: 'seg', options: null, help: N_('Starting difficulty for new matches.') },
     { key: 'matchLength', label: N_('Default match length'), type: 'seg', options: null, help: N_('How long each Turf War lasts.') },
   ] },
+  // cheats (src/game/cheats.js): session-only — they start off on every load and are never saved
+  { id: 'cheats', label: N_('Cheats'), icon: 'star', rows: [
+    { key: 'cheatGod', label: N_('Invincible'), type: 'toggle', help: N_('Nothing can splat you. Falling into the sea just puts you back on your spawn pad.') },
+    { key: 'cheatTeamGod', label: N_('Invincible team'), type: 'toggle', help: N_('Nobody on your team takes damage.') },
+    { key: 'cheatInk', label: N_('Infinite ink'), type: 'toggle', help: N_('Your ink tank never runs dry, bombs included.') },
+    { key: 'cheatSpecial', label: N_('Special always ready'), type: 'toggle', help: N_('Your special gauge is full again as soon as you use it.') },
+    { key: 'cheatRespawn', label: N_('Instant respawn'), type: 'toggle', help: N_('Back in the fight half a second after being splatted.') },
+    { key: 'cheatSteady', label: N_('Perfect aim'), type: 'toggle', help: N_('No shot spread: every shot flies exactly where you aim.') },
+    { key: 'cheatSpeed', label: N_('Move speed'), type: 'seg', options: [[1, '×1'], [1.5, '×1.5'], [2, '×2']], help: N_('How fast you run, swim and climb.') },
+    { key: 'cheatJump', label: N_('Jump power'), type: 'seg', options: [[1, '×1'], [1.4, '×1.4'], [2, '×2']], help: N_('How high you jump.') },
+    { key: 'cheatGravity', label: N_('Gravity'), type: 'seg', options: [[1, N_('Normal')], [0.6, N_('Light')], [0.3, N_('Moon')]], help: N_('Lower gravity: longer, floatier jumps.') },
+    { key: 'cheatFire', label: N_('Fire rate'), type: 'seg', options: [[1, '×1'], [2, '×2'], [3, '×3']], help: N_('How fast your weapon fires.') },
+    { key: 'cheatDamage', label: N_('Damage'), type: 'seg', options: [[1, '×1'], [2, '×2'], [100, N_('One hit')]], help: N_('How hard your shots hit. One hit splats anyone in a single hit.') },
+    { key: 'cheatPaint', label: N_('Ink splat size (team)'), type: 'seg', options: [[1, '×1'], [1.5, '×1.5'], [2, '×2']], help: N_('Your team\'s ink spreads wider with every shot.') },
+    { key: 'cheatFreeze', label: N_('Freeze enemies'), type: 'toggle', help: N_('The other team stands still.') },
+    { key: 'cheatPassive', label: N_('Peaceful enemies'), type: 'toggle', help: N_('The other team still moves but never shoots.') },
+    { key: 'cheatTimer', label: N_('Stop the clock'), type: 'toggle', help: N_('The match timer stops counting down.') },
+    { key: 'cheatSlowmo', label: N_('Game speed'), type: 'seg', options: [[1, '×1'], [0.75, '×0.75'], [0.5, '×0.5']], help: N_('Slow the whole match down.') },
+    { key: '_cheat_refill', action: 'refill', label: N_('Refill now'), type: 'action', help: N_('Health, ink and special full right now (during a match).') },
+    { key: '_cheat_paint', action: 'paint', label: N_('Paint the whole stage'), type: 'action', help: N_('Covers the stage in your team\'s ink (during a match).') },
+    { key: '_cheat_time', action: 'time', label: N_('+1 minute'), type: 'action', help: N_('Adds a minute to the match clock (during a match).') },
+    { key: '_cheat_end', action: 'end', label: N_('End the match now'), type: 'action', help: N_('Runs the clock out and goes straight to the judging (during a match).') },
+  ] },
 ].filter((t) => !t.touchOnly || TOUCH_CAPABLE);
 const TAB_BLURB = {
+  cheats: N_('Invincibility, infinite ink, speed and more. They switch off again when the game reloads.'),
   touch: N_('Swipe speed, aim assist, squid button and the on-screen button layout.'),
   controls: N_('Look speed, invert, aim assist and the full control reference.'),
   video: N_('Quality tier, field of view and screen effects.'),
@@ -1817,6 +1842,10 @@ export class Menus {
       tab.rows.forEach((r, i) => {
         let ctrl;
         if (r.type === 'link') ctrl = { el: h('span', { class: 'iw-row__link' }, tr('VIEW'), h('i', { html: GLYPHS.next })), accept: () => { this._sfx('ui_click'); this._go('howto'); } };
+        else if (r.type === 'action') {
+          const el = h('span', { class: 'iw-row__link' }, tr('RUN'), h('i', { html: GLYPHS.next }));
+          ctrl = { el, accept: () => { const ok = !!safeCall(() => this.api.cheat && this.api.cheat(r.action)); this._sfx(ok ? 'ui_confirm' : 'ui_error'); restartAnim(el, ok ? 'is-done' : 'is-no'); } };
+        }
         else if (r.type === 'slider') ctrl = this._slider(r, s[r.key]);
         else if (r.type === 'toggle') ctrl = this._toggle(r, s[r.key]);
         else {
@@ -1826,12 +1855,12 @@ export class Menus {
           ctrl = this._seg(options, s[r.key], (v) => this._setSetting(r.key, v));
           ctrl.accept = ctrl.cycle;
         }
-        const row = h('div', { class: 'iw-row iw-rowin' + (r.type === 'link' ? ' iw-row--link' : ''), style: { '--i': i, '--dir': dirSign } },
+        const row = h('div', { class: 'iw-row iw-rowin' + (r.type === 'link' || r.type === 'action' ? ' iw-row--link' : ''), style: { '--i': i, '--dir': dirSign } },
           h('div', { class: 'iw-row__label' }, h('i', { class: 'iw-row__pip' }), tr(r.label)),
           h('div', { class: 'iw-row__ctrl' }, ctrl.el));
         row._key = r.key;
         this._bind(row, { id: 'set-' + r.key, type: 'row', accept: ctrl.accept, adjust: ctrl.adjust });
-        if (r.type !== 'link') controls.set(r.key, ctrl);
+        if (r.type !== 'link' && r.type !== 'action') controls.set(r.key, ctrl);
         rowsEl.appendChild(row);
       });
     };
@@ -1896,7 +1925,7 @@ export class Menus {
       initial: () => rowsEl.querySelector('[data-nav]'),
       afterMount: () => movePill(true),
       onFocus: (f) => {
-        if (f._key) showPreview(f._key);
+        if (f._key) showPreview(f._key, { tab: SETTINGS_TABS[tabIdx] });
         else if (f.dataset.nav === 'tab') { const t = SETTINGS_TABS[tabBtns.indexOf(f)]; if (t) showPreview('_tab_' + t.id, { label: t.label, help: TAB_BLURB[t.id], tab: t }); }
         else if (f.dataset.id === 'reset') showPreview('_reset', { label: 'Reset', help: 'Restore every setting to its original value. Your language stays as it is.' });
       },
@@ -2079,6 +2108,7 @@ export class Menus {
     const items = [
       { id: 'resume', label: 'RESUME', icon: GLYPHS.play, cls: 'iw-btn--menu iw-btn--primary', accept: () => this._resume(), sound: null },
       { id: 'settings', label: 'SETTINGS', icon: GLYPHS.gear, cls: 'iw-btn--menu', accept: () => this._go('settings') },
+      { id: 'cheats', label: 'CHEATS', icon: GLYPHS.star, cls: 'iw-btn--menu', accept: () => { this._settingsTab = SETTINGS_TABS.findIndex((t) => t.id === 'cheats'); this._go('settings'); } },
       { id: 'howto', label: 'HOW TO PLAY', icon: GLYPHS.question, cls: 'iw-btn--menu', accept: () => this._go('howto') },
       { id: 'quit', label: 'QUIT MATCH', icon: GLYPHS.close, cls: 'iw-btn--menu iw-btn--danger', accept: () => this._openModal({
         title: N_('QUIT MATCH?'), text: N_('You will leave this Turf War and head back to the lobby. Your turf will not count.'), danger: true,
@@ -2092,7 +2122,7 @@ export class Menus {
         ],
       }) },
     ];
-    const tilts = [-1.8, 1.2, -1, 1.4];
+    const tilts = [-1.8, 1.2, 1, -1, 1.4];
     const btns = items.map((it, i) => { const b = this._btn({ ...it, tilt: tilts[i] }); b.classList.add('iw-in', 'iw-in--left'); return b; });
 
     // ---- live match panel

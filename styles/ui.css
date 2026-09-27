@@ -1180,6 +1180,20 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
 .iw-head { left: calc(var(--u) * 3.4 + var(--sal)); top: calc(var(--u) * 2.2 + var(--sat)); }
 .iw-prompts { right: calc(var(--u) * 2.6 + var(--sar)); bottom: calc(var(--u) * 1.9 + var(--sab)); }
 .iw-corner--bl { left: calc(var(--u) * 3.4 + var(--sal)); } .iw-corner--br { right: calc(var(--u) * 3.4 + var(--sar)); }
+/* every screen keeps its content clear of the notch / Dynamic Island and the home bar (landscape phones; the insets
+   are 0 everywhere else). Same --u offsets as each screen's own rule, plus the inset on that side. */
+.iw-main__logo { left: calc(var(--u) * 3.4 + var(--sal)); top: calc(var(--u) * 2.6 + var(--sat)); }
+.iw-main__menu { left: calc(var(--u) * 3.8 + var(--sal)); }
+.iw-main__desc { left: calc(var(--u) * 4.3 + var(--sal)); }
+.iw-main__side { right: calc(var(--u) * 3.2 + var(--sar)); bottom: calc(var(--u) * 6.6 + var(--sab)); }
+.iw-howto__body { left: calc(var(--u) * 3.6 + var(--sal)); right: calc(var(--u) * 3.6 + var(--sar)); }
+.iw-settings__panel { left: calc(var(--u) * 3.6 + var(--sal)); }
+.iw-prev { left: calc(var(--u) * 5.6 + min(var(--u) * 58, 64vw) + var(--sal)); }
+.iw-pause__col { left: calc(var(--u) * 3.8 + var(--sal)); }
+.iw-pause__ref { right: calc(var(--u) * 3.8 + var(--sar)); }
+.iw-pmatch { right: calc(var(--u) * 3.8 + var(--sar)); }
+.iw-res__head { left: calc(var(--u) * 3.8 + var(--sal)); right: calc(var(--u) * 3.8 + var(--sar)); }
+.iw-res__body { left: calc(var(--u) * 3.8 + var(--sal)); right: calc(var(--u) * 3.8 + var(--sar)); bottom: calc(var(--u) * 6.2 + var(--sab)); }
 
 /* background: the selected stage, blurred + graded, over the live arena */
 .iw-ss__bg { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
@@ -1264,7 +1278,7 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
 .iw-ss__match .iw-setup__desc { padding: 0 calc(var(--u) * .6) calc(var(--u) * .2); margin-top: calc(var(--u) * -.15); font-size: var(--fs-xs); min-height: 2.6em; }
 
 /* ---- hero */
-.iw-ss__hero { position: absolute; left: calc(var(--u) * 32); right: calc(var(--u) * 3.4 + var(--sar)); top: calc(var(--u) * 10.6); height: calc(var(--u) * 30.4); }
+.iw-ss__hero { position: absolute; left: calc(var(--u) * 32 + var(--sal)); right: calc(var(--u) * 3.4 + var(--sar)); top: calc(var(--u) * 10.6); height: calc(var(--u) * 30.4); }
 .iw-ss__splat { position: absolute; z-index: 0; left: calc(var(--u) * -4.2); top: calc(var(--u) * -4.4); width: calc(var(--u) * 15); pointer-events: none; animation: iw-ss-splat 30s linear infinite; }
 .iw-ss__splat.is-b { left: auto; top: auto; right: calc(var(--u) * -3.6); bottom: calc(var(--u) * -5.4); width: calc(var(--u) * 12); animation-direction: reverse; animation-duration: 38s; }
 .iw-ss__splat svg { width: 100%; height: 100%; filter: drop-shadow(0 calc(var(--u) * .35) 0 rgba(0, 0, 0, .3)); }
@@ -1386,7 +1400,7 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
 .iw-daytgl.is-edge-l, .iw-daytgl.is-edge-r { animation: iw-shake .3s; }
 
 /* ---- footer: weapon · look · start */
-.iw-ss__foot { position: absolute; left: calc(var(--u) * 32); right: calc(var(--u) * 3.4 + var(--sar)); top: calc(var(--u) * 44); display: flex; align-items: center; gap: calc(var(--u) * 1.1); }
+.iw-ss__foot { position: absolute; left: calc(var(--u) * 32 + var(--sal)); right: calc(var(--u) * 3.4 + var(--sar)); top: calc(var(--u) * 44); display: flex; align-items: center; gap: calc(var(--u) * 1.1); }
 .iw-ss__foot .iw-wchip { flex: 1 1 0; min-width: 0; height: calc(var(--u) * 5.8); }
 .iw-ss__foot .iw-wchip__text b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .iw-ss__foot .iw-wchip__edit { padding: .5em; }

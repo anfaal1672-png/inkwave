@@ -23,6 +23,7 @@ import { Projectiles } from './game/weapons.js';
 import { CameraRig } from './game/cameraRig.js';
 import { Match } from './game/match.js';
 import { Minimap } from './game/minimap.js';
+import { CHEATS, CHEAT_DEFAULTS, isCheatKey, tickCheats, tickFill, runCheat } from './game/cheats.js';
 import { Showcase } from './game/showcase.js';
 import { tr, setLang, relabel, onLang } from './i18n/index.js';
 
@@ -31,7 +32,8 @@ const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
 // ------------------------------------------------------------------------------------------ persistence
 function loadJSON(key, def) { try { const v = JSON.parse(localStorage.getItem(key)); return v ? { ...def, ...v } : { ...def }; } catch { return { ...def }; } }
-function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ } }
+// cheat switches (settings keys "cheat…") are session-only: never written out
+function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v, (k, x) => (isCheatKey(k) ? undefined : x))); } catch { /* private mode */ } }
 const DEFAULT_PROFILE = { name: 'Player', level: 1, xp: 0, wins: 0, matches: 0, totalTurf: 0, weapon: 'shooter' };
 
 // Modules the boot loads dynamically (literal import() calls so a bundler can see and split them — tools/build.mjs)
@@ -68,10 +70,15 @@ class Game {
     const t0 = performance.now();
     // real top-down thumbnails for the stage cards, generated from each layout's geometry
     for (const m of MAPS) { try { m.thumb = layoutThumbSVG(MAP_LAYOUTS[m.layout || m.id], m.theme); } catch (e) { console.warn('thumb', m.id, e); } }
-    const firstRun = (() => { try { return !JSON.parse(localStorage.getItem('inkwave.settings'))?.quality; } catch { return true; } })();
-    this.settings = G.settings = loadJSON('inkwave.settings', DEFAULT_SETTINGS);
-    // phones and tablets start on the low preset (only before any quality has been saved — a choice is never overridden)
-    if (firstRun && TOUCH_PRIMARY) { this.settings.quality = 'low'; saveJSON('inkwave.settings', this.settings); }
+    const stored = (() => { try { return JSON.parse(localStorage.getItem('inkwave.settings')) || {}; } catch { return {}; } })();
+    this.settings = G.settings = { ...loadJSON('inkwave.settings', DEFAULT_SETTINGS), ...CHEAT_DEFAULTS };
+    // phones and tablets start on the low preset and 30 fps — each only while that setting has never been saved, so a
+    // choice is never overridden (players from before the frame-rate limit existed get 30 fps once)
+    if (TOUCH_PRIMARY && (!stored.quality || !('fpsCap' in stored))) {
+      if (!stored.quality) this.settings.quality = 'low';
+      if (!('fpsCap' in stored)) this.settings.fpsCap = 30;
+      saveJSON('inkwave.settings', this.settings);
+    }
     // v1.1: fov became horizontal — migrate old vertical values once
     if (this.settings.fovMode !== 'h') { this.settings.fov = DEFAULT_SETTINGS.fov; this.settings.fovMode = 'h'; saveJSON('inkwave.settings', this.settings); }
     this.profile = loadJSON('inkwave.profile', DEFAULT_PROFILE);
@@ -98,6 +105,7 @@ class Game {
 
     // renderer / scene
     this.R = new Renderer(app, this.settings);
+    this.R.phone = TOUCH_PRIMARY;   // phones: QUALITY[*].pixelRatioPhone
     G.renderer = this.R.renderer;
     const scene = (G.scene = new THREE.Scene());
     const camera = (G.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.15, 6500));
@@ -246,14 +254,14 @@ class Game {
     G.physics = new Physics(level);
     const lightmap = (this._lightmap = await this._loadLightmap(level, layoutId));
     G.paint = new PaintSystem(G.renderer, level, { atlasSize: q.paintAtlas, maxDensity: q.paintAtlas >= 4096 ? 30 : 18 });
-    this.levelMat = createLevelMaterial(G.paint.texture, G.paint.size, this.murals, { lightmap, texlib: this.texlib });
+    this.levelMat = createLevelMaterial(G.paint.texture, G.paint.size, this.murals, { lightmap, texlib: this.texlib, lite: !!q.lite });
     (this.swimWake || (this.swimWake = new SwimWake())).reset();
     this.levelMesh = new THREE.Mesh(level.buildGeometry(G.paint.size), this.levelMat);
     this.levelMesh.castShadow = true; this.levelMesh.receiveShadow = true;
     this.levelMesh.name = 'level';
     scene.add(this.levelMesh);
     // grates: same surface shader, cut-out holes, no ink (they cast no shadow; the mesh is too fine for the shadow map)
-    this.grateMat = createLevelMaterial(G.paint.texture, G.paint.size, this.murals, { grate: true, lightmap, texlib: this.texlib });
+    this.grateMat = createLevelMaterial(G.paint.texture, G.paint.size, this.murals, { grate: true, lightmap, texlib: this.texlib, lite: !!q.lite });
     const gg = level.buildGeometry(G.paint.size, (b) => b.grate);
     this.grateMesh = new THREE.Mesh(gg, this.grateMat);
     this.grateMesh.receiveShadow = true; this.grateMesh.visible = gg.index.count > 0;
@@ -338,6 +346,7 @@ class Game {
       weapons: WEAPONS, weaponOrder: WEAPON_ORDER, specials: SPECIALS, sub: SUB.bomb, maps: MAPS, difficulties: DIFFICULTY,
       getSettings: () => ({ ...self.settings }),
       setSettings: (partial) => self._setSettings(partial),
+      cheat: (id) => runCheat(id),
       getProfile: () => {
         const p = self.profile;
         return { ...p, played: p.matches, xpToNext: PROGRESSION.xpForLevel(p.level) };
@@ -364,7 +373,13 @@ class Game {
 
   _setSettings(partial) {
     Object.assign(this.settings, partial);
+    for (const k in partial) if (isCheatKey(k)) CHEATS[k] = partial[k];
     saveJSON('inkwave.settings', this.settings);
+    if ('quality' in partial) {
+      // the ink surface's lite switch is a shader define (applySettings below recompiles every material)
+      const lite = !!(QUALITY[this.settings.quality] || QUALITY.high).lite;
+      for (const m of [this.levelMat, this.grateMat]) if (m) { if (lite) m.defines.IW_LITE = 1; else delete m.defines.IW_LITE; }
+    }
     if ('quality' in partial || 'shadows' in partial || 'bloom' in partial) this.R?.applySettings(this.settings);
     if ('master' in partial || 'music' in partial || 'sfx' in partial) this._applyAudioVolumes();
     if ('colorblind' in partial && G.mode !== 'match') this._setPalette(this._pickPalette());
@@ -723,6 +738,15 @@ class Game {
   // ---------------------------------------------------------------------------------------- loop
   _loop() {
     requestAnimationFrame(() => this._loop());
+    // frame-rate limit (settings.fpsCap): skip display refreshes until a frame is due. The margin absorbs rAF jitter
+    // (a 60 Hz display at a 30 cap renders every second refresh, not every third); the clock is only read on frames
+    // that run, so dt spans the skipped ones.
+    const cap = +this.settings.fpsCap || 0;
+    if (cap > 0) {
+      const now = performance.now();
+      if (this._lastRun && now - this._lastRun < 1000 / cap - 4) return;
+      this._lastRun = now;
+    }
     this.timer.update(); let dt = this.timer.getDelta();
     if (this.frozen) return;
     this.fpsAcc += dt; this.fpsN++;
@@ -732,15 +756,16 @@ class Game {
     if ((this._viewT = (this._viewT || 0) + dt) >= 0.5) { this._viewT = 0; refreshView(); }
     this._dynRes(dt);
     dt = Math.min(dt, 1 / 24);
-    this._frame(dt);
+    // slow motion (cheat) for the match only: menus and the attract round keep their pace
+    this._frame(G.match && !G.match.attract ? dt * CHEATS.cheatSlowmo : dt);
   }
 
   // keep weaker GPUs playable: when a 4 s window of a live round averages under ~40 fps, drop render density one notch.
   // Stepping back up needs 12 s of real headroom and happens at most twice, so the image never pumps between sizes
   // (re-sizing every couple of seconds read as flicker).
-  // Phones and tablets aim for a steady 30 fps instead: they step down only under ~32 fps, but as far as half density,
-  // and step back up above ~50 fps. When even half density stays under 25 fps for 12 s (a slow or throttling device)
-  // and a lower preset exists, the HUD suggests it once.
+  // Phones and tablets aim for a steady 30 fps instead (under a frame-rate limit: 90 % of it). When even the lowest
+  // density stays under 25 fps for 12 s (a slow or throttling device) and a lower preset exists, the HUD suggests it
+  // once.
   _dynRes(dt) {
     if (dt <= 0 || dt > 0.25) return;
     const d = this._dyn || (this._dyn = { acc: 0, n: 0, t: 0, fast: 0, ups: 0 });
@@ -751,9 +776,14 @@ class Game {
     const m = this.match;
     if (this.settings.quality === 'ultra' || document.hidden || !m || m.attract || m.state !== 'playing') { d.fast = 0; return; }
     const s = this.R.dynScale || 1;
-    const phone = TOUCH_PRIMARY, floor = phone ? 0.5 : 0.75;
-    if (avg > (phone ? 1 / 32 : 1 / 40) && s > floor + 0.01) { this.R.setDynamicScale(s - 0.125, floor); d.fast = 0; d.slow = 0; }
-    else if (avg < (phone ? 1 / 50 : 1 / 75) && s < 1 && d.ups < 2) { d.slow = 0; if (++d.fast >= 3) { this.R.setDynamicScale(s + 0.125, floor); d.fast = 0; d.ups++; } }
+    // targets: under a frame-rate limit, hold 90 % of it (headroom can't show above the cap: step back up after 12 s
+    // at the cap); phones otherwise 30 fps, desktops 40. Phones never go below 0.75 — at half density a hot phone
+    // looked smeared, and the 30 fps limit leaves the GPU room at 0.75.
+    const phone = TOUCH_PRIMARY, cap = +this.settings.fpsCap || 0, floor = 0.75;
+    const slowDt = cap > 0 ? 1 / (cap * 0.9) : phone ? 1 / 32 : 1 / 40;
+    const fastDt = cap > 0 ? 1 / (cap * 0.97) : phone ? 1 / 50 : 1 / 75;
+    if (avg > slowDt && s > floor + 0.01) { this.R.setDynamicScale(s - 0.125, floor); d.fast = 0; d.slow = 0; }
+    else if (avg < fastDt && s < 1 && d.ups < 2) { d.slow = 0; if (++d.fast >= 3) { this.R.setDynamicScale(s + 0.125, floor); d.fast = 0; d.ups++; } }
     else {
       d.fast = 0;
       d.slow = avg > 1 / 25 && s <= floor + 0.01 ? (d.slow || 0) + 1 : 0;
@@ -777,6 +807,7 @@ class Game {
       const sub = dt > 1 / 45 ? 2 : 1; // substep physics on slow frames
       for (let i = 0; i < sub; i++) m.update(dt / sub);
       if (!m.paused) G.projectiles.update(dt);
+      if (!m.paused) { tickCheats(); tickFill(this._cheatV || (this._cheatV = new THREE.Vector3())); }
       if (m.attract) this._updateAttract(dt);
       else if (m.state === 'playing' && m.local?.alive && this.rig.mode !== 'follow' && this.rig.mode !== 'path') this.rig.follow(m.local, true);
     }
@@ -959,6 +990,7 @@ class Game {
     }
     // ally markers
     const markers = [];
+    const touch = this._usingTouch();
     const v = this._mv || (this._mv = new THREE.Vector3());
     const W = VIEW.w, H = VIEW.h;
     for (const o of m.actors) {
@@ -976,6 +1008,9 @@ class Game {
         angle = Math.atan2(dy, dx);
         const k = Math.min((W / 2 - 40) / Math.max(1e-3, Math.abs(Math.cos(angle))), (H / 2 - 40) / Math.max(1e-3, Math.abs(Math.sin(angle))));
         x = W / 2 + Math.cos(angle) * k; y = H / 2 + Math.sin(angle) * k;
+        // touch: the edges belong to the buttons (action cluster on the right, pause / map / minimap top left, the
+        // stick bottom left) — pin the edge markers inside them
+        if (touch) { x = clamp(x, W * 0.2, W * 0.64); y = clamp(y, H * 0.14, H * 0.6); }
       }
       markers.push({ x, y, name: o.name, color: G.teamHex[o.team], onScreen, angle, dist: o.pos.distanceTo(a.pos) });
     }
@@ -983,7 +1018,6 @@ class Game {
     this._hintT += dt;
     let prompt = null;
     const inkF = a.ink / PLAYER.inkMax;
-    const touch = this._usingTouch();
     this.touch?.sync({ specialReady: a.specialReady(), canSub: a.ink >= SUB.bomb.inkCost, mapOpen: this.rig.mapK > 0.3 });
     if (m.state === 'playing' && a.alive) {
       if (m.controller?.mapHeld) prompt = null;   // the map diorama carries its own super-jump hints

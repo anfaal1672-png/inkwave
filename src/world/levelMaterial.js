@@ -620,6 +620,7 @@ ${INK_GEL}
 #endif
   vec3 T = normalize(vFaceTan - vWNorm * dot(vFaceTan, vWNorm));
   vec3 Bt = cross(vWNorm, T);
+#ifndef IW_LITE
   if (gInk > 0.01) {
     // swim wakes: the ink itself ripples where a squid swims. Each trail segment sheds an expanding ripple (a stadium
     // around the path — their envelope opens into the V-wake) and the submerged body pushes up a glossy mound with a
@@ -676,6 +677,7 @@ ${INK_GEL}
     slope += vec2(dot(wS, T), dot(wS, Bt)) * gInk * wFar;
     gWake = clamp(wG, 0.0, 1.0) * gInk * wFar;
   }
+#endif
 ${INK_SLOPE}
   vec3 nBase = vWNorm;
 #ifdef USE_TEXLIB
@@ -708,6 +710,10 @@ ${INK_EMISSIVE}`)
   if (opts.grate) {
     mat.side = THREE.DoubleSide;
     mat.defines = { ...(mat.defines || {}), GRATE: 1 };
+  }
+  // lite (low preset): no swim-wake / ripple loops in the ink surface (main.js flips it when the preset changes)
+  if (opts.lite) {
+    mat.defines = { ...(mat.defines || {}), IW_LITE: 1 };
   }
   mat.customProgramCacheKey = () => 'inkwave-level-v5' + (opts.grate ? '-grate' : '');
   return mat;

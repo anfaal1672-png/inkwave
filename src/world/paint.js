@@ -25,6 +25,7 @@
 // kind: 'shot' 'line' 'blast' 'bomb' 'trail' 'drop' 'roll' 'speck' (inferred from radius/stretch when omitted;
 //       'roll' needs `stretch` = the roll direction and paints a straight-edged band segment instead of a blob)
 import * as THREE from 'three';
+import { cheatPaint } from '../game/cheats.js';
 
 const MAX_QUADS = 6000;
 const RIP_N = 24;
@@ -390,6 +391,7 @@ export class PaintSystem {
   // center: Vector3, radius (m), team 0|1, opts: { stretch: Vector3 dir, stretchAmt, seed, kind, instant, cosmetic }
   // Returns the area (m²) newly claimed by `team` (for turf points / special gauge).
   splat(center, radius, team, opts = {}) {
+    radius *= cheatPaint(team);   // ink splat size cheat (1 unless it is on)
     const seed = opts.seed ?? Math.random();
     const cosmetic = !!opts.cosmetic;
     const st = opts.stretch;

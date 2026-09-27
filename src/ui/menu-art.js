@@ -9,6 +9,7 @@ import {
 } from './ui-util.js';
 import { SQUID, GLYPHS, WEAPON_ICONS, SPLAT_ICON, SPECIAL_ICONS, mouseGlyph, padGlyph, keycap } from './ui-icons.js';
 import { tr, N_, LANGS } from '../i18n/index.js';
+import { TOUCH_PRIMARY } from '../core/touch.js';
 
 const K = '#15121c';
 const TAU = Math.PI * 2;
@@ -585,11 +586,12 @@ function previewQuality(ctx) {
   const chips = h('div', { class: 'iw-pv-chips' });
   const el = h('div', { class: 'iw-pv iw-pv--quality' }, ladder, chips);
   const Q = ctx.qualityTable || {};
+  const fmtPr = (p) => (+p || 1).toFixed(p % 1 ? 2 : 1).replace(/0$/, '');
   const set = (v) => {
     const q = Q[v] || Q.high || {};
     ladder.querySelectorAll('.iw-pv-ladder__col').forEach((c) => c.classList.toggle('is-on', c.dataset.q === v));
     const rows = [
-      [N_('Pixel density'), tr('up to {n}×', { n: (+q.pixelRatio || 1).toFixed(q.pixelRatio % 1 ? 2 : 1).replace(/0$/, '') })],
+      [N_('Pixel density'), tr('up to {n}×', { n: fmtPr((TOUCH_PRIMARY && q.pixelRatioPhone) || q.pixelRatio) })],
       [N_('Shadow map'), `${q.shadowSize || 0}px`],
       [N_('Anti-aliasing'), q.msaa ? `${q.msaa}× MSAA` : N_('Off')],
       [N_('Ink detail'), tr('{n}K atlas', { n: Math.round((q.paintAtlas || 2048) / 1024) })],
@@ -858,7 +860,7 @@ function previewLang(ctx) {
 function previewTab(ctx) {
   const t = ctx.tab || {};
   const el = h('div', { class: 'iw-pv iw-pv--tab', html: `<div class="iw-pv-tab__icon">${GLYPHS[t.icon] || GLYPHS.gear}</div>
-    <div class="iw-pv-tab__list">${(t.rows || []).map((r) => `<span>${tr(r.label)}</span>`).join('')}</div>` });
+    <div class="iw-pv-tab__list">${(t.rows || []).slice(0, 8).map((r) => `<span>${tr(r.label)}</span>`).join('')}${(t.rows || []).length > 8 ? '<span>…</span>' : ''}</div>` });
   return { el, set() {} };
 }
 function previewReset() {

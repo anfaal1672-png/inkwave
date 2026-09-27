@@ -88,10 +88,17 @@ html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callou
 .iw-hud.is-touch .iw-only-touch { display: block; }
 .iw-hud.is-touch .iw-no-touch, .iw-hud.is-touch .iw-map__label, .iw-hud.is-touch .iw-sp__ready .iw-key { display: none; }
 .iw-dio.is-touch .iw-pin:not(.iw-pin--self) .iw-pin__badge { pointer-events: auto; }
+/* touch HUD: the kill feed, prompts and the splatted hint stay clear of the action buttons. --tcl ≈ the width of the
+   right-hand button cluster (squid button's left edge; same formula as .iw-tbtn--squid at the default button size). */
+.iw-hud.is-touch { --tcl: calc(env(safe-area-inset-right, 0px) + 7vw + min(17vh, 10vw) * 2.45); }
+.iw-hud.is-touch .iw-feed { right: calc(env(safe-area-inset-right, 0px) + 3vw + min(17vh, 10vw) * .95 + 14px); top: calc(var(--u) * 8); }
+.iw-hud.is-touch .iw-prompt, .iw-hud.is-touch .iw-spl__hint { max-width: calc(100vw - 2 * var(--tcl)); white-space: normal; text-align: center; }
 
 /* ---- how-to: touch gestures column (long descriptions wrap instead of running off the panel) */
 .iw-ctl--touch .iw-ctl__keys { flex: 1 1 auto; min-width: 0; text-align: right; }
 .iw-ctl--touch .iw-ctl__act { flex: none; }
+/* pause quick controls: the touch gestures are too long for two columns */
+.iw-pctl .iw-ctl--touch { grid-template-columns: 1fr; }
 .iw-tgest { white-space: normal; line-height: 1.25; text-align: left; display: inline-block; padding: .28em .6em; border-radius: .5em; background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .25); font-weight: 700; font-size: .92em; }
 
 /* ---- settings preview: touch layout on a phone */
@@ -117,26 +124,58 @@ html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callou
 /* ---- short screens (landscape phones, ≤ 520 px tall). The UI is laid out on a 16:9 frame in --u, so on a phone the
    frame is ~390 px tall while the px floors of the type scale stay put: text grows relative to the layout. Lower the
    floors a little and let the panels that can outgrow the frame scroll (vertical pan only; the page itself never
-   scrolls). */
+   scrolls). The selectors carry .iw-ui: this file is @imported at the top of ui.css, so a rule here only beats the
+   base rules that come later in ui.css by being more specific. */
 @media (max-height: 520px) {
   .iw-ui, .iw-hud, .iw-hud-over {
     --fs-xs: max(9px, calc(var(--u) * .8)); --fs-s: max(9.5px, calc(var(--u) * .95));
     --fs-m: max(10.5px, calc(var(--u) * 1.1)); --fs-l: max(12px, calc(var(--u) * 1.4));
   }
-  .iw-rows, .iw-howto__body, .iw-wd, .iw-ss__left, .iw-pmatch, .iw-res__body {
+  .iw-ui .iw-rows, .iw-ui .iw-howto__body, .iw-ui .iw-wd, .iw-ui .iw-ss__left, .iw-ui .iw-pmatch, .iw-ui .iw-res__body {
     overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none;
   }
-  .iw-rows { max-height: calc(var(--u) * 27); }
-  .iw-howto__body { bottom: calc(var(--u) * 2); }
-  .iw-loadout__body { bottom: calc(var(--u) * 1.2); }
-  .iw-loadout__body .iw-wd { flex: 1 1 auto; min-height: 0; }
-  .iw-ss__left { bottom: calc(var(--u) * 1.2); }
-  .iw-ss__match .iw-setup__desc { display: none; }
-  .iw-pmatch { top: calc(var(--u) * 1.4); bottom: calc(var(--u) * 1.4); transform: none; }
+  .iw-ui .iw-rows { max-height: calc(var(--u) * 27); }
+  .iw-ui .iw-howto__body { bottom: calc(var(--u) * 2 + var(--sab)); }
+  .iw-ui .iw-loadout__body { bottom: calc(var(--u) * 1.2 + var(--sab)); }
+  .iw-ui .iw-loadout__body .iw-wd { flex: 1 1 auto; min-height: 0; }
+  .iw-ui .iw-ss__left { bottom: calc(var(--u) * 1.2 + var(--sab)); }
+  .iw-ui .iw-ss__match .iw-setup__desc { display: none; }
+  .iw-ui .iw-pmatch { top: calc(var(--u) * 1.4 + var(--sat)); bottom: calc(var(--u) * 1.4 + var(--sab)); transform: none; }
   /* weapon cards: the name matters more than the class line (the detail panel names the class) */
-  .iw-wgrid.is-compact .iw-wcard__name, :lang(ja) .iw-wgrid.is-compact .iw-wcard__name { font-size: 10.5px; letter-spacing: -.02em; }
-  .iw-wgrid.is-compact .iw-wcard__kind { display: none; }
+  .iw-ui .iw-wgrid.is-compact .iw-wcard__name, .iw-ui :lang(ja) .iw-wgrid.is-compact .iw-wcard__name { font-size: 10.5px; letter-spacing: -.02em; }
+  .iw-ui .iw-wgrid.is-compact .iw-wcard__kind { display: none; }
   /* settings: icons only for the tabs you are not on, so five tabs fit */
-  .iw-settings .iw-tab:not(.is-sel) > span { display: none; }
+  .iw-ui .iw-settings .iw-tab:not(.is-sel) > span { display: none; }
+
+  /* Fit, don't scroll: on a phone the parts below the fold looked cut off (nothing hints that a panel scrolls). */
+  /* stage select: slimmer tickets, a two-line name, the bot-skill pips dropped, a start button without the extras */
+  .iw-ui .iw-ss__list { gap: calc(var(--u) * .8); max-height: none; }
+  .iw-ui .iw-ticket { height: calc(var(--u) * 5.6); }
+  .iw-ui .iw-ticket__name { font-size: max(10px, calc(var(--u) * 1.35)); line-height: 1.05; right: calc(var(--u) * 3.6); }
+  .iw-ui .iw-ticket__time { width: calc(var(--u) * 2.2); height: calc(var(--u) * 2.2); top: calc(var(--u) * .45); }
+  .iw-ui .iw-ss__left { gap: calc(var(--u) * .6); }
+  .iw-ui .iw-ss__match { gap: calc(var(--u) * .3); padding: calc(var(--u) * .6); margin-top: 0; }
+  .iw-ui .iw-ss .iw-pips { display: none; }
+  .iw-ui .iw-ss .iw-seclabel { margin-bottom: 0; }
+  .iw-ui .iw-ss__foot .iw-start__ready, .iw-ui .iw-ss__foot .iw-start__chev { display: none; }
+  .iw-ui .iw-ss__foot .iw-btn--start .iw-btn__sub { max-width: none; }
+  /* how to play: smaller pictures on the rule cards, tighter control rows */
+  .iw-ui .iw-rule { padding: calc(var(--u) * .7) calc(var(--u) * .8) calc(var(--u) * .8); }
+  .iw-ui .iw-rule__art { height: calc(var(--u) * 5.4); margin-bottom: calc(var(--u) * .5); }
+  .iw-ui .iw-rule__text { line-height: 1.3; }
+  .iw-ui .iw-howto__rules { gap: calc(var(--u) * 1); }
+  .iw-ui .iw-howto__ctl { padding: calc(var(--u) * 1) calc(var(--u) * 1.2) calc(var(--u) * .9); }
+  .iw-ui .iw-ctl__row { min-height: calc(var(--u) * 2.3); padding-block: 1px; }
+  .iw-ui .iw-howto__ctl > .iw-seclabel { display: none; }
+  .iw-ui .iw-howto__ctl .iw-ctl__act, .iw-ui .iw-howto__ctl .iw-ctl__keys { font-size: var(--fs-s); }
+  .iw-ui .iw-howto__ctl .iw-tgest { padding: .18em .5em; }
+  /* pause: the scoreboard gets the height; the full control list is one tap away (How to play) */
+  .iw-ui .iw-pctl { display: none; }
+  /* weapons: shorter grid cards so the detail panel (stats) fits under them */
+  .iw-ui .iw-wgrid.is-compact .iw-wcard { height: calc(var(--u) * 6.9); }
+  .iw-ui .iw-wgrid.is-compact .iw-wcard__icon svg { height: calc(var(--u) * 3.3); }
+  .iw-ui .iw-wd { padding: calc(var(--u) * .9) calc(var(--u) * 1.2) calc(var(--u) * 1); gap: calc(var(--u) * .5) calc(var(--u) * 1.4); }
+  /* results: the score body starts higher so the buttons stay on screen */
+  .iw-ui .iw-res__body { top: calc(var(--u) * 14 + var(--sat)); bottom: calc(var(--u) * 1.4 + var(--sab)); gap: calc(var(--u) * .7); }
 }
 :lang(ja) .iw-btn--start { font-size: calc(var(--u) * 2.3); }
