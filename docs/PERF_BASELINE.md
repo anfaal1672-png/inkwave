@@ -114,4 +114,7 @@ npm run measure -- --profile mobile  --settings "$LOW" --runs 1                #
 
 - `npm run smoke`（デスクトップ）：Linux では low 画質・960×540 で実行します。
 - `npm run smoke:mobile`：スマホ模擬で同じ確認をします。タッチ操作に対応するまで（Phase 2）は、起動して試合が進むことだけを確認します。
-- 結果：確認中
+- 結果：どちらも成功しました（試合が `playing` まで進み、コンソールエラーなし）。この環境では 1 回に約 4 分かかります。
+  - デスクトップ：boot 50.8 秒、draw calls 209
+  - スマホ模擬：boot 61.9 秒、sim 45.5 ms、draw calls 185
+  - どちらも警告は `KHR_parallel_shader_compile extension not supported`（SwiftShader に対応機能がないため）の 1 件だけです。

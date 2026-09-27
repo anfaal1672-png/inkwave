@@ -19,7 +19,7 @@ const profile = opt('profile', null);
 const TIMEOUT = +opt('timeout', 180000);
 const W = +opt('w', profile ? PROFILES[profile].width : 1600), H = +opt('h', profile ? PROFILES[profile].height : 900);
 
-const browser = await puppeteer.launch(launchOptions({ width: W, height: H }));
+const browser = await puppeteer.launch({ ...launchOptions({ width: W, height: H }), protocolTimeout: TIMEOUT + 60000 });
 const page = await browser.newPage();
 if (profile) await applyProfile(page, profile);
 const seed = opt('settings', null);
@@ -29,7 +29,7 @@ page.on('console', (m) => { const t = m.type(); if (t === 'error' || t === 'warn
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}\n${(e.stack || '').split('\n').slice(0, 5).join('\n')}`));
 await page.goto(url, { waitUntil: 'load', timeout: TIMEOUT });
 for (const s of steps) {
-  if (s.until) { try { await page.waitForFunction(s.until, { timeout: TIMEOUT, polling: 150 }); } catch { console.log('until timeout', s.until); } }
+  if (s.until) { try { await page.waitForFunction(s.until, { timeout: TIMEOUT, polling: 150 }); } catch (e) { console.log('until timeout', s.until, '-', e.message.split('\n')[0]); } }
   if (s.wait) await new Promise((r) => setTimeout(r, s.wait));
   if (s.down) await page.keyboard.down(s.down);
   if (s.up) await page.keyboard.up(s.up);
