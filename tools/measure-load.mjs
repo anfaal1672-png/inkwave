@@ -8,7 +8,8 @@
 //   boot      bootMs (navigation → title screen), bootMarks (per loading stage), DOMContentLoaded / load / FCP
 //   frame     over --seconds of live play on autopilot: average fps, 1 % low fps (99th percentile frame time),
 //             draw calls / triangles, dynamic-resolution scale, GPU resource counts, JS heap
-// With --cache warm the page is loaded once to fill the HTTP cache and the second load is measured.
+// Cold = a fresh browser profile (empty HTTP cache). With --cache warm the page is loaded once to fill the cache and
+// the second load is measured; responses served from cache or revalidated (304) count as requests without bytes.
 // Summary values are medians over the runs; `spread` gives min..max for the headline numbers.
 import puppeteer from 'puppeteer-core';
 import { readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
@@ -59,16 +60,18 @@ async function oneRun(i) {
     if (cache === 'warm') {
       await page.goto(url, { waitUntil: 'load', timeout: 300000 });
       await page.waitForFunction('window.__inkwave && __inkwave.bootMs', { timeout: 600000, polling: 250 });
-    } else {
-      await cdp.send('Network.setCacheDisabled', { cacheDisabled: true });
     }
+    // cold = the fresh, empty profile puppeteer launches with (the HTTP cache still dedupes repeat requests within the
+    // page, as on a real first visit)
 
     // resource accounting for the measured navigation
     const reqs = new Map();
     const onResp = (e) => { reqs.set(e.requestId, { url: e.response.url, type: e.type, status: e.response.status, fromCache: e.response.fromDiskCache || e.response.fromServiceWorker, bytes: 0 }); };
     const onDone = (e) => { const r = reqs.get(e.requestId); if (r) r.bytes = e.encodedDataLength; };
+    const onCached = (e) => { const r = reqs.get(e.requestId); if (r) r.fromCache = true; };
     cdp.on('Network.responseReceived', onResp);
     cdp.on('Network.loadingFinished', onDone);
+    cdp.on('Network.requestServedFromCache', onCached);
 
     await page.goto(url, { waitUntil: 'load', timeout: 300000 });
     await page.waitForFunction('window.__inkwave && __inkwave.bootMs', { timeout: 600000, polling: 250 });
@@ -85,18 +88,19 @@ async function oneRun(i) {
     });
     cdp.off('Network.responseReceived', onResp);
     cdp.off('Network.loadingFinished', onDone);
+    cdp.off('Network.requestServedFromCache', onCached);
 
     const transfer = { total: { count: 0, bytes: 0, gzip: 0, brotli: 0, cached: 0 }, byType: {} };
     for (const r of reqs.values()) {
       if (r.url.startsWith('data:')) continue;
       const t = (transfer.byType[r.type] ||= { count: 0, bytes: 0, gzip: 0, brotli: 0 });
+      if (r.fromCache || r.status === 304) { transfer.total.cached++; continue; }
       const p = packed(new URL(r.url).pathname);
       for (const o of [t, transfer.total]) {
         o.count++; o.bytes += r.bytes;
         o.gzip += p ? Math.min(p.gzip, r.bytes || p.gzip) : r.bytes;
         o.brotli += p ? Math.min(p.brotli, r.bytes || p.brotli) : r.bytes;
       }
-      if (r.fromCache) transfer.total.cached++;
     }
 
     // live play: wait for the round, let it settle, then sample every frame
@@ -166,6 +170,7 @@ const summary = {
   },
   transfer: {
     requests: results[0].transfer.total.count,
+    fromCache: results[0].transfer.total.cached,
     kb: kb(results[0].transfer.total.bytes),
     gzipKb: kb(results[0].transfer.total.gzip),
     brotliKb: kb(results[0].transfer.total.brotli),
