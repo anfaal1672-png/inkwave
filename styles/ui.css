@@ -6,10 +6,11 @@
 @font-face { font-family: 'Titan One'; src: url('../assets/fonts/TitanOne-latin.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: block; }
 @font-face { font-family: 'Rubik'; src: url('../assets/fonts/Rubik-latin.woff2') format('woff2'); font-weight: 400 900; font-style: normal; font-display: block; }
 /* Japanese: M PLUS Rounded 1c subsets (tools/subset-fonts.py). Only downloaded when a page shows Japanese — the Latin
-   faces come first in every stack and unicode-range keeps these off Latin text. The display face reuses the 800 file. */
-@font-face { font-family: 'IW JP'; src: url('../assets/fonts/MPLUSRounded1c-500-jp.woff2') format('woff2'); font-weight: 400 600; font-style: normal; font-display: swap; unicode-range: U+00A0-00FF, U+2010-2027, U+2030-205E, U+2190-21FF, U+2460-24FF, U+25A0-27BF, U+3000-30FF, U+4E00-9FFF, U+FF01-FF9F; }
-@font-face { font-family: 'IW JP'; src: url('../assets/fonts/MPLUSRounded1c-800-jp.woff2') format('woff2'); font-weight: 700 900; font-style: normal; font-display: swap; unicode-range: U+00A0-00FF, U+2010-2027, U+2030-205E, U+2190-21FF, U+2460-24FF, U+25A0-27BF, U+3000-30FF, U+4E00-9FFF, U+FF01-FF9F; }
-@font-face { font-family: 'IW JP Display'; src: url('../assets/fonts/MPLUSRounded1c-800-jp.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+00A0-00FF, U+2010-2027, U+2030-205E, U+2190-21FF, U+2460-24FF, U+25A0-27BF, U+3000-30FF, U+4E00-9FFF, U+FF01-FF9F; }
+   faces come first in every stack and unicode-range (kana, CJK, full-width forms only) keeps these off Latin text and
+   symbols like the arrow key caps. The display face reuses the 800 file. */
+@font-face { font-family: 'IW JP'; src: url('../assets/fonts/MPLUSRounded1c-500-jp.woff2') format('woff2'); font-weight: 400 600; font-style: normal; font-display: swap; unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF01-FF9F; }
+@font-face { font-family: 'IW JP'; src: url('../assets/fonts/MPLUSRounded1c-800-jp.woff2') format('woff2'); font-weight: 700 900; font-style: normal; font-display: swap; unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF01-FF9F; }
+@font-face { font-family: 'IW JP Display'; src: url('../assets/fonts/MPLUSRounded1c-800-jp.woff2') format('woff2'); font-weight: 400; font-style: normal; font-display: swap; unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF01-FF9F; }
 :root {
   --font-body: 'Rubik', 'IW JP', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', system-ui, sans-serif;
   --font-display: 'Titan One', 'IW JP Display', 'Rubik', 'Hiragino Maru Gothic ProN', 'Hiragino Sans', 'Noto Sans JP', sans-serif;
