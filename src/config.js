@@ -244,10 +244,11 @@ export const DEFAULT_SETTINGS = {
   touchOpacity: 0.85,       // on-screen button opacity 0.3..1
 };
 
-// Quality presets consumed by the renderer + fx.
+// Quality presets consumed by the renderer + fx. bake = resolution scale of the one-off sky bakes at boot (cloud dome,
+// far-scenery reflection cube; default 1): soft content, and on a phone GPU the full-size bakes cost most of a second.
 export const QUALITY = {
   // pixelRatio = cap on devicePixelRatio (Retina screens render at up to this density)
-  low:    { pixelRatio: 0.75, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4 },
+  low:    { pixelRatio: 0.75, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4, bake: 0.5 },
   medium: { pixelRatio: 1.0,  shadowSize: 2048, msaa: 2, bloom: true,  ao: false, paintAtlas: 2048, particles: 0.7 },
   high:   { pixelRatio: 1.5,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },
   ultra:  { pixelRatio: 2.0,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },

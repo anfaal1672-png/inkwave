@@ -126,7 +126,7 @@ class Game {
     await this._buildWorld(map);
     await progress(0.4, tr('Filling the harbor…'));
     const B = G.level.bounds;
-    G.env = new envMod.Environment(G.renderer, scene, { bounds: B, theme: this.theme, shadowSize: q.shadowSize, footprint: this._footprint(G.level) });
+    G.env = new envMod.Environment(G.renderer, scene, { bounds: B, theme: this.theme, shadowSize: q.shadowSize, bake: q.bake ?? 1, footprint: this._footprint(G.level) });
     if (G.env.envMap) scene.environment = G.env.envMap;
     // lighting balance: less omnidirectional sky flood, more directional sky/ground fill → surfaces keep their form
     scene.environmentIntensity = 0.66;

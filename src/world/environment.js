@@ -1351,6 +1351,7 @@ export class Environment {
     this.bounds = { minX: b.minX, maxX: b.maxX, minZ: b.minZ, maxZ: b.maxZ };
     this.footprint = (opts.footprint && opts.footprint.length ? opts.footprint : [this.bounds]).slice(0, MAX_RECTS).map((r) => ({ ...r }));
     this.shadowSize = opts.shadowSize || 4096;
+    this.bake = opts.bake || 1;   // one-off sky bake resolution scale (QUALITY[*].bake)
     this.waterY = WATER_Y;
     this.time = 0;
     this.theme = null;
@@ -1479,7 +1480,8 @@ export class Environment {
   }
 
   _initCloudBake() {
-    this._cloudRT = new THREE.WebGLRenderTarget(CLOUD_W, CLOUD_H, {
+    const cw = (this._cw = Math.round(CLOUD_W * this.bake)), ch = (this._ch = Math.round(CLOUD_H * this.bake));
+    this._cloudRT = new THREE.WebGLRenderTarget(cw, ch, {
       type: THREE.HalfFloatType, format: THREE.RGBAFormat, colorSpace: THREE.NoColorSpace,
       minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: false,
       wrapS: THREE.RepeatWrapping, wrapT: THREE.ClampToEdgeWrapping, depthBuffer: false, stencilBuffer: false,
@@ -1487,7 +1489,7 @@ export class Environment {
     this.U.uCloudTex.value = this._cloudRT.texture;
     this._cloudMat = new THREE.ShaderMaterial({
       name: 'CloudBake', vertexShader: 'void main() { gl_Position = vec4(position.xy, 0.0, 1.0); }', fragmentShader: CLOUD_BAKE_FRAG,
-      uniforms: { ...this.U, uRes: { value: new THREE.Vector2(CLOUD_W, CLOUD_H) }, uSunCol: { value: new THREE.Color() }, uSeed: { value: 3.0 }, uCov: { value: 0.46 } },
+      uniforms: { ...this.U, uRes: { value: new THREE.Vector2(cw, ch) }, uSunCol: { value: new THREE.Color() }, uSeed: { value: 3.0 }, uCov: { value: 0.46 } },
       depthTest: false, depthWrite: false, toneMapped: false,
     });
     const g = new THREE.BufferGeometry();
@@ -1509,10 +1511,11 @@ export class Environment {
     const rt = this._cloudRT;
     r.setRenderTarget(rt);
     r.setClearColor(0x000000, 0); r.clear(true, false, false);
-    const strips = 10, h = Math.ceil(CLOUD_H / strips);
+    const W = this._cw, H = this._ch;
+    const strips = 10, h = Math.ceil(H / strips);
     rt.scissorTest = true;
     for (let i = 0; i < strips; i++) {
-      rt.scissor.set(0, i * h, CLOUD_W, Math.min(h, CLOUD_H - i * h));
+      rt.scissor.set(0, i * h, W, Math.min(h, H - i * h));
       r.setRenderTarget(rt);
       r.render(this._cloudScene, this._cloudCam);
     }
@@ -1652,7 +1655,7 @@ export class Environment {
     if (!this._marina) { U.uFarOn.value = 0; return; }
     const r = this.renderer;
     if (!this._farRT) {
-      this._farRT = new THREE.WebGLCubeRenderTarget(512, {
+      this._farRT = new THREE.WebGLCubeRenderTarget(Math.round(512 * this.bake), {
         type: THREE.HalfFloatType, format: THREE.RGBAFormat, colorSpace: THREE.NoColorSpace,
         generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter,
       });
