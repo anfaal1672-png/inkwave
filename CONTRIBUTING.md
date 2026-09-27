@@ -1,79 +1,100 @@
-# Contributing to INKWAVE
+<p align="right"><b>日本語</b> · <a href="CONTRIBUTING.en.md">English</a></p>
 
-Thanks for your interest! INKWAVE is a plain ES-module three.js project with no build step, so getting started takes a minute.
+# INKWAVE の開発に参加する
 
-## Running locally
+興味を持ってくれてありがとうございます。INKWAVE は素の ES モジュールで書いた three.js のプロジェクトで、開発時にビルドは要りません。すぐに始められます。
+
+## ローカルで動かす
 
 ```bash
 git clone https://github.com/jaydendavisnc/inkwave.git
 cd inkwave
-npm install          # only needed for the headless tools (puppeteer-core)
-npm start            # serves http://localhost:8490 (and your LAN address)
+npm install          # ヘッドレスのツール（puppeteer-core）を使うときだけ必要
+npm start            # http://localhost:8490 で配信（LAN のアドレスでも開けます）
 ```
 
-Open the URL in Chrome, Edge or Firefox. Everything reloads on refresh; there is no bundler.
+Chrome、Edge、Firefox で URL を開いてください。再読み込みすれば変更が反映されます。バンドラーは本番ビルド（`npm run build`）のときだけ使います。
 
-## Before opening a pull request
+## Pull Request を出す前に
 
 ```bash
-npm run check        # node --check on every module
-npm run smoke        # boots the game headlessly and plays 8 s on autopilot (needs Google Chrome installed)
-npm run smoke:mobile # the same in landscape-phone emulation (touch, 3× DPR, 4× CPU throttle, Fast 4G)
-npm run test:touch   # touch-only play-through: title → match (every on-screen control) → results
+npm run check        # 全モジュールに node --check を実行（modulepreload の一覧が古くないかも確認）
+npm run i18n         # 翻訳のチェック（全項目に日本語があり、{プレースホルダー} が一致しているか）
+npm run smoke        # ヘッドレスで起動し、8 秒間オートパイロットで遊ぶ（Chrome / Chromium が必要）
+npm run smoke:mobile # 同じことを横向きのスマホ模擬で（タッチ、DPR 3、CPU 4 倍遅延、Fast 4G）
+npm run test:touch   # タッチ操作だけで、タイトル → 試合（全ボタン）→ 結果まで進める
 ```
 
-The headless tools find Chrome/Chromium per platform (`tools/browser.mjs`); set `CHROME_PATH` to use another binary. The smoke runs start the dev server themselves when nothing is listening on :8490. On Linux without a GPU, WebGL runs in software (SwiftShader), so the smoke uses the low preset there and takes a few minutes.
+- ヘッドレスのツールは、OS ごとに Chrome / Chromium を探します（`tools/browser.mjs`）。別のブラウザを使うときは `CHROME_PATH` を指定してください。
+- smoke は、:8490 で何も動いていなければ開発サーバーを自分で起動します。
+- GPU のない Linux では WebGL をソフトウェア（SwiftShader）で描画します。そのため smoke は low 画質で実行し、数分かかります。
 
-For load-time and frame-rate work, measure before and after with:
+## 計測
+
+ロード時間やフレームの負荷に関わる変更では、変更の前後を次のツールで計測してください。
 
 ```bash
-npm run measure -- --profile desktop --runs 3            # or --profile mobile, --cache warm, --settings '{"quality":"low"}'
-npm run bench                                             # main-thread ms per frame (mobile emulation, low) + where it goes
-node tools/profile-boot.mjs --profile mobile --shaders    # boot CPU profile + every shader program's compile time
+npm run measure -- --profile desktop --runs 3            # --profile mobile、--cache warm、--settings '{"quality":"low"}' なども可
+npm run bench                                             # 1 フレームの CPU 時間（スマホ模擬、low）とその内訳
+node tools/profile-boot.mjs --profile mobile --shaders    # 起動中の CPU プロファイルと、シェーダーごとのコンパイル時間
 ```
 
-`npm run measure` prints download size (raw and brotli), the boot timeline per loading stage, and fps / 1 % low / draw calls over 10 s of live play as JSON. Baseline numbers live in [docs/PERF_BASELINE.md](docs/PERF_BASELINE.md). Frame rates under software WebGL are only comparable with each other, never with real hardware.
+- `npm run measure` は、転送量（そのまま / brotli 後）、ロード画面の段階ごとの時間、試合中 10 秒間の fps・1% low・描画コール数を JSON で出力します。これまでの計測値は [docs/PERF_BASELINE.md](docs/PERF_BASELINE.md) にあります。
+- `npm run bench` は、1 フレームの更新処理（試合、ボット、物理、ペイント、エフェクト、HUD、ミニマップ）を、30fps の固定ステップで描画なしで回し、プロファイルを取ります（`--render` を付けると描画も含めます）。ソフトウェア描画では fps は当てになりませんが、この CPU 時間は比べられます。
+- ソフトウェア描画での fps は、同じ環境での比較にだけ使ってください。実機の値とは比べられません。
 
-`npm run bench` runs the whole per-frame update (match, bots, physics, paint, effects, HUD, minimap) at a fixed 30 fps step with drawing skipped (`--render` includes it) and profiles it: software WebGL cannot tell you a frame rate, but this CPU budget is comparable.
-
-## Production build
+## 本番ビルド
 
 ```bash
-npm run build        # → dist/: bundled + minified JS split per dynamic import, hashed file names, service worker
-npm run smoke:dist   # the smoke runs against dist/ (served on :8492)
+npm run build        # → dist/：minify した JS を動的 import ごとに分割、ハッシュ付きファイル名、Service Worker
+npm run smoke:dist   # dist/ に対して smoke を実行（:8492 で配信）
 ```
 
-Development never needs the build: `npm start` serves the source tree as-is. `tools/build.mjs` bundles with esbuild, turns the baked lightmaps into WebP (`tools/lightmaps-webp.py`, needs Pillow), writes `sw.js` (second visits and offline play come from the cache) and a Cloudflare Pages `_headers` file. After new stage shots, `python3 tools/stage-variants.py` regenerates the 1280-px stage-select renders; after new modules on the boot path, `node tools/gen-preload.mjs` refreshes the dev preload list (`npm run check` flags it when stale).
+- 開発にビルドは要りません。`npm start` はソースをそのまま配信します。
+- `tools/build.mjs` は次のことを行います。
+  - esbuild でバンドルする。
+  - 焼き込んだライトマップを WebP にする（`tools/lightmaps-webp.py`、Pillow が必要）。
+  - `sw.js` を書き出す（2 回目以降の訪問とオフラインでの起動はキャッシュから）。
+  - Cloudflare Pages 用の `_headers` を書き出す。
+- ステージのスクリーンショットを撮り直したら、`python3 tools/stage-variants.py` でステージ選択用の 1280px 版を作り直してください。
+- 起動時に読むモジュールを増やしたら、`node tools/gen-preload.mjs` で開発用の先読み一覧を更新してください（古いと `npm run check` が知らせます）。
 
-Keep pull requests focused. If you change gameplay tuning, say what you measured and how (see `tools/measure-handling.mjs` and `tools/film.py` for the deterministic capture helpers).
+Pull Request は目的を 1 つに絞ってください。ゲームバランスや操作感を変えるときは、何をどう計測したかを書いてください（再現できる記録には `tools/measure-handling.mjs` と `tools/film.py` が使えます）。
 
-## UI text and translations
+## UI の文字列と翻訳
 
-The UI is Japanese by default, with English selectable under Settings → Gameplay → Language. Write UI strings in English and wrap them in `tr()` from `src/i18n/index.js` (or `N_()` where a data table defines them), then add the Japanese to `src/i18n/ja.js`. English strings are the keys, and anything untranslated falls back to English.
+- UI は日本語が初期設定で、「設定 → ゲームプレイ → 言語」で英語に切り替えられます。
+- UI の文字列は英語で書き、`src/i18n/index.js` の `tr()` で囲みます（データの表で定義する文字列は `N_()`）。そのうえで、日本語を `src/i18n/ja.js` に追加してください。
+- 英語の文字列がそのままキーになります。訳がないものは英語で表示されます。
+- 用語はスプラトゥーンの公式用語（ナワバリバトル、ブキ、スペシャル、スーパージャンプ など）に合わせます。一覧は [docs/MASTER_PROMPT.md](docs/MASTER_PROMPT.md) の Phase 1 の用語集にあります。
 
 ```bash
-node tools/i18n-check.mjs                  # every key has a Japanese entry with the same {placeholders}
-node tools/i18n-audit.mjs --shots out/ja   # renders every screen + HUD state, flags leftover English, saves screenshots
-python3 tools/subset-fonts.py              # after adding new kanji: rebuild the Japanese font subsets
+node tools/i18n-check.mjs                  # 全キーに日本語があり、{プレースホルダー} が一致しているか
+node tools/i18n-audit.mjs --shots out/ja   # 全画面と HUD の状態を描画し、英語の取り残しを探してスクリーンショットを保存
+python3 tools/subset-fonts.py              # 新しい漢字を使ったら、日本語フォントのサブセットを作り直す
 ```
 
-## Project map
+## プロジェクトの構成
 
-| Path | What lives there |
+| パス | 中身 |
 |---|---|
-| `src/core` | renderer + post chain, input, event bus |
-| `src/game` | actors, weapons, bots, camera rig, character rig + animation, match flow |
-| `src/world` | stage layouts, level geometry, ink painting, textures, environment, props |
-| `src/fx` | particles, screen effects, event → effect wiring |
-| `src/ui` | menus, HUD, map diorama, icons |
-| `src/audio` | procedural sound effects and music |
-| `docs` | event contract, module contracts, character rig reference |
-| `tools` | dev server, labs, headless capture and measurement scripts, release |
+| `src/core` | レンダラーとポストエフェクト、入力（タッチ操作を含む）、イベントバス |
+| `src/game` | キャラクター、ブキ、ボット、カメラ、キャラクターのリグとアニメーション、試合の流れ |
+| `src/world` | ステージのレイアウト、地形、インクの塗り、テクスチャ、環境、小物 |
+| `src/fx` | パーティクル、画面エフェクト、イベントとエフェクトのつなぎ |
+| `src/ui` | メニュー、HUD、マップのジオラマ、アイコン |
+| `src/i18n` | 翻訳（`tr()`、日本語の辞書） |
+| `src/audio` | 手続き生成の効果音と音楽 |
+| `docs` | イベントとモジュールの取り決め、リグの資料、計測結果、既知の問題 |
+| `tools` | 開発サーバー、ラボ、ヘッドレスの撮影・計測スクリプト、ビルド、リリース |
 
-## Code style
+## コードの書き方
 
-Match the surrounding code: 2-space indent, single quotes, no semicolon-free style, comments that explain *why*. No per-frame allocations in hot paths. New stages must keep both halves identical (the layout is mirrored by a 180° rotation).
+- まわりのコードに合わせてください：インデントは 2 スペース、シングルクォート、セミコロンあり、コメントは「なぜ」を説明する。
+- 毎フレーム実行される処理では、オブジェクトを新しく作らないでください。
+- フレームの途中で `innerWidth` などのレイアウトを読むプロパティは使わず、`src/core/ctx.js` の `VIEW` を使ってください（同期レイアウトを防ぐため）。
+- 新しいステージは、両チーム側が同じ形になるようにしてください（レイアウトは 180° 回転で複製されます）。
 
-## Reporting bugs
+## 不具合の報告
 
-Open an issue with your browser + GPU, the stage, and steps to reproduce. A screenshot or short clip helps a lot.
+Issue に、ブラウザと GPU（スマホの場合は機種）、ステージ、再現手順を書いてください。スクリーンショットや短い動画があると助かります。
