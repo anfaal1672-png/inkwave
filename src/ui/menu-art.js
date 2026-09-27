@@ -823,6 +823,29 @@ function previewLink() {
   return { el, set() {} };
 }
 
+// Touch settings: a phone with the on-screen layout (mirrors for left-handed, scales / fades with the sliders)
+function previewTouch(ctx, key) {
+  const el = h('div', { class: 'iw-pv iw-pv--touch', html: `<div class="iw-pv-phone"><div class="iw-pv-phone__screen">
+      <i class="iw-pv-phone__stick"></i><i class="b fire"></i><i class="b sub"></i><i class="b squid"></i><i class="b jump"></i><i class="b sp"></i><i class="b map"></i><i class="b pause"></i>
+    </div></div><div class="iw-pv-cap"></div>` });
+  const phone = el.querySelector('.iw-pv-phone'), cap = el.querySelector('.iw-pv-cap');
+  const pct = (v) => Math.round(v * 100);
+  const set = (v, s = ctx.settings || {}) => {
+    phone.classList.toggle('is-left', key === 'touchLeftHanded' ? !!v : !!s.touchLeftHanded);
+    phone.style.setProperty('--ts', String(key === 'touchScale' ? v : s.touchScale ?? 1));
+    phone.style.setProperty('--to', String(key === 'touchOpacity' ? v : s.touchOpacity ?? 0.85));
+    phone.classList.toggle('is-toggle', key === 'touchSquidToggle' && !!v);
+    if (key === 'touchSensitivity') cap.innerHTML = tr('A half-screen swipe turns you <b>{n}°</b>', { n: Math.round((422 * 0.0052 * v * 180) / Math.PI) });
+    else if (key === 'aimAssistTouch') cap.innerHTML = v <= 0.001 ? tr('Aim assist <b>OFF</b>') : tr('Pull strength <b>{n}%</b>', { n: pct(v) });
+    else if (key === 'touchSquidToggle') cap.innerHTML = v ? tr('Tap to dive, tap again to <b>surface</b>') : tr('<b>Hold</b> to stay a squid');
+    else if (key === 'touchLeftHanded') cap.innerHTML = v ? tr('Buttons on the <b>left</b>') : tr('Buttons on the <b>right</b>');
+    else if (key === 'touchScale') cap.innerHTML = tr('Buttons at <b>{n}%</b>', { n: pct(v) });
+    else if (key === 'touchOpacity') cap.innerHTML = tr('Opacity <b>{n}%</b>', { n: pct(v) });
+  };
+  set(ctx.value);
+  return { el, set };
+}
+
 function previewLang(ctx) {
   const opts = LANGS.map(([id, name]) => h('span', { class: 'iw-pv-lang__opt', 'data-l': id }, h('b', null, id === 'ja' ? 'あ' : 'A'), h('small', null, name)));
   const el = h('div', { class: 'iw-pv iw-pv--lang' }, h('div', { class: 'iw-pv-lang' }, opts), h('div', { class: 'iw-pv-cap' }));
@@ -867,6 +890,8 @@ export function createPreview(key, ctx = {}) {
     case '_howto': return previewLink(ctx);
     case '_reset': return previewReset(ctx);
     case 'lang': return previewLang(ctx);
+    case 'touchSensitivity': case 'aimAssistTouch': case 'touchSquidToggle': case 'touchLeftHanded': case 'touchScale': case 'touchOpacity':
+      return previewTouch(ctx, key);
     default: return previewTab(ctx);
   }
 }

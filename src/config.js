@@ -235,6 +235,13 @@ export const DEFAULT_SETTINGS = {
   rumble: 1.0,              // gamepad vibration 0..1 (only while the pad is the last-used device)
   aimAssist: 1.0,           // gamepad aim assist 0..1
   aimAssistMouse: false,    // optional aim assist for mouse
+  // touch screens (src/core/touch.js)
+  touchSensitivity: 1.0,    // swipe-to-look multiplier 0.2..3
+  aimAssistTouch: 0.8,      // aim assist while playing by touch 0..1
+  touchSquidToggle: false,  // squid button: hold (false) or tap to toggle (true)
+  touchLeftHanded: false,   // mirror the layout
+  touchScale: 1.0,          // on-screen button / stick size 0.75..1.35
+  touchOpacity: 0.85,       // on-screen button opacity 0.3..1
 };
 
 // Quality presets consumed by the renderer + fx.

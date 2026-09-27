@@ -19,6 +19,7 @@ import {
 import * as LOOK from '../game/character-style.js';
 import { G } from '../core/ctx.js';
 import { tr, N_, LANGS, setLang } from '../i18n/index.js';
+import { TOUCH_CAPABLE } from '../core/touch.js';
 import {
   computeAwards, medalMarkup, awardBadge, awardIcon, rankEmblem, rankTier, RANK_TIERS, inkBurst, InkWipe, createPreview,
   sweepEdge, sweepClip, splatClip, splatCover, skinSwatch, irisSwatch, outfitIcon,
@@ -84,6 +85,14 @@ const SETTINGS_TABS = [
     { key: 'aimAssistMouse', label: N_('Aim assist for mouse'), type: 'toggle', help: N_('Also apply a lighter aim assist when aiming with a mouse. Off by default.') },
     { key: '_howto', label: N_('Controls reference'), type: 'link', help: N_('Every keyboard, mouse and controller binding in one place.') },
   ] },
+  { id: 'touch', label: N_('Touch'), icon: 'hand', touchOnly: true, rows: [
+    { key: 'touchSensitivity', label: N_('Swipe sensitivity'), type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: N_('How far the camera turns when you drag on the right side of the screen.') },
+    { key: 'aimAssistTouch', label: N_('Aim assist (touch)'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Gently slows and steers your aim onto nearby rivals while you play by touch.') },
+    { key: 'touchSquidToggle', label: N_('Squid button toggles'), type: 'toggle', help: N_('Tap once to dive, tap again to surface, instead of holding the button. Shooting always surfaces you.') },
+    { key: 'touchLeftHanded', label: N_('Left-handed layout'), type: 'toggle', help: N_('Mirror the controls: buttons on the left, move stick on the right.') },
+    { key: 'touchScale', label: N_('Button size'), type: 'slider', min: 0.75, max: 1.35, step: 0.05, fmt: pctFmt, help: N_('Size of the on-screen buttons and the move stick.') },
+    { key: 'touchOpacity', label: N_('Button opacity'), type: 'slider', min: 0.3, max: 1, step: 0.05, fmt: pctFmt, help: N_('How solid the on-screen buttons look.') },
+  ] },
   { id: 'video', label: N_('Video'), icon: 'monitor', rows: [
     { key: 'quality', label: N_('Graphics quality'), type: 'seg', options: [['low', N_('Low')], ['medium', N_('Med')], ['high', N_('High')], ['ultra', N_('Ultra')]], help: N_('Resolution scale, shadow detail, anti-aliasing and particle counts.') },
     { key: 'fov', label: N_('Field of view'), type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: N_('Wider shows more of the turf around you.') },
@@ -99,14 +108,15 @@ const SETTINGS_TABS = [
   { id: 'gameplay', label: N_('Gameplay'), icon: 'swords', rows: [
     { key: 'lang', label: N_('Language'), type: 'seg', options: LANGS, help: N_('Menus, HUD and tips. Signs painted on the stages stay in English.') },
     { key: 'cameraShake', label: N_('Camera shake'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Screen shake from explosions, slams and hits.') },
-    { key: 'rumble', label: N_('Vibration'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Controller rumble for hits, splats, bombs and specials. Only while you play with a controller.') },
+    { key: 'rumble', label: N_('Vibration'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Rumble for hits, splats, bombs and specials — on a controller, or the phone itself while you play by touch.') },
     { key: 'colorblind', label: N_('Colorblind-safe inks'), type: 'toggle', help: N_('Always use high-contrast yellow vs. blue team inks.') },
     { key: 'minimap', label: N_('Minimap'), type: 'toggle', help: N_('Show the turf minimap in the corner during matches.') },
     { key: 'difficulty', label: N_('Default bot skill'), type: 'seg', options: null, help: N_('Starting difficulty for new matches.') },
     { key: 'matchLength', label: N_('Default match length'), type: 'seg', options: null, help: N_('How long each Turf War lasts.') },
   ] },
-];
+].filter((t) => !t.touchOnly || TOUCH_CAPABLE);
 const TAB_BLURB = {
+  touch: N_('Swipe speed, aim assist, squid button and the on-screen button layout.'),
   controls: N_('Look speed, invert, aim assist and the full control reference.'),
   video: N_('Quality tier, field of view and screen effects.'),
   audio: N_('Master, music and sound-effect levels.'),
@@ -151,7 +161,8 @@ export class Menus {
     this._cur = { x: new Spring(0, 560, 34), y: new Spring(0, 560, 34), w: new Spring(0, 560, 34), h: new Spring(0, 560, 34), on: false, r: '' };
 
     this._applyAccent();
-    this.el.addEventListener('pointermove', () => {
+    this.el.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
       this._lastMove = performance.now();
       if (this._input !== 'kbm') this.setInputMode('kbm');
     }, { passive: true });
@@ -265,10 +276,11 @@ export class Menus {
   }
 
   setInputMode(mode) {
-    if (mode !== 'kbm' && mode !== 'pad') return;
+    if (mode !== 'kbm' && mode !== 'pad' && mode !== 'touch') return;
     if (this._input === mode) return;
     this._input = mode;
     this.el.classList.toggle('is-pad', mode === 'pad');
+    this.el.classList.toggle('is-touch', mode === 'touch');
     if (this._scr && this._scr.onInputMode) this._scr.onInputMode(mode);
   }
 
@@ -723,8 +735,8 @@ export class Menus {
   // ================================================================ SCREEN: title
   _scr_title() {
     const press = h('div', { class: 'iw-title__press iw-in iw-in--up' },
-      h('span', { class: 'iw-title__presstext' }, this._input === 'pad' ? tr('PRESS ANY BUTTON') : tr('PRESS ANY KEY')),
-      h('span', { class: 'iw-title__presssub' }, this._input === 'pad' ? '' : tr('or click to start')));
+      h('span', { class: 'iw-title__presstext' }, this._pressText(this._input)),
+      h('span', { class: 'iw-title__presssub' }, this._input === 'kbm' && !TOUCH_CAPABLE ? tr('or click to start') : ''));
     const el = h('div', { class: 'iw-screen iw-title', onclick: () => this._titleGo() },
       h('div', { class: 'iw-title__scrim' }),
       h('div', { class: 'iw-title__logo iw-in iw-in--logo' }, h('i', { class: 'iw-title__shock' }), h('div', { class: 'iw-title__logoin', html: logoMarkup(GAME_TITLE, tr(GAME_SUBTITLE), 'xl') })),
@@ -734,10 +746,16 @@ export class Menus {
     return {
       el, noCursor: true,
       onInputMode: (m) => {
-        press.firstChild.textContent = m === 'pad' ? tr('PRESS ANY BUTTON') : tr('PRESS ANY KEY');
-        press.lastChild.textContent = m === 'pad' ? '' : tr('or click to start');
+        press.firstChild.textContent = this._pressText(m);
+        press.lastChild.textContent = m === 'kbm' && !TOUCH_CAPABLE ? tr('or click to start') : '';
       },
     };
+  }
+
+  _pressText(m) {
+    if (m === 'pad') return tr('PRESS ANY BUTTON');
+    if (m === 'touch' || (TOUCH_CAPABLE && !matchMedia('(any-pointer: fine)').matches)) return tr('TAP TO START');
+    return tr('PRESS ANY KEY');
   }
 
   // ================================================================ SCREEN: main
@@ -1901,23 +1919,24 @@ export class Menus {
   // ================================================================ SCREEN: howto
   _controlsList(mode, compact = false) {
     const K = (...ks) => ks.map((k) => (k === 'or' ? `<em>${tr('or')}</em>` : k === 'LMB' ? mouseGlyph('L') : k === 'RMB' ? mouseGlyph('R') : k === 'MOUSE' ? mouseGlyph('M') : keycap(k))).join('');
+    const T = (text) => `<span class="iw-tgest">${esc(tr(text))}</span>`;
     const rows = [
-      ['Move', null, K('W', 'A', 'S', 'D'), padGlyph('LS')],
-      ['Aim', null, K('MOUSE'), padGlyph('RS')],
-      ['Fire', null, K('LMB'), padGlyph('RT')],
-      ['Swim · squid form', 'hold', K('SHIFT'), padGlyph('LT')],
-      ['Jump', null, K('SPACE'), padGlyph('A')],
-      ['Aim bomb · release to throw', 'hold', K('RMB', 'or', 'E'), padGlyph('RB')],
-      ['Special', null, K('F', 'or', 'Q'), padGlyph('Y')],
-      ['Map', 'hold', K('TAB'), padGlyph('View')],
-      ['Pause', null, K('ESC'), padGlyph('Start')],
+      ['Move', null, K('W', 'A', 'S', 'D'), padGlyph('LS'), T(N_('Drag on the left side'))],
+      ['Aim', null, K('MOUSE'), padGlyph('RS'), T(N_('Drag on the right side'))],
+      ['Fire', null, K('LMB'), padGlyph('RT'), T(N_('Shoot button · drag it to keep aiming'))],
+      ['Swim · squid form', 'hold', K('SHIFT'), padGlyph('LT'), T(N_('Squid button'))],
+      ['Jump', null, K('SPACE'), padGlyph('A'), T(N_('Jump button'))],
+      ['Aim bomb · release to throw', 'hold', K('RMB', 'or', 'E'), padGlyph('RB'), T(N_('Bomb button'))],
+      ['Special', null, K('F', 'or', 'Q'), padGlyph('Y'), T(N_('Special button'))],
+      ['Map', 'hold', K('TAB'), padGlyph('View'), T(N_('Map button · tap a pin to Super Jump'))],
+      ['Pause', null, K('ESC'), padGlyph('Start'), T(N_('Pause button, top left'))],
     ];
     const list = compact ? rows.filter((r) => ['Move', 'Fire', 'Swim · squid form', 'Jump', 'Aim bomb · release to throw', 'Special'].includes(r[0])) : rows;
     const short = { 'Swim · squid form': N_('Swim'), 'Aim bomb · release to throw': N_('Aim bomb') };
-    return h('div', { class: 'iw-ctl' + (compact ? ' iw-ctl--compact' : '') }, list.map(([act, hold, kb, pad]) =>
+    return h('div', { class: 'iw-ctl' + (compact ? ' iw-ctl--compact' : '') + (mode === 'touch' ? ' iw-ctl--touch' : '') }, list.map(([act, hold, kb, pad, touch]) =>
       h('div', { class: 'iw-ctl__row' },
         h('span', { class: 'iw-ctl__act' }, tr(compact ? short[act] || act : act), hold ? h('em', null, tr(hold)) : null),
-        h('span', { class: 'iw-ctl__keys', html: mode === 'pad' ? pad : kb }))));
+        h('span', { class: 'iw-ctl__keys', html: mode === 'pad' ? pad : mode === 'touch' ? touch : kb }))));
   }
 
   _scr_howto() {
@@ -1935,7 +1954,9 @@ export class Menus {
     let mode = this._input;
     const listWrap = h('div', { class: 'iw-ctl-wrap' });
     const renderList = () => { listWrap.innerHTML = ''; listWrap.appendChild(this._controlsList(mode)); restartAnim(listWrap, 'is-in'); };
-    const seg = this._seg([['kbm', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.keyboard }), tr('KEYBOARD & MOUSE'))], ['pad', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.gamepad }), tr('CONTROLLER'))]], mode, (v) => { mode = v; renderList(); });
+    const schemes = [['kbm', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.keyboard }), tr('KEYBOARD & MOUSE'))], ['pad', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.gamepad }), tr('CONTROLLER'))]];
+    if (TOUCH_CAPABLE) schemes.push(['touch', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.hand }), tr('TOUCH'))]);
+    const seg = this._seg(schemes, mode, (v) => { mode = v; renderList(); });
     const segRow = h('div', { class: 'iw-ctl-switch' }, seg.el);
     this._bind(segRow, { id: 'scheme', type: 'row', adjust: seg.adjust, accept: seg.cycle });
     renderList();

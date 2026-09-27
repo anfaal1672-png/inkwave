@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { G, on, emit, clamp, damp } from './core/ctx.js';
 import { Renderer } from './core/renderer.js';
 import { Input } from './core/input.js';
+import { TouchControls, TOUCH_CAPABLE } from './core/touch.js';
 import { mapTheme,
   DEFAULT_SETTINGS, QUALITY, TEAM_PALETTES, COLORBLIND_PALETTE, TEAM_NAMES, WEAPONS, WEAPON_ORDER, SUB, SPECIALS,
   MAPS, DIFFICULTY, PLAYER, PROGRESSION, VERSION, MATCH, GAME_TITLE, GAME_SUBTITLE,
@@ -23,7 +24,7 @@ import { CameraRig } from './game/cameraRig.js';
 import { Match } from './game/match.js';
 import { Minimap } from './game/minimap.js';
 import { Showcase } from './game/showcase.js';
-import { tr, setLang, relabel } from './i18n/index.js';
+import { tr, setLang, relabel, onLang } from './i18n/index.js';
 
 const params = new URLSearchParams(location.search);
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -79,9 +80,21 @@ class Game {
     this.input = G.input = new Input(this.R.renderer.domElement);
     this.input.onKey = (e, repeat) => this._onKey(e, repeat);
     this.input.onUnlock = () => this._onPointerUnlock();
+    // touch screens: on-screen controls (shown in matches once a finger is the last input) and touch-aware menus
+    if (TOUCH_CAPABLE) {
+      this.touch = this.input.touch = new TouchControls(this.uiRoot, this.input);
+      this.touch.onPause = () => this.pause();
+      this._rotateHint();
+    }
+    window.addEventListener('pointerdown', (e) => {
+      this._unlockAudio();
+      if (e.pointerType === 'touch') { this.input.lastDevice = 'touch'; this.menus?.setInputMode?.('touch'); }
+    }, { capture: true, passive: true });
+    // app switch / screen off / tab hidden: a live round pauses (touch has no pointer lock to lose)
+    document.addEventListener('visibilitychange', () => { if (document.hidden) this.pause(); });
     // after a focus steal while the map was held, the next click on the game takes the mouse back (no pause detour)
     this.R.renderer.domElement.addEventListener('mousedown', () => {
-      if (this._relock && G.mode === 'match' && this.match && !this.match.paused && !this.menus?.current) { this._relock = false; this.input.requestLock(); }
+      if (this._relock && G.mode === 'match' && this.match && !this.match.paused && !this.menus?.current) { this._relock = false; this._lock(); }
     });
 
     // modules built by other authors
@@ -326,7 +339,8 @@ class Game {
     if ('quality' in partial || 'shadows' in partial || 'bloom' in partial) this.R?.applySettings(this.settings);
     if ('master' in partial || 'music' in partial || 'sfx' in partial) this._applyAudioVolumes();
     if ('colorblind' in partial && G.mode !== 'match') this._setPalette(this._pickPalette());
-    if ('lang' in partial) { setLang(this.settings.lang); relabel(document.body); document.title = `${GAME_TITLE} — ${tr(GAME_SUBTITLE)}`; }
+    if ('lang' in partial) { setLang(this.settings.lang); relabel(document.body); document.title = `${GAME_TITLE} — ${tr(GAME_SUBTITLE)}`; this.touch?.relabel(); }
+    if (this.touch && Object.keys(partial).some((k) => k.startsWith('touch'))) this.touch.applySettings(this.settings);
   }
   _applyAudioVolumes() { G.audio?.setVolumes?.({ master: this.settings.master, music: this.settings.music, sfx: this.settings.sfx }); }
 
@@ -343,9 +357,35 @@ class Game {
   _playMusic(t) { this._musicTrack = t; try { G.music?.play(t, { fade: 1.2 }); } catch (e) { /* not initialised yet */ } }
 
   // ---------------------------------------------------------------------------------------- input routing
+  // first gesture (key, click or tap) unlocks audio
+  _unlockAudio() {
+    if (this._audioOn) return;
+    this._audioOn = true; G.audio?.init?.(); this._applyAudioVolumes(); this._playMusic(this.menus?.current === 'title' || !this.menus ? 'title' : 'menu');
+  }
+  _usingTouch() { return !!this.touch && this.input.lastDevice === 'touch'; }
+  // pointer lock is a mouse thing: a phone has none to take (and the request would only fail)
+  _lock() { if (!this._usingTouch()) this.input.requestLock(); }
+  // landscape full screen for touch matches (needs the tap that started the match; any failure is fine)
+  _goFullscreen() {
+    if (!this._usingTouch()) return;
+    const d = document.documentElement;
+    try {
+      const p = !document.fullscreenElement && d.requestFullscreen ? d.requestFullscreen({ navigationUI: 'hide' }) : Promise.resolve();
+      Promise.resolve(p).then(() => screen.orientation?.lock?.('landscape')).catch(() => {});
+    } catch { /* not allowed */ }
+  }
+  _rotateHint() {
+    const el = document.createElement('div');
+    el.className = 'iw-rotate';
+    el.innerHTML = '<div class="iw-rotate__card"><i class="iw-rotate__phone"></i><b></b></div>';
+    const setText = () => { el.querySelector('b').textContent = tr('Turn your device sideways to play'); };
+    setText();
+    onLang(setText);
+    document.body.appendChild(el);
+  }
+
   _onKey(e, repeat) {
-    // first gesture unlocks audio
-    if (!this._audioOn) { this._audioOn = true; G.audio?.init?.(); this._applyAudioVolumes(); this._playMusic(this.menus?.current === 'title' || !this.menus ? 'title' : 'menu'); }
+    this._unlockAudio();
     if (G.mode === 'match' && this.match && !this.match.paused && !this.menus?.current) {
       if (e.code === 'Escape' || e.code === 'KeyP') { this.pause(); return true; }
       return false;
@@ -522,7 +562,8 @@ class Game {
     };
     this.lastMatchOpts = opts;
     G.audio?.init?.();
-    this.input.requestLock();
+    this._lock();
+    this._goFullscreen();
     this.menus?.show(null);
     await this._fade(1, 350);
     G.music?.stop?.(0.3); this._musicTrack = null;
@@ -549,6 +590,7 @@ class Game {
     }));
     m.setup();
     this.minimap.setViewerTeam(0);
+    { const w = WEAPONS[this.profile.weapon] || WEAPONS.shooter; this.touch?.setLoadout(w.kind, w.special); this.touch?.setColor(G.teamHex[0]); }
     G.mode = 'match';
     this.hud?.setVisible(false);
     this.hudPrompt = null; this._hintT = 0; this._hints = {};
@@ -584,7 +626,7 @@ class Game {
     if (!this.match) return;
     this.menus?.show(null);
     this.match.paused = false;
-    this.input.requestLock();
+    this._lock();
     G.audio?.duck?.(1, 0.01);
   }
   async quitToMenu() {
@@ -703,6 +745,12 @@ class Game {
     // map diorama: held map key during live play (or while waiting to respawn) swoops the view overhead
     this.rig.setMap?.(!!(m && !m.attract && !m.paused && m.state === 'playing' && m.controller?.mapHeld && !this.menus?.current));
     this.rig.update(dt);
+    if (this.touch) {
+      const live = !!(m && !m.attract && !m.paused && !this.menus?.current && (m.state === 'playing' || m.state === 'intro'));
+      this.touch.setActive(live && this.input.lastDevice === 'touch');
+      this.hud?.setTouch?.(this.input.lastDevice === 'touch');
+      this.diorama?.setTouch?.(this.input.lastDevice === 'touch');
+    }
     this._dioFog();
     this.diorama?.update(dt, this.rig.mapK);
     // local player camera-dependent aim must use this frame's camera
@@ -876,12 +924,14 @@ class Game {
     this._hintT += dt;
     let prompt = null;
     const inkF = a.ink / PLAYER.inkMax;
+    const touch = this._usingTouch();
+    this.touch?.sync({ specialReady: a.specialReady(), canSub: a.ink >= SUB.bomb.inkCost, mapOpen: this.rig.mapK > 0.3 });
     if (m.state === 'playing' && a.alive) {
       if (m.controller?.mapHeld) prompt = null;   // the map diorama carries its own super-jump hints
       else if (a.superJumpState) prompt = null;
-      else if (this._lowInkFlash > 0) { this._lowInkFlash -= dt; prompt = tr('Low ink! Hold SHIFT in your ink to refill'); }
-      else if (a.specialReady() && (this._hints.specialT = (this._hints.specialT || 0) + dt) > 2) prompt = tr('Special ready! Press F');
-      else if (inkF < 0.25 && a.form !== 'squid') prompt = tr('Hold SHIFT to swim in your ink and refill');
+      else if (this._lowInkFlash > 0) { this._lowInkFlash -= dt; prompt = touch ? tr('Low ink! Hold the squid button in your ink to refill') : tr('Low ink! Hold SHIFT in your ink to refill'); }
+      else if (a.specialReady() && (this._hints.specialT = (this._hints.specialT || 0) + dt) > 2) prompt = touch ? tr('Special ready! Tap the special button') : tr('Special ready! Press F');
+      else if (inkF < 0.25 && a.form !== 'squid') prompt = touch ? tr('Hold the squid button to swim in your ink and refill') : tr('Hold SHIFT to swim in your ink and refill');
       else if (m.duration - m.time < 8 && !this._hints.shot) prompt = tr('Paint the ground — most turf wins!');
       if (!a.specialReady()) this._hints.specialT = 0;
       if (a.intent.fire) this._hints.shot = true;

@@ -184,7 +184,8 @@ export class HUD {
       h('div', { class: 'iw-lg__title iw-display', ...label('SUPER JUMP') }, tr('SUPER JUMP')),
       h('div', { class: 'iw-lg__sub', ...label('Pick a landing spot') }, tr('Pick a landing spot')),
       h('div', { class: 'iw-lg__rows' }, this.legendRows),
-      h('div', { class: 'iw-lg__foot', ...label('Press [1] – [4] or click · release [TAB] to cancel', true), html: richText(tr('Press [1] – [4] or click · release [TAB] to cancel')) }));
+      h('div', { class: 'iw-lg__foot iw-no-touch', ...label('Press [1] – [4] or click · release [TAB] to cancel', true), html: richText(tr('Press [1] – [4] or click · release [TAB] to cancel')) }),
+      h('div', { class: 'iw-lg__foot iw-only-touch', ...label('Tap a spot to Super Jump · let go of the map button to cancel') }, tr('Tap a spot to Super Jump · let go of the map button to cancel')));
     this.map = h('div', { class: 'iw-map' }, this.mapFrame, this.mapJumpLine, h('div', { class: 'iw-map__bcns' }, this.beacons), this.mapCursor, this.mapLabel, this.mapLegend);
     this.mapDim = h('div', { class: 'iw-map-dim' });
     this._mapT = 0; this._mapV = 0;
@@ -214,6 +215,15 @@ export class HUD {
   }
 
   // ================================================================ public
+  /** Touch play: on-screen buttons replace key hints; the corner map sits top-left. */
+  setTouch(on) {
+    on = !!on;
+    if (on === this._touch) return;
+    this._touch = on;
+    this.el.classList.toggle('is-touch', on);
+    this._L.mapBox = null;
+  }
+
   setVisible(v) {
     v = !!v;
     if (v === this._visible) return;
@@ -359,7 +369,7 @@ export class HUD {
           by ? h('div', { class: 'iw-spl__name iw-display' }, String(by)) : null,
           killer && killer.weaponId ? h('div', { class: 'iw-spl__wn' }, tr((WEAPONS[killer.weaponId] || {}).name || '')) : null),
         ring),
-      h('div', { class: 'iw-spl__hint', html: richText(tr('Hold [TAB] to plan a Super Jump')) }));
+      h('div', { class: 'iw-spl__hint', html: this._touch ? tr('Hold the map button to plan a Super Jump') : richText(tr('Hold [TAB] to plan a Super Jump')) }));
     colorVars(el, 'by', toHex(byColor, '#2f5bff'));
     this.splatLayer.appendChild(el);
     const st = { el, tint, end: this._fxTime + Math.max(0, respawn), num, last: Math.ceil(respawn) };
@@ -1089,10 +1099,12 @@ export class HUD {
     const u = Math.min(W / 100, (H * 1.7778) / 100);
     const asp = (m.canvas.width || 1) / (m.canvas.height || 1);
     const fit = (sz) => (asp >= 1 ? [sz, sz / asp] : [sz * asp, sz]);
-    const [w0, h0] = fit(14.5 * u), [w1, h1] = fit(Math.min(H * 0.78, W * 0.6));
+    // touch: the corner map moves up under the pause button (the bottom-left corner is the move stick's)
+    const [w0, h0] = fit((this._touch ? 12 : 14.5) * u), [w1, h1] = fit(Math.min(H * 0.78, W * 0.6));
     const t = this._mapT;
     const bw = lerp(w0, w1, t), bh = lerp(h0, h1, t);
-    const x = lerp(2.2 * u, (W - w1) / 2, t), y = lerp(H - 2.2 * u - h0, (H - h1) / 2 + u * 1.2, t);
+    const y0 = this._touch ? 9.5 * u : H - 2.2 * u - h0;
+    const x = lerp(2.2 * u, (W - w1) / 2, t), y = lerp(y0, (H - h1) / 2 + u * 1.2, t);
     const inside = (W - w1) / 2 < 22 * u;
     if (inside !== L.lgIn) { L.lgIn = inside; this.mapLegend.classList.toggle('is-inside', inside); }
     const box = `${x.toFixed(1)},${y.toFixed(1)},${bw.toFixed(1)},${bh.toFixed(1)}`;

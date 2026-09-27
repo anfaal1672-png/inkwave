@@ -53,6 +53,13 @@ export class DioramaOverlay {
       h('span', { class: 'iw-pin__badge' }, icon, h('span', { class: 'iw-pin__pulse' })),
       self ? null : h('span', { class: 'iw-pin__key', html: keycap(String(i + 1)) }),
       name, state);
+    // touch: pins are tap targets (the map button stays held with the other thumb)
+    if (!self) el.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || this.k < 0.5) return;
+      e.stopPropagation();
+      this.hover = i;
+      this._jump(i, G.match?.local);
+    });
     return { el, icon, name, state, x: 0, y: 0, vis: false, key: '', weapon: null, target: null, ok: false };
   }
 
@@ -183,11 +190,19 @@ export class DioramaOverlay {
     el.classList.remove('is-press'); void el.offsetWidth; el.classList.add('is-press');
   }
 
+  setTouch(on) {
+    on = !!on;
+    if (on === this._touch) return;
+    this._touch = on;
+    this.el.classList.toggle('is-touch', on);
+  }
+
   _head() {
     const m = G.game?.mapDef;
     this.title.textContent = tr(m?.name || 'Stage').toUpperCase();
     this.when.textContent = G.game?.time === 'dusk' ? tr('DUSK') : tr('DAY');
     const pad = G.input?.lastDevice === 'pad';
+    if (this._touch) { this.foot.textContent = tr('Tap a pin to Super Jump · let go of the map button to close'); return; }
     this.foot.innerHTML = pad
       ? richText(tr('Right stick to point · A or D-pad to Super Jump · release VIEW to close'))
       : `${keycap('1')}${keycap('2')}${keycap('3')} <span>${tr('Super Jump to a teammate')}</span> ${keycap('4')} <span>${tr('Base')}</span> <em>·</em> <span>${tr('Point + click a pin')}</span> <em>·</em> <span>${tr('release')}</span> ${keycap('TAB')}`;

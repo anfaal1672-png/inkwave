@@ -6,6 +6,8 @@
 // look near an enemy under the crosshair, tracking assist carries a fraction of the target's angular motion while
 // you are actively aiming or moving — never an auto-snap. Bullet magnetism pulls shots onto the body line of an enemy
 // the crosshair is actually touching (at the height you aimed), so hits register exactly as they look.
+// Touch (src/core/touch.js): the right-side swipe is raw like the mouse (px → rad), the move stick feeds the same
+// camera-relative move vector as WASD / the left stick; aim assist defaults on for touch, like the gamepad.
 import * as THREE from 'three';
 import { G, clamp, lerp, angleDiff } from '../core/ctx.js';
 import { PLAYER } from '../config.js';
@@ -41,19 +43,27 @@ export class PlayerController {
       return;
     }
     const usingPad = !!inp.pad && inp.lastDevice === 'pad';
+    const tc = inp.touch && inp.touch.active ? inp.touch : null;
+    const usingTouch = !!tc && inp.lastDevice === 'touch';
     // ---- aim assist target (computed from last frame's camera; cheap)
-    const as = this._assistTarget(usingPad ? (s.aimAssist ?? 1) : (s.aimAssistMouse ? 0.5 : 0));
+    const as = this._assistTarget(usingPad ? (s.aimAssist ?? 1) : usingTouch ? (s.aimAssistTouch ?? 0.8) : (s.aimAssistMouse ? 0.5 : 0));
     // ---- look
     const inv = s.invertY ? -1 : 1;
     const friction = as ? lerp(1, 0.58, as.closeness * as.strength) : 1;
     let lookActive = false;
     // while the map diorama is up the mouse / right stick steer the map cursor, not your camera
-    const mapUp = (G.rig?.mapK ?? 0) > 0.05 || inp.down('Tab') || inp.down('KeyM') || inp.padButton(8);
+    const mapUp = (G.rig?.mapK ?? 0) > 0.05 || inp.down('Tab') || inp.down('KeyM') || inp.padButton(8) || !!tc?.held.map;
     const mdx = mapUp ? 0 : inp.mouse.dx, mdy = mapUp ? 0 : inp.mouse.dy;
     if (mdx || mdy) {
       const sens = 0.0021 * (s.sensitivity ?? 1) * (s.aimAssistMouse ? friction : 1);
       rig.yaw -= mdx * sens;
       rig.pitch -= mdy * sens * inv;
+      lookActive = true;
+    }
+    if (tc && !mapUp && (tc.lookDx || tc.lookDy)) {
+      const sens = 0.0052 * (s.touchSensitivity ?? 1) * friction;
+      rig.yaw -= tc.lookDx * sens;
+      rig.pitch -= tc.lookDy * sens * 0.8 * inv;
       lookActive = true;
     }
     if (inp.pad && !mapUp) {
@@ -77,6 +87,11 @@ export class PlayerController {
     if (inp.down('KeyA') || inp.down('ArrowLeft')) mx -= 1;
     if (inp.down('KeyD') || inp.down('ArrowRight')) mx += 1;
     if (inp.pad) { inp.padStick(0, 1, _stick, 0.14, 0.95); mx += _stick.x; mz -= _stick.y; }
+    if (tc) {
+      // small inner dead zone, then full range: the floating stick has no mechanical centre
+      const tm = Math.hypot(tc.move.x, tc.move.y);
+      if (tm > 0.12) { const k = Math.min(1, (tm - 0.12) / 0.8) / tm; mx += tc.move.x * k; mz += tc.move.y * k; }
+    }
     const ml = Math.hypot(mx, mz);
     if (ml > 1) { mx /= ml; mz /= ml; }
     // tracking assist: carry a share of the target's angular motion while the player is engaging (look or move input)
@@ -92,12 +107,13 @@ export class PlayerController {
     // forward = (sy, 0, cy); right = (-cy, 0, sy)
     it.move.set(sy * mz - cy * mx, 0, cy * mz + sy * mx);
 
-    it.jump = inp.down('Space') || inp.padButton(0);
-    it.squid = inp.down('ShiftLeft') || inp.down('ShiftRight') || inp.padValue(6) > 0.3;
-    it.fire = inp.mouse.left || inp.padValue(7) > 0.3;
-    it.sub = inp.mouse.right || inp.down('KeyE') || inp.padButton(5);
-    it.special = inp.down('KeyF') || inp.down('KeyQ') || inp.padButton(3) || inp.padButton(11);
-    this.mapHeld = inp.down('Tab') || inp.down('KeyM') || inp.padButton(8);
+    const th = tc ? tc.held : null;
+    it.jump = inp.down('Space') || inp.padButton(0) || !!th?.jump;
+    it.squid = inp.down('ShiftLeft') || inp.down('ShiftRight') || inp.padValue(6) > 0.3 || !!th?.squid;
+    it.fire = inp.mouse.left || inp.padValue(7) > 0.3 || !!th?.fire;
+    it.sub = inp.mouse.right || inp.down('KeyE') || inp.padButton(5) || !!th?.sub;
+    it.special = inp.down('KeyF') || inp.down('KeyQ') || inp.padButton(3) || inp.padButton(11) || !!th?.special;
+    this.mapHeld = inp.down('Tab') || inp.down('KeyM') || inp.padButton(8) || !!th?.map;
     // the TAB map is a targeting UI (clicking a teammate beacon super jumps) — never fire or throw through it
     if (this.mapHeld) { it.fire = false; it.sub = false; }
     // super jump: while the map is open, 1-3 (or d-pad left/up/right) jumps to that teammate, 4 / d-pad down to spawn

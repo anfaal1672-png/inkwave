@@ -1,4 +1,5 @@
-// Keyboard + mouse (pointer lock) + standard gamepad. Produces a unified per-frame snapshot.
+// Keyboard + mouse (pointer lock) + standard gamepad + touch (src/core/touch.js). Produces a unified per-frame snapshot.
+// lastDevice: 'kbm' | 'pad' | 'touch' — the device the player touched last (drives HUD / menu hints and aim assist).
 // Gamepad: radial dead zone + response curve sticks (padStick) and subtle dual-rumble (rumble), scaled by
 // settings.rumble (0..1, default 1) and only while the pad is the active device.
 import { G } from './ctx.js';
@@ -18,6 +19,7 @@ export class Input {
     this.padPrev = [];
     this.padPressed = new Set();
     this.lastDevice = 'kbm';
+    this.touch = null;              // TouchControls when the device has a touch screen (main.js)
     this.onKey = null;              // (e) => bool consumed  (menus)
     window.addEventListener('keydown', (e) => {
       // the menus call preventDefault themselves when needed (text fields must still receive keystrokes)
@@ -112,11 +114,13 @@ export class Input {
 
   // Dual-rumble pulse. strong = low-frequency motor, weak = high-frequency motor (0..1), ms = duration.
   // A pulse only pre-empts a running one if it is at least as strong, so rapid fire never becomes a constant buzz.
+  // On a touch screen the phone's own vibration motor (navigator.vibrate) plays the strong pulses only.
   rumble(strong, weak, ms = 60) {
-    const pad = this.pad;
-    if (!pad || this.lastDevice !== 'pad') return;
     const k = G.settings?.rumble ?? 1;
     if (!(k > 0)) return;
+    if (this.lastDevice === 'touch') { this._vibrate(strong * k, ms); return; }
+    const pad = this.pad;
+    if (!pad || this.lastDevice !== 'pad') return;
     const act = pad.vibrationActuator;
     if (!act || !act.playEffect) return;
     const now = performance.now();
@@ -129,8 +133,17 @@ export class Input {
     } catch { /* unsupported */ }
   }
 
+  _vibrate(mag, ms) {
+    if (mag < 0.35 || typeof navigator === 'undefined' || !navigator.vibrate) return;
+    const now = performance.now();
+    if (now < (this._vibUntil || 0)) return;
+    this._vibUntil = now + ms + 90;
+    try { navigator.vibrate(Math.round(Math.min(90, ms * (0.6 + mag * 0.6)))); } catch { /* blocked */ }
+  }
+
   // Call once at the very end of each frame.
   endFrame() {
+    this.touch?.endFrame();
     this.pressed.clear();
     this.mouse.dx = 0; this.mouse.dy = 0;
     this.mouse.leftPressed = false; this.mouse.rightPressed = false;
