@@ -77,10 +77,13 @@ async function capture(label) {
   process.stderr.write(`${label}: ${bad.length ? bad.length + ' English strings' : 'ok'}\n`);
 }
 
+if (mobile) await page.evaluate(() => { __inkwave.input.lastDevice = 'touch'; __inkwave.menus.setInputMode('touch'); });
 const show = (name, extra = '') => page.evaluate(`(() => { const m = __inkwave.menus; ${extra}; m.show(${JSON.stringify(name)}, { force: true }); })()`);
 for (const s of ['title', 'main', 'setup', 'loadout']) { await show(s); await capture(s); }
 for (let i = 0; i < 4; i++) { await show('locker', `m._lockerTab = ${i}`); await capture(`locker-${i}`); }
-for (let i = 0; i < 4; i++) { await show('settings', `m._settingsTab = ${i}`); await capture(`settings-${i}`); }
+await show('settings');
+const nTabs = await page.evaluate(() => document.querySelectorAll('.iw-settings .iw-tab').length);
+for (let i = 0; i < nTabs; i++) { await show('settings', `m._settingsTab = ${i}`); await capture(`settings-${i}`); }
 for (const s of ['howto', 'credits', 'pause', 'results']) { await show(s); await capture(s); }
 await page.evaluate(() => __inkwave.menus.show('loading', { force: true }));
 await capture('loading');

@@ -111,3 +111,28 @@ html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callou
 .iw-pv-phone.is-left .squid { right: auto; left: 27%; } .iw-pv-phone.is-left .jump { right: auto; left: 4%; }
 .iw-pv-phone.is-left .sp { right: auto; left: 4%; top: 38%; }
 .iw-pv-phone.is-toggle .squid { background: var(--a); }
+
+/* ---- short screens (landscape phones, ≤ 520 px tall). The UI is laid out on a 16:9 frame in --u, so on a phone the
+   frame is ~390 px tall while the px floors of the type scale stay put: text grows relative to the layout. Lower the
+   floors a little and let the panels that can outgrow the frame scroll (vertical pan only; the page itself never
+   scrolls). */
+@media (max-height: 520px) {
+  .iw-ui, .iw-hud, .iw-hud-over {
+    --fs-xs: max(9px, calc(var(--u) * .8)); --fs-s: max(9.5px, calc(var(--u) * .95));
+    --fs-m: max(10.5px, calc(var(--u) * 1.1)); --fs-l: max(12px, calc(var(--u) * 1.4));
+  }
+  .iw-rows, .iw-howto__body, .iw-wd, .iw-ss__left, .iw-pmatch, .iw-res__body {
+    overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none;
+  }
+  .iw-rows { max-height: calc(var(--u) * 27); }
+  .iw-howto__body { bottom: calc(var(--u) * 2); }
+  .iw-loadout__body { bottom: calc(var(--u) * 1.2); }
+  .iw-loadout__body .iw-wd { flex: 1 1 auto; min-height: 0; }
+  .iw-ss__left { bottom: calc(var(--u) * 1.2); }
+  .iw-ss__match .iw-setup__desc { display: none; }
+  .iw-pmatch { top: calc(var(--u) * 1.4); bottom: calc(var(--u) * 1.4); transform: none; }
+  .iw-wgrid.is-compact .iw-wcard__name, :lang(ja) .iw-wgrid.is-compact .iw-wcard__name { font-size: 9px; }
+  /* settings: icons only for the tabs you are not on, so five tabs fit */
+  .iw-settings .iw-tab:not(.is-sel) > span { display: none; }
+}
+:lang(ja) .iw-btn--start { font-size: calc(var(--u) * 2.3); }
