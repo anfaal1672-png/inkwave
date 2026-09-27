@@ -7,6 +7,7 @@
 import puppeteer from 'puppeteer-core';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { launchOptions } from './browser.mjs';
 
 const args = process.argv.slice(2);
 const [url, spec, outDir] = args;
@@ -18,13 +19,7 @@ const until = opt('until', url.includes('/tools/') ? 'window.lab && window.lab.h
 const preWait = +opt('preWait', 0);
 const every = +opt('every', 1);          // test mode: keep only every Nth frame (all frames are still simulated)
 
-const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
-  defaultViewport: { width: W, height: H, deviceScaleFactor: 1 },
-  protocolTimeout: 600000,
-});
+const browser = await puppeteer.launch({ ...launchOptions({ width: W, height: H }), protocolTimeout: 600000 });
 const page = await browser.newPage();
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 page.on('console', (m) => { if (m.type() === 'error') console.log('[console.error]', m.text()); });

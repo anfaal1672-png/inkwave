@@ -21,6 +21,7 @@ import puppeteer from 'puppeteer-core';
 import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { dirname, join, relative, resolve, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { launchOptions } from './browser.mjs';
 import { MAPS, TIMES, TEAM_PALETTES } from '../src/config.js';
 
 // ------------------------------------------------------------------------------------------------ camera table
@@ -179,9 +180,7 @@ async function captureInPage(P) {
 
 // ------------------------------------------------------------------------------------------------ browser
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-  headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', `--window-size=${W},${H}`],
+  ...launchOptions({ width: W, height: H }),
   defaultViewport: { width: W, height: H, deviceScaleFactor: DSF },
   protocolTimeout: 600000,
 });

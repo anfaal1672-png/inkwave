@@ -10,6 +10,7 @@
 import puppeteer from 'puppeteer-core';
 import fs from 'node:fs';
 import path from 'node:path';
+import { chromePath } from './browser.mjs';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
@@ -26,7 +27,7 @@ const sec = contracts.slice(contracts.indexOf('SFX names (all must exist)'), con
 const CONTRACT_NAMES = [...sec.matchAll(/`([^`]+)`/g)].flatMap((m) => m[1].replace(/\([^)]*\)/g, ' ').split(/\s+/)).filter(Boolean);
 
 const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  executablePath: chromePath(),
   headless: 'new',
   args: ['--autoplay-policy=no-user-gesture-required', '--no-sandbox'],
   protocolTimeout: 1800000,

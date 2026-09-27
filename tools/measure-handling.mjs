@@ -7,6 +7,7 @@
 //   jump arcs, jump buffer / coyote, swim + climb profiles, projectile-vs-crosshair error.
 import puppeteer from 'puppeteer-core';
 import { writeFileSync, mkdirSync } from 'node:fs';
+import { launchOptions } from './browser.mjs';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
@@ -324,11 +325,7 @@ function arc(r, label) {
 }
 
 // ------------------------------------------------------------------------------------------ run
-const browser = await puppeteer.launch({
-  executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new',
-  args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required', '--window-size=1280,720'],
-  defaultViewport: { width: 1280, height: 720, deviceScaleFactor: 1 },
-});
+const browser = await puppeteer.launch(launchOptions({ width: 1280, height: 720 }));
 const page = await browser.newPage();
 const logs = [];
 page.on('console', (m) => { const t = m.type(); if (t === 'error' || t === 'warning' || t === 'warn') logs.push(`[${t}] ${m.text()}`); });

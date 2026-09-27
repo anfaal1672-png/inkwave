@@ -7,7 +7,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { QUALITY } from '../config.js';
-import { G } from './ctx.js';
+import { G, VIEW } from './ctx.js';
 
 const GradeShader = {
   uniforms: {
@@ -146,9 +146,10 @@ export class Renderer {
     if (this.bloom) this.bloom.enabled = !!(this.q.bloom && settings.bloom);
   }
 
-  // Dynamic resolution (never on ultra): scale the render density between 0.75 and 1 of the quality preset.
-  setDynamicScale(s) {
-    s = Math.max(0.75, Math.min(1, s));
+  // Dynamic resolution (never on ultra): scale the render density between `min` (0.75; 0.5 on phones) and 1 of the
+  // quality preset.
+  setDynamicScale(s, min = 0.75) {
+    s = Math.max(min, Math.min(1, s));
     if (Math.abs(s - this.dynScale) < 0.01) return;
     this.dynScale = s;
     const pr = Math.min(window.devicePixelRatio || 1, this.q.pixelRatio) * s;
@@ -158,7 +159,7 @@ export class Renderer {
   }
 
   resize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = VIEW.w, h = VIEW.h;
     if (w === this._w && h === this._h) return;
     this._w = w; this._h = h;
     this.renderer.setSize(w, h);

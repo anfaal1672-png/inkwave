@@ -2,6 +2,7 @@
 // Everything is a markup string (cheap to clone via innerHTML) using currentColor / CSS classes for team ink:
 //   .iw-fa = accent/team A ink, .iw-fb = accent/team B ink (see ui.css).
 import { esc, splatShape, blobPath } from './ui-util.js';
+import { setRichText } from '../i18n/index.js';
 
 const K = '#15121c';        // outline ink
 const DK = '#2b2735';       // dark plastic
@@ -191,6 +192,7 @@ export const GLYPHS = {
   palette: svg(`<path d="M32 6 C16 6 6 18 6 32 C6 46.5 18 58 32 58 C38.5 58 40.5 54 38.5 50 C36.5 46 38.5 42 44 42 L50 42 C56 42 58 36.5 58 32 C58 18 48 6 32 6 Z" fill="currentColor"/><g fill="var(--k, #15121c)"><circle cx="19" cy="31" r="4.6"/><circle cx="25" cy="19" r="4.6"/><circle cx="38.5" cy="16.5" r="4.6"/><circle cx="48" cy="26" r="4.6"/></g>`),
   sparkle: svg(`<path d="M32 4 Q35 26 60 32 Q35 38 32 60 Q29 38 4 32 Q29 26 32 4 Z" fill="currentColor"/>`),
   rotate: svg(`<path d="M50 23 A20 20 0 0 0 14 25" ${G} stroke-width="5.5"/><path d="M14 41 A20 20 0 0 0 50 39" ${G} stroke-width="5.5"/><path d="M52 10 L51 24 L37 22" ${G} stroke-width="5.5"/><path d="M12 54 L13 40 L27 42" ${G} stroke-width="5.5"/>`),
+  hand: svg(`<path d="M26 35 V13 a5 5 0 0 1 10 0 V30 l11 2.6 a6 6 0 0 1 4.6 6.8 l-2.4 13.2 a6 6 0 0 1 -5.9 4.9 H30.6 a6 6 0 0 1 -4.9 -2.6 L15.6 41.3 a5 5 0 0 1 7.8 -6.2 Z" fill="currentColor"/><path d="M22 10 a10 10 0 0 1 18 0" ${G} stroke-width="3.5" opacity=".6"/>`),
   bolt: svg(`<path d="M36 4 L12 36 L30 36 L26 60 L52 26 L34 26 Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>`),
   target: svg(`<circle cx="32" cy="32" r="22" ${G} stroke-width="5"/><circle cx="32" cy="32" r="10" ${G} stroke-width="5"/><path d="M32 2 L32 14 M32 50 L32 62 M2 32 L14 32 M50 32 L62 32" ${G} stroke-width="5"/>`),
   feather: svg(`<path d="M52 8 Q22 12 16 40 L12 54 L17 50 Q46 44 52 8 Z" fill="currentColor" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/><path d="M14 52 L40 22" stroke="var(--k, #15121c)" stroke-width="3" stroke-linecap="round" opacity=".45"/>`),
@@ -351,3 +353,6 @@ export const RULE_ART = {
 // ------------------------------------------------------------------ helpers
 export const weaponIcon = (idOrKind) => WEAPON_ICONS[idOrKind] || WEAPON_ICONS.shooter;
 export const specialIcon = (id) => SPECIAL_ICONS[id] || SPECIAL_ICONS.slam;
+
+// live language switching re-renders key-cap strings with this (i18n relabel)
+setRichText(richText);

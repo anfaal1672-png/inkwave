@@ -217,6 +217,7 @@ export const PROGRESSION = {
 
 // ---- Settings defaults (persisted in localStorage 'inkwave.settings') ----
 export const DEFAULT_SETTINGS = {
+  lang: 'ja',               // UI language: 'ja' | 'en' (src/i18n)
   sensitivity: 1.0,         // mouse multiplier 0.2..3
   padSensitivity: 1.0,
   invertY: false,
@@ -234,12 +235,20 @@ export const DEFAULT_SETTINGS = {
   rumble: 1.0,              // gamepad vibration 0..1 (only while the pad is the last-used device)
   aimAssist: 1.0,           // gamepad aim assist 0..1
   aimAssistMouse: false,    // optional aim assist for mouse
+  // touch screens (src/core/touch.js)
+  touchSensitivity: 1.0,    // swipe-to-look multiplier 0.2..3
+  aimAssistTouch: 0.8,      // aim assist while playing by touch 0..1
+  touchSquidToggle: false,  // squid button: hold (false) or tap to toggle (true)
+  touchLeftHanded: false,   // mirror the layout
+  touchScale: 1.0,          // on-screen button / stick size 0.75..1.35
+  touchOpacity: 0.85,       // on-screen button opacity 0.3..1
 };
 
-// Quality presets consumed by the renderer + fx.
+// Quality presets consumed by the renderer + fx. bake = resolution scale of the one-off sky bakes at boot (cloud dome,
+// far-scenery reflection cube; default 1): soft content, and on a phone GPU the full-size bakes cost most of a second.
 export const QUALITY = {
   // pixelRatio = cap on devicePixelRatio (Retina screens render at up to this density)
-  low:    { pixelRatio: 0.75, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4 },
+  low:    { pixelRatio: 0.75, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4, bake: 0.5 },
   medium: { pixelRatio: 1.0,  shadowSize: 2048, msaa: 2, bloom: true,  ao: false, paintAtlas: 2048, particles: 0.7 },
   high:   { pixelRatio: 1.5,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },
   ultra:  { pixelRatio: 2.0,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },

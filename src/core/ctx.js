@@ -23,6 +23,32 @@ export function emit(name, payload) {
   for (const fn of set) fn(payload);
 }
 
+// Viewport size in CSS px, refreshed by the resize event (which fires before the frame's rAF callbacks). The frame
+// loop reads this instead of window.innerWidth / innerHeight: those force a synchronous layout whenever the HUD has
+// written to the DOM earlier in the same frame.
+export const VIEW = { w: 0, h: 0 };
+if (typeof window !== 'undefined') {
+  const upd = () => { VIEW.w = window.innerWidth; VIEW.h = window.innerHeight; };
+  upd();
+  window.addEventListener('resize', upd);
+}
+
+// compileAsync for materials that are drawn into a render target (the composer's HDR buffer, a showcase or bake
+// target). three keys every program by the output colour space and tone mapping, and those differ between the canvas
+// and any render target — so a plain compileAsync (current target: the canvas) builds variants nothing draws with, and
+// the real ones then compile synchronously on the first frame. Only compile()'s synchronous start reads the target.
+export function compileForTarget(renderer, scene, camera, target) {
+  const prev = renderer.getRenderTarget();
+  renderer.setRenderTarget(target);
+  try {
+    return renderer.compileAsync ? renderer.compileAsync(scene, camera) : Promise.resolve(renderer.compile(scene, camera));
+  } catch (e) {
+    return Promise.reject(e);
+  } finally {
+    renderer.setRenderTarget(prev);
+  }
+}
+
 // ---- small math helpers shared by core modules ----
 export const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 export const lerp = (a, b, t) => a + (b - a) * t;

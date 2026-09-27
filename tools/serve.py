@@ -21,7 +21,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     extensions_map = {
         **http.server.SimpleHTTPRequestHandler.extensions_map,
         '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.wasm': 'application/wasm',
-        '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.webp': 'image/webp',
+        '.woff2': 'font/woff2', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.webmanifest': 'application/manifest+json',
     }
 
     def end_headers(self):
@@ -66,7 +66,12 @@ def lan_ips():
 
 
 if __name__ == '__main__':
-    httpd = Server(('::', port), partial(Handler, directory=root))
+    try:
+        httpd = Server(('::', port), partial(Handler, directory=root))
+    except OSError:
+        # hosts without IPv6 (some containers): plain IPv4 on all interfaces
+        Server.address_family = socket.AF_INET
+        httpd = Server(('0.0.0.0', port), partial(Handler, directory=root))
     print(f'INKWAVE serving {root}')
     print(f'  this machine : http://localhost:{port}')
     for ip in lan_ips():

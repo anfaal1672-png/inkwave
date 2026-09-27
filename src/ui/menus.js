@@ -18,6 +18,8 @@ import {
 } from '../config.js';
 import * as LOOK from '../game/character-style.js';
 import { G } from '../core/ctx.js';
+import { tr, N_, LANGS, setLang } from '../i18n/index.js';
+import { TOUCH_CAPABLE } from '../core/touch.js';
 import {
   computeAwards, medalMarkup, awardBadge, awardIcon, rankEmblem, rankTier, RANK_TIERS, inkBurst, InkWipe, createPreview,
   sweepEdge, sweepClip, splatClip, splatCover, skinSwatch, irisSwatch, outfitIcon,
@@ -32,86 +34,100 @@ const LIGHT = new Set(['main', 'loadout', 'setup', 'locker', 'settings', 'howto'
 // module so the UI lab in tools/ finds them too). Missing art falls back to the layout thumbnail.
 const STAGE_DIR = new URL('../../assets/stages/', import.meta.url).href;
 const stageArt = (id, time, small) => `${STAGE_DIR}${id}-${time === 'dusk' ? 'dusk' : 'day'}${small ? '-sm' : ''}.webp`;
+// The stage-select hero fills ~62 % of the width: the 1920 render only for big sharp screens, else the 1280 one
+// (tools/stage-variants.py) — a phone's 3× DPR is capped at 1.5 here, the hero is a backdrop, not a photo.
+const stageHero = (id, time) => (innerWidth * Math.min(window.devicePixelRatio || 1, 1.5) * 0.62 > 1300
+  ? stageArt(id, time) : `${STAGE_DIR}${id}-${time === 'dusk' ? 'dusk' : 'day'}-md.webp`);
 const TIME_INFO = {
-  day: { label: 'DAY', text: 'Bright sun, crisp shadows.' },
-  dusk: { label: 'DUSK', text: 'Low sun, long shadows, harbour lights.' },
+  day: { label: N_('DAY'), text: N_('Bright sun, crisp shadows.') },
+  dusk: { label: N_('DUSK'), text: N_('Low sun, long shadows, harbour lights.') },
 };
 
 const TIPS = [
-  'Swim in your own ink to zip around and refill your tank.',
-  'Hold [SHIFT] to dive into your ink — you are nearly invisible while swimming.',
-  'Enemy ink slows you down and chips away at your health. Paint over it!',
-  'Swim up any wall you have inked to reach high ground.',
-  'Only turf counts when time runs out. Splats just buy you space.',
-  'Your special gauge fills as you ink. Press [F] when it glows!',
-  'A Splat Bomb costs most of your tank — throw it where it claims the most turf.',
-  'Chargers splat in one fully-charged shot. Keep moving and use cover.',
-  'Rollers paint huge stripes. Flick the roller to splash foes at range.',
-  'Low on ink? Dive in, refill, then push again.',
-  'Hold [TAB] to open the big map and spot unpainted turf.',
+  N_('Swim in your own ink to zip around and refill your tank.'),
+  N_('Hold [SHIFT] to dive into your ink — you are nearly invisible while swimming.'),
+  N_('Enemy ink slows you down and chips away at your health. Paint over it!'),
+  N_('Swim up any wall you have inked to reach high ground.'),
+  N_('Only turf counts when time runs out. Splats just buy you space.'),
+  N_('Your special gauge fills as you ink. Press [F] when it glows!'),
+  N_('A Splat Bomb costs most of your tank — throw it where it claims the most turf.'),
+  N_('Chargers splat in one fully-charged shot. Keep moving and use cover.'),
+  N_('Rollers paint huge stripes. Flick the roller to splash foes at range.'),
+  N_('Low on ink? Dive in, refill, then push again.'),
+  N_('Hold [TAB] to open the big map and spot unpainted turf.'),
 ];
 const DIFF_INFO = {
-  easy: { pips: 1, text: 'Relaxed bots with shaky aim. Great for learning the ropes.' },
-  normal: { pips: 2, text: 'Balanced bots that push turf and fight back.' },
-  hard: { pips: 3, text: 'Sharp, aggressive bots that punish mistakes. Bring your A-game.' },
+  easy: { pips: 1, text: N_('Relaxed bots with shaky aim. Great for learning the ropes.') },
+  normal: { pips: 2, text: N_('Balanced bots that push turf and fight back.') },
+  hard: { pips: 3, text: N_('Sharp, aggressive bots that punish mistakes. Bring your A-game.') },
 };
-const STAT_LABELS = [['range', 'Range'], ['damage', 'Damage'], ['rate', 'Fire rate'], ['mobility', 'Mobility'], ['paint', 'Ink coverage']];
-const KIND_LABEL = { shooter: 'Shooter', roller: 'Roller', charger: 'Charger', blaster: 'Blaster', dualies: 'Dualies', slosher: 'Slosher', splatling: 'Splatling' };
+const STAT_LABELS = [['range', N_('Range')], ['damage', N_('Damage')], ['rate', N_('Fire rate')], ['mobility', N_('Mobility')], ['paint', N_('Ink coverage')]];
+const KIND_LABEL = { shooter: N_('Shooter'), roller: N_('Roller'), charger: N_('Charger'), blaster: N_('Blaster'), dualies: N_('Dualies'), slosher: N_('Slosher'), splatling: N_('Splatling') };
 const STAT_ICONS = { range: GLYPHS.target, damage: GLYPHS.bolt, rate: GLYPHS.clock, mobility: GLYPHS.feather, paint: GLYPHS.drop };
 const LOCKER_TABS = [
-  { id: 'kids', label: 'SQUIDKIDS', icon: 'users', sections: ['_presets'] },
-  { id: 'hair', label: 'HAIR', icon: 'hair', sections: ['hair', 'hat'] },
-  { id: 'face', label: 'FACE', icon: 'eye', sections: ['eyes', 'brows', 'skin'] },
-  { id: 'outfit', label: 'OUTFIT', icon: 'shirt', sections: ['outfit'] },
+  { id: 'kids', label: N_('SQUIDKIDS'), icon: 'users', sections: ['_presets'] },
+  { id: 'hair', label: N_('HAIR'), icon: 'hair', sections: ['hair', 'hat'] },
+  { id: 'face', label: N_('FACE'), icon: 'eye', sections: ['eyes', 'brows', 'skin'] },
+  { id: 'outfit', label: N_('OUTFIT'), icon: 'shirt', sections: ['outfit'] },
 ];
 const MENU_DESC = {
-  play: 'Pick a stage, day or dusk, and jump into a 4 v 4 Turf War',
-  loadout: 'Choose your weapon: stats, sub and special for every kind',
-  locker: 'Choose your squidkid — tentacles, headgear, eyes, skin and outfit',
-  settings: 'Controls, video, audio and gameplay options',
-  howto: 'The rules in 30 seconds, plus every control',
-  credits: 'The squidkids and code behind INKWAVE',
+  play: N_('Pick a stage, day or dusk, and jump into a 4 v 4 Turf War'),
+  loadout: N_('Choose your weapon: stats, sub and special for every kind'),
+  locker: N_('Choose your squidkid — tentacles, headgear, eyes, skin and outfit'),
+  settings: N_('Controls, video, audio and gameplay options'),
+  howto: N_('The rules in 30 seconds, plus every control'),
+  credits: N_('The squidkids and code behind INKWAVE'),
 };
 
 const pctFmt = (v) => Math.round(v * 100) + '%';
 const SETTINGS_TABS = [
-  { id: 'controls', label: 'Controls', icon: 'gamepad', rows: [
-    { key: 'sensitivity', label: 'Mouse sensitivity', type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: 'How far the camera turns for each bit of mouse movement.' },
-    { key: 'padSensitivity', label: 'Controller sensitivity', type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: 'Camera turn speed with the right stick.' },
-    { key: 'invertY', label: 'Invert vertical look', type: 'toggle', help: 'Push up to look down, like a flight stick.' },
-    { key: 'aimAssist', label: 'Aim assist (controller)', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Gently slows and steers your aim onto nearby rivals when you play with a controller.' },
-    { key: 'aimAssistMouse', label: 'Aim assist for mouse', type: 'toggle', help: 'Also apply a lighter aim assist when aiming with a mouse. Off by default.' },
-    { key: '_howto', label: 'Controls reference', type: 'link', help: 'Every keyboard, mouse and controller binding in one place.' },
+  { id: 'controls', label: N_('Controls'), icon: 'gamepad', rows: [
+    { key: 'sensitivity', label: N_('Mouse sensitivity'), type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: N_('How far the camera turns for each bit of mouse movement.') },
+    { key: 'padSensitivity', label: N_('Controller sensitivity'), type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: N_('Camera turn speed with the right stick.') },
+    { key: 'invertY', label: N_('Invert vertical look'), type: 'toggle', help: N_('Push up to look down, like a flight stick.') },
+    { key: 'aimAssist', label: N_('Aim assist (controller)'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Gently slows and steers your aim onto nearby rivals when you play with a controller.') },
+    { key: 'aimAssistMouse', label: N_('Aim assist for mouse'), type: 'toggle', help: N_('Also apply a lighter aim assist when aiming with a mouse. Off by default.') },
+    { key: '_howto', label: N_('Controls reference'), type: 'link', help: N_('Every keyboard, mouse and controller binding in one place.') },
   ] },
-  { id: 'video', label: 'Video', icon: 'monitor', rows: [
-    { key: 'quality', label: 'Graphics quality', type: 'seg', options: [['low', 'Low'], ['medium', 'Med'], ['high', 'High'], ['ultra', 'Ultra']], help: 'Resolution scale, shadow detail, anti-aliasing and particle counts.' },
-    { key: 'fov', label: 'Field of view', type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: 'Wider shows more of the turf around you.' },
-    { key: 'shadows', label: 'Shadows', type: 'toggle', help: 'Soft sun shadows. Turn off for extra speed on older machines.' },
-    { key: 'bloom', label: 'Bloom glow', type: 'toggle', help: 'A soft glow around bright ink and specials.' },
-    { key: 'showFps', label: 'Show FPS counter', type: 'toggle', help: 'Displays frames per second in the corner during matches.' },
+  { id: 'touch', label: N_('Touch'), icon: 'hand', touchOnly: true, rows: [
+    { key: 'touchSensitivity', label: N_('Swipe sensitivity'), type: 'slider', min: 0.2, max: 3, step: 0.05, fmt: (v) => v.toFixed(2) + '×', help: N_('How far the camera turns when you drag on the right side of the screen.') },
+    { key: 'aimAssistTouch', label: N_('Aim assist (touch)'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Gently slows and steers your aim onto nearby rivals while you play by touch.') },
+    { key: 'touchSquidToggle', label: N_('Squid button toggles'), type: 'toggle', help: N_('Tap once to dive, tap again to surface, instead of holding the button. Shooting always surfaces you.') },
+    { key: 'touchLeftHanded', label: N_('Left-handed layout'), type: 'toggle', help: N_('Mirror the controls: buttons on the left, move stick on the right.') },
+    { key: 'touchScale', label: N_('Button size'), type: 'slider', min: 0.75, max: 1.35, step: 0.05, fmt: pctFmt, help: N_('Size of the on-screen buttons and the move stick.') },
+    { key: 'touchOpacity', label: N_('Button opacity'), type: 'slider', min: 0.3, max: 1, step: 0.05, fmt: pctFmt, help: N_('How solid the on-screen buttons look.') },
   ] },
-  { id: 'audio', label: 'Audio', icon: 'speaker', rows: [
-    { key: 'master', label: 'Master volume', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Overall loudness of everything.' },
-    { key: 'music', label: 'Music', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Menu and battle soundtrack.' },
-    { key: 'sfx', label: 'Sound effects', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Weapons, splats, voices and menu sounds.' },
+  { id: 'video', label: N_('Video'), icon: 'monitor', rows: [
+    { key: 'quality', label: N_('Graphics quality'), type: 'seg', options: [['low', N_('Low')], ['medium', N_('Med')], ['high', N_('High')], ['ultra', N_('Ultra')]], help: N_('Resolution scale, shadow detail, anti-aliasing and particle counts.') },
+    { key: 'fov', label: N_('Field of view'), type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: N_('Wider shows more of the turf around you.') },
+    { key: 'shadows', label: N_('Shadows'), type: 'toggle', help: N_('Soft sun shadows. Turn off for extra speed on older machines.') },
+    { key: 'bloom', label: N_('Bloom glow'), type: 'toggle', help: N_('A soft glow around bright ink and specials.') },
+    { key: 'showFps', label: N_('Show FPS counter'), type: 'toggle', help: N_('Displays frames per second in the corner during matches.') },
   ] },
-  { id: 'gameplay', label: 'Gameplay', icon: 'swords', rows: [
-    { key: 'cameraShake', label: 'Camera shake', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Screen shake from explosions, slams and hits.' },
-    { key: 'rumble', label: 'Vibration', type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: 'Controller rumble for hits, splats, bombs and specials. Only while you play with a controller.' },
-    { key: 'colorblind', label: 'Colorblind-safe inks', type: 'toggle', help: 'Always use high-contrast yellow vs. blue team inks.' },
-    { key: 'minimap', label: 'Minimap', type: 'toggle', help: 'Show the turf minimap in the corner during matches.' },
-    { key: 'difficulty', label: 'Default bot skill', type: 'seg', options: null, help: 'Starting difficulty for new matches.' },
-    { key: 'matchLength', label: 'Default match length', type: 'seg', options: null, help: 'How long each Turf War lasts.' },
+  { id: 'audio', label: N_('Audio'), icon: 'speaker', rows: [
+    { key: 'master', label: N_('Master volume'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Overall loudness of everything.') },
+    { key: 'music', label: N_('Music'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Menu and battle soundtrack.') },
+    { key: 'sfx', label: N_('Sound effects'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Weapons, splats, voices and menu sounds.') },
   ] },
-];
+  { id: 'gameplay', label: N_('Gameplay'), icon: 'swords', rows: [
+    { key: 'lang', label: N_('Language'), type: 'seg', options: LANGS, help: N_('Menus, HUD and tips. Signs painted on the stages stay in English.') },
+    { key: 'cameraShake', label: N_('Camera shake'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Screen shake from explosions, slams and hits.') },
+    { key: 'rumble', label: N_('Vibration'), type: 'slider', min: 0, max: 1, step: 0.05, fmt: pctFmt, help: N_('Rumble for hits, splats, bombs and specials — on a controller, or the phone itself while you play by touch.') },
+    { key: 'colorblind', label: N_('Colorblind-safe inks'), type: 'toggle', help: N_('Always use high-contrast yellow vs. blue team inks.') },
+    { key: 'minimap', label: N_('Minimap'), type: 'toggle', help: N_('Show the turf minimap in the corner during matches.') },
+    { key: 'difficulty', label: N_('Default bot skill'), type: 'seg', options: null, help: N_('Starting difficulty for new matches.') },
+    { key: 'matchLength', label: N_('Default match length'), type: 'seg', options: null, help: N_('How long each Turf War lasts.') },
+  ] },
+].filter((t) => !t.touchOnly || TOUCH_CAPABLE);
 const TAB_BLURB = {
-  controls: 'Look speed, invert, aim assist and the full control reference.',
-  video: 'Quality tier, field of view and screen effects.',
-  audio: 'Master, music and sound-effect levels.',
-  gameplay: 'Shake, vibration, colour-safe inks, minimap and match defaults.',
+  touch: N_('Swipe speed, aim assist, squid button and the on-screen button layout.'),
+  controls: N_('Look speed, invert, aim assist and the full control reference.'),
+  video: N_('Quality tier, field of view and screen effects.'),
+  audio: N_('Master, music and sound-effect levels.'),
+  gameplay: N_('Language, shake, vibration, colour-safe inks, minimap and match defaults.'),
 };
 
-const durLabel = (s) => (s < 120 ? `${s} SEC` : `${Math.round(s / 60)} MIN`);
+const durLabel = (s) => (s < 120 ? tr('{n} SEC', { n: s }) : tr('{n} MIN', { n: Math.round(s / 60) }));
 // FNV-1a — the Character's style seed (character.js hashStr) so an unsaved look resolves identically here
 const fnv = (str) => { let x = 2166136261; for (let i = 0; i < str.length; i++) { x ^= str.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };
 
@@ -135,7 +151,7 @@ export class Menus {
     this._focusMem = {};
     this._binds = new WeakMap();
     this._modal = null;
-    this._loading = { target: 0, shown: 0, label: 'Mixing the ink…' };
+    this._loading = { target: 0, shown: 0, label: tr('Mixing the ink…') };
     this._results = null;
     this._resultsDirty = false;
     this._input = 'kbm';
@@ -149,7 +165,8 @@ export class Menus {
     this._cur = { x: new Spring(0, 560, 34), y: new Spring(0, 560, 34), w: new Spring(0, 560, 34), h: new Spring(0, 560, 34), on: false, r: '' };
 
     this._applyAccent();
-    this.el.addEventListener('pointermove', () => {
+    this.el.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
       this._lastMove = performance.now();
       if (this._input !== 'kbm') this.setInputMode('kbm');
     }, { passive: true });
@@ -263,10 +280,11 @@ export class Menus {
   }
 
   setInputMode(mode) {
-    if (mode !== 'kbm' && mode !== 'pad') return;
+    if (mode !== 'kbm' && mode !== 'pad' && mode !== 'touch') return;
     if (this._input === mode) return;
     this._input = mode;
     this.el.classList.toggle('is-pad', mode === 'pad');
+    this.el.classList.toggle('is-touch', mode === 'touch');
     if (this._scr && this._scr.onInputMode) this._scr.onInputMode(mode);
   }
 
@@ -315,7 +333,15 @@ export class Menus {
   _setSetting(key, value) {
     safeCall(() => this.api.setSettings && this.api.setSettings({ [key]: value }));
     if (key === 'colorblind' && !this._accentExternal) this._applyAccent();
+    if (key === 'lang') { setLang(value); this._relang(); return; }
     if (this._scr && this._scr.onSetting) safeCall(() => this._scr.onSetting(key, value));
+  }
+  /** Language switch: rebuild the screen on show in place (same stack, focus stays on the row that changed it). */
+  _relang() {
+    const name = this.current;
+    if (!name || !this._scr) return;
+    if (this._focus && this._focus.dataset.id) this._focusMem[name] = this._focus.dataset.id;
+    this._swap(name, { back: true, instantLeave: true });
   }
   _profile() {
     let p = null;
@@ -620,8 +646,8 @@ export class Menus {
     const m = h('div', { class: 'iw-modal' },
       h('div', { class: 'iw-modal__card' + (danger ? ' is-danger' : '') },
         h('div', { class: 'iw-modal__splat', html: splatSVG({ seed: 5, cls: danger ? 'iw-fdanger' : 'iw-fa' }) }),
-        h('div', { class: 'iw-modal__title iw-display' }, title),
-        text ? h('p', { class: 'iw-modal__text' }, text) : null,
+        h('div', { class: 'iw-modal__title iw-display' }, tr(title)),
+        text ? h('p', { class: 'iw-modal__text' }, tr(text)) : null,
         h('div', { class: 'iw-modal__btns' }, btnEls)));
     this._scr.el.appendChild(m);
     this._modalPrev = this._focus;
@@ -645,7 +671,7 @@ export class Menus {
     return h('span', { class: 'iw-hint' },
       h('span', { class: 'iw-kbm', html: k.map((x) => (x === 'LMB' ? mouseGlyph('L') : x === 'RMB' ? mouseGlyph('R') : keycap(x))).join('') }),
       h('span', { class: 'iw-padg', html: pad ? padGlyph(pad) : '' }),
-      label ? h('span', { class: 'iw-hint__label' }, label) : null);
+      label ? h('span', { class: 'iw-hint__label' }, tr(label)) : null);
   }
   _prompts(items) {
     return h('div', { class: 'iw-prompts iw-in iw-in--up' }, items.map(([k, p, l]) => this._hint(k, p, l)));
@@ -661,16 +687,16 @@ export class Menus {
       h('div', { class: 'iw-head__titles' },
         h('div', { class: 'iw-head__title' },
           h('span', { class: 'iw-head__blob', html: splatSVG({ seed: title.length * 7 + 3, cls: 'iw-fa', r: 60, arms: 7, drops: 3 }) }),
-          h('span', { class: 'iw-display' }, title)),
-        sub ? h('div', { class: 'iw-head__sub' }, sub) : null));
+          h('span', { class: 'iw-display' }, tr(title))),
+        sub ? h('div', { class: 'iw-head__sub' }, tr(sub)) : null));
   }
   _btn({ id, label, sub, icon, cls = '', accept, sound = 'ui_click', tilt = 0, badge = null }) {
     const b = h('button', { class: `iw-btn ${cls}`, style: { '--tilt': `${tilt}deg` } },
       h('span', { class: 'iw-btn__blob' }),
       icon ? h('span', { class: 'iw-btn__icon', html: icon }) : null,
       h('span', { class: 'iw-btn__text' },
-        h('span', { class: 'iw-btn__label' }, label),
-        sub ? h('span', { class: 'iw-btn__sub' }, sub) : null),
+        h('span', { class: 'iw-btn__label' }, tr(label)),
+        sub ? h('span', { class: 'iw-btn__sub' }, tr(sub)) : null),
       badge);
     this._fx(b);
     this._bind(b, { id, accept: (src) => { if (sound) this._sfx(sound); if (src === 'mouse') this._press(b); accept && accept(src); } });
@@ -684,17 +710,17 @@ export class Menus {
     const pctEl = h('span', { class: 'iw-progress__pct' }, '0%');
     const label = h('div', { class: 'iw-loading__label' }, this._loading.label);
     const tipText = h('div', { class: 'iw-tip__text' });
-    const tip = h('div', { class: 'iw-tip iw-in iw-in--up' }, h('span', { class: 'iw-tip__tag' }, 'TIP'), tipText);
+    const tip = h('div', { class: 'iw-tip iw-in iw-in--up' }, h('span', { class: 'iw-tip__tag' }, tr('TIP')), tipText);
     const blobs = h('div', { class: 'iw-loading__bg' }, [0, 1, 2, 3, 4, 5].map((i) => h('i', { class: `iw-bgblob iw-bgblob--${i}` })));
     const el = h('div', { class: 'iw-screen iw-loading' }, blobs,
       h('div', { class: 'iw-loading__center' },
-        h('div', { class: 'iw-in iw-in--pop', html: logoMarkup(GAME_TITLE, GAME_SUBTITLE, 'md') }),
+        h('div', { class: 'iw-in iw-in--pop', html: logoMarkup(GAME_TITLE, tr(GAME_SUBTITLE), 'md') }),
         h('div', { class: 'iw-progress iw-in iw-in--up' }, h('div', { class: 'iw-progress__track' }, fill), pctEl),
         h('div', { class: 'iw-in iw-in--up' }, label)),
       tip,
       h('div', { class: 'iw-corner iw-corner--br iw-in' }, `v${this._version()}`));
     let tipIdx = Math.floor(Math.random() * TIPS.length), tipT = 0, lastPct = -1;
-    const setTip = () => { tipText.innerHTML = richText(TIPS[tipIdx % TIPS.length]); restartAnim(tipText, 'is-in'); };
+    const setTip = () => { tipText.innerHTML = richText(tr(TIPS[tipIdx % TIPS.length])); restartAnim(tipText, 'is-in'); };
     setTip();
     return {
       el, noCursor: true,
@@ -713,21 +739,27 @@ export class Menus {
   // ================================================================ SCREEN: title
   _scr_title() {
     const press = h('div', { class: 'iw-title__press iw-in iw-in--up' },
-      h('span', { class: 'iw-title__presstext' }, this._input === 'pad' ? 'PRESS ANY BUTTON' : 'PRESS ANY KEY'),
-      h('span', { class: 'iw-title__presssub' }, this._input === 'pad' ? '' : 'or click to start'));
+      h('span', { class: 'iw-title__presstext' }, this._pressText(this._input)),
+      h('span', { class: 'iw-title__presssub' }, this._input === 'kbm' && !TOUCH_CAPABLE ? tr('or click to start') : ''));
     const el = h('div', { class: 'iw-screen iw-title', onclick: () => this._titleGo() },
       h('div', { class: 'iw-title__scrim' }),
-      h('div', { class: 'iw-title__logo iw-in iw-in--logo' }, h('i', { class: 'iw-title__shock' }), h('div', { class: 'iw-title__logoin', html: logoMarkup(GAME_TITLE, GAME_SUBTITLE, 'xl') })),
+      h('div', { class: 'iw-title__logo iw-in iw-in--logo' }, h('i', { class: 'iw-title__shock' }), h('div', { class: 'iw-title__logoin', html: logoMarkup(GAME_TITLE, tr(GAME_SUBTITLE), 'xl') })),
       press,
-      h('div', { class: 'iw-corner iw-corner--bl iw-in' }, h('b', null, GAME_TITLE), ' · an original turf-war shooter'),
+      h('div', { class: 'iw-corner iw-corner--bl iw-in' }, h('b', null, GAME_TITLE), ' ' + tr('· an original turf-war shooter')),
       h('div', { class: 'iw-corner iw-corner--br iw-in' }, `v${this._version()}`));
     return {
       el, noCursor: true,
       onInputMode: (m) => {
-        press.firstChild.textContent = m === 'pad' ? 'PRESS ANY BUTTON' : 'PRESS ANY KEY';
-        press.lastChild.textContent = m === 'pad' ? '' : 'or click to start';
+        press.firstChild.textContent = this._pressText(m);
+        press.lastChild.textContent = m === 'kbm' && !TOUCH_CAPABLE ? tr('or click to start') : '';
       },
     };
+  }
+
+  _pressText(m) {
+    if (m === 'pad') return tr('PRESS ANY BUTTON');
+    if (m === 'touch' || (TOUCH_CAPABLE && !matchMedia('(any-pointer: fine)').matches)) return tr('TAP TO START');
+    return tr('PRESS ANY KEY');
   }
 
   // ================================================================ SCREEN: main
@@ -760,26 +792,26 @@ export class Menus {
       avatar,
       h('div', { class: 'iw-profile__info' },
         h('div', { class: 'iw-profile__name' }, prof.name),
-        h('div', { class: `iw-profile__rank ${rank.cls}` }, h('i', { class: 'iw-profile__emblem', html: rankEmblem(tier) }), h('span', null, rank.name))),
+        h('div', { class: `iw-profile__rank ${rank.cls}` }, h('i', { class: 'iw-profile__emblem', html: rankEmblem(tier) }), h('span', null, tr(rank.name)))),
       h('div', { class: 'iw-profile__xp' },
-        h('span', { class: 'iw-lvl' }, h('small', null, 'LV'), String(prof.level)),
+        h('span', { class: 'iw-lvl' }, h('small', null, tr('LV')), String(prof.level)),
         h('span', { class: 'iw-xpbar iw-xpbar--shine', style: { '--t': xpT.toFixed(3) } }, h('i'), h('b', { class: 'iw-xpbar__glint' })),
         h('span', { class: 'iw-profile__xpnum' }, `${fmtInt(prof.xp)} / ${fmtInt(prof.xpToNext)} XP`)),
       h('div', { class: 'iw-profile__stats' },
-        h('div', null, h('b', null, fmtInt(prof.wins)), h('span', null, 'WINS')),
-        h('div', null, h('b', null, fmtInt(prof.played)), h('span', null, 'MATCHES')),
-        nextRank ? h('div', { class: 'iw-profile__next' }, h('span', null, 'NEXT RANK'), h('b', null, `LV ${nextRank.lv}`)) : null));
+        h('div', null, h('b', null, fmtInt(prof.wins)), h('span', null, tr('WINS'))),
+        h('div', null, h('b', null, fmtInt(prof.played)), h('span', null, tr('MATCHES'))),
+        nextRank ? h('div', { class: 'iw-profile__next' }, h('span', null, tr('NEXT RANK')), h('b', null, tr('LV {n}', { n: nextRank.lv }))) : null));
     const kit = this._panel('iw-kitcard iw-in iw-in--right',
-      h('div', { class: 'iw-kitcard__label' }, 'CURRENT LOADOUT'),
+      h('div', { class: 'iw-kitcard__label' }, tr('CURRENT LOADOUT')),
       h('div', { class: 'iw-kitcard__main' },
         h('span', { class: 'iw-kitcard__icon', html: weaponIcon(W.kind || lo.weapon) }),
-        h('div', null, h('div', { class: 'iw-kitcard__name' }, W.name), h('div', { class: 'iw-kitcard__kind' }, W.class || KIND_LABEL[W.kind] || ''))),
+        h('div', null, h('div', { class: 'iw-kitcard__name' }, tr(W.name)), h('div', { class: 'iw-kitcard__kind' }, tr(W.class || KIND_LABEL[W.kind] || '')))),
       h('div', { class: 'iw-kitcard__chips' },
-        h('span', { class: 'iw-chip' }, h('i', { html: SUB_ICONS.bomb }), sub.name),
-        h('span', { class: 'iw-chip' }, h('i', { html: specialIcon(sp.id) }), sp.name)));
+        h('span', { class: 'iw-chip' }, h('i', { html: SUB_ICONS.bomb }), tr(sub.name)),
+        h('span', { class: 'iw-chip' }, h('i', { html: specialIcon(sp.id) }), tr(sp.name))));
     const el = h('div', { class: 'iw-screen iw-main' },
       h('div', { class: 'iw-scrim-left' }),
-      h('div', { class: 'iw-main__logo iw-in iw-in--down', html: logoMarkup(GAME_TITLE, GAME_SUBTITLE, 'sm') }),
+      h('div', { class: 'iw-main__logo iw-in iw-in--down', html: logoMarkup(GAME_TITLE, tr(GAME_SUBTITLE), 'sm') }),
       h('nav', { class: 'iw-main__menu' }, btns),
       desc,
       h('div', { class: 'iw-main__side' }, profile, kit),
@@ -788,7 +820,7 @@ export class Menus {
     return {
       el, wrap: true, initial: btns[0],
       onFocus: (f) => {
-        const t = MENU_DESC[f.dataset.id];
+        const t = MENU_DESC[f.dataset.id] && tr(MENU_DESC[f.dataset.id]);
         if (t && descText.textContent !== t) { descText.textContent = t; restartAnim(desc, 'is-swap'); }
       },
       onBack: () => { this._sfx('ui_back'); this.show('title', { back: true }); },
@@ -803,21 +835,27 @@ export class Menus {
     return t === 'dusk' || t === 'day' ? t : (s.timeOfDay === 'dusk' ? 'dusk' : 'day');
   }
 
-  /** Warm the image cache with every stage render (hero + thumbnail, day + dusk) so switches never flash. */
+  /** Warm the image cache with the stage thumbnails (tickets, blurred backdrop: ~250 KB for all six). The big hero
+   *  renders load per stage as the player gets to them (_preloadHero) — preloading all six from the main menu cost
+   *  ~1.7 MB before anyone had opened stage select. */
   _preloadStages() {
     if (this._stageImgs) return;
     this._stageImgs = [];
-    for (const m of this._maps()) {
-      for (const t of ['day', 'dusk']) {
-        for (const sm of [true, false]) {
-          const im = new Image();
-          im.decoding = 'async';
-          im.src = stageArt(m.id, t, sm);
-          if (im.decode) im.decode().catch(() => {});
-          this._stageImgs.push(im);
-        }
-      }
-    }
+    for (const m of this._maps()) for (const t of ['day', 'dusk']) this._warm(stageArt(m.id, t, true));
+  }
+  /** Both times of day of one stage's hero render (so the DAY / DUSK flip never waits on the network). */
+  _preloadHero(id) {
+    const done = this._heroes || (this._heroes = new Set());
+    if (done.has(id)) return;
+    done.add(id);
+    for (const t of ['day', 'dusk']) this._warm(stageHero(id, t));
+  }
+  _warm(src) {
+    const im = new Image();
+    im.decoding = 'async';
+    im.src = src;
+    if (im.decode) im.decode().catch(() => {});
+    this._stageImgs.push(im);
   }
 
   _scr_setup() {
@@ -834,6 +872,7 @@ export class Menus {
     const timeOf = (id) => this._stageTime(id);
     const reduced = prefersReducedMotion();
     this._preloadStages();
+    this._preloadHero(st.mapId);
 
     // ---- JS tweens (driven by tick → honour the lab's freeze / slow-mo)
     const tweens = [];
@@ -843,7 +882,7 @@ export class Menus {
     const art = h('div', { class: 'iw-ss__art' });
     const counter = h('span', { class: 'iw-ss__count' });
     const layoutMap = h('span', { class: 'iw-ss__layoutmap' });
-    const layoutEl = h('div', { class: 'iw-ss__layout' }, layoutMap, h('span', { class: 'iw-ss__layoutlbl' }, h('i', { html: GLYPHS.map }), 'LAYOUT'));
+    const layoutEl = h('div', { class: 'iw-ss__layout' }, layoutMap, h('span', { class: 'iw-ss__layoutlbl' }, h('i', { html: GLYPHS.map }), tr('LAYOUT')));
     const stars = h('div', { class: 'iw-ss__stars' }, Array.from({ length: 16 }, (_, i) => {
       const x = ((i * 0.618034 + 0.13) % 1) * 96 + 2, y = ((i * 0.41421 + 0.07) % 1) * 34 + 3;
       return h('i', { style: { left: `${x.toFixed(1)}%`, top: `${y.toFixed(1)}%`, '--d': `${((i * 0.37) % 1 * 3).toFixed(2)}s`, '--s': (0.55 + ((i * 0.73) % 1) * 0.8).toFixed(2) } });
@@ -856,15 +895,15 @@ export class Menus {
       [[38, 1], [96, 1.6], [140, 0.8], [226, 1.3], [300, 0.9], [352, 1.5]].map(([x, k], i) => `<g class="iw-ss__drip" style="--d:${i}"><path class="iw-fa" d="M${x - 6} 0 L${x + 6} 0 L${x + 4} ${22 * k} Q${x} ${31 * k} ${x - 4} ${22 * k} Z"/></g>`).join('')}</svg>` });
 
     // DAY / DUSK switch (big, sticker-like; the thumb carries a sun that sets and a moon that rises)
-    const optDay = h('span', { class: 'iw-daytgl__opt is-day iw-noclick' }, 'DAY');
-    const optDusk = h('span', { class: 'iw-daytgl__opt is-dusk iw-noclick' }, 'DUSK');
+    const optDay = h('span', { class: 'iw-daytgl__opt is-day iw-noclick' }, tr('DAY'));
+    const optDusk = h('span', { class: 'iw-daytgl__opt is-dusk iw-noclick' }, tr('DUSK'));
     const tgl = h('button', { class: 'iw-daytgl' },
       h('span', { class: 'iw-daytgl__sky' }, h('i', { class: 'iw-daytgl__cloud' }), h('i', { class: 'iw-daytgl__cloud is-2' }),
         ...Array.from({ length: 6 }, (_, i) => h('i', { class: 'iw-daytgl__star', style: { '--i': i } }))),
       h('span', { class: 'iw-daytgl__thumb' }, h('i', { class: 'iw-daytgl__sunico', html: GLYPHS.sun }), h('i', { class: 'iw-daytgl__moonico', html: GLYPHS.moon })),
       optDay, optDusk);
     const timeText = h('span', { class: 'iw-ss__timetext' });
-    const tglWrap = h('div', { class: 'iw-ss__time' }, h('div', { class: 'iw-ss__timehead' }, h('small', null, 'TIME OF DAY'), this._hint(['Q', 'E'], null)), tgl, timeText);
+    const tglWrap = h('div', { class: 'iw-ss__time' }, h('div', { class: 'iw-ss__timehead' }, h('small', null, tr('TIME OF DAY')), this._hint(['Q', 'E'], null)), tgl, timeText);
     tglWrap.querySelector('.iw-padg').innerHTML = padGlyph('LB') + padGlyph('RB');
     const hero = h('div', { class: 'iw-ss__hero iw-in iw-in--pop' },
       h('div', { class: 'iw-ss__splat', html: splatSVG({ seed: 21, cls: 'iw-fa', r: 60, arms: 9, drops: 6 }) }),
@@ -893,7 +932,7 @@ export class Menus {
         L.classList.add('is-noart');
         L.appendChild(h('div', { class: 'iw-ss__fallback', html: (m && m.thumb) || mapThumb(m, 3) }));
       }, { once: true });
-      img.src = stageArt(id, time);
+      img.src = stageHero(id, time);
       L._img = img;
       return L;
     };
@@ -962,7 +1001,7 @@ export class Menus {
         h('span', { class: 'iw-ticket__art' }, h('span', { class: 'iw-ticket__fallback', html: m.thumb || mapThumb(m, i + 2) }), imgDay, imgDusk, h('i', { class: 'iw-ticket__shade' })),
         h('span', { class: 'iw-ticket__ink', html: splatSVG({ seed: 60 + i * 5, cls: 'iw-fa', r: 58, arms: 9, drops: 5 }) }),
         h('span', { class: 'iw-ticket__num' }, String(i + 1).padStart(2, '0')),
-        h('span', { class: 'iw-ticket__name' }, m.name),
+        h('span', { class: 'iw-ticket__name' }, tr(m.name)),
         badge,
         h('span', { class: 'iw-ticket__check', html: GLYPHS.check }));
       c._mid = m.id;
@@ -984,20 +1023,20 @@ export class Menus {
     const listEl = h('div', { class: 'iw-ss__list' }, tickets);
 
     // ---- match options (bot skill + length)
-    const dOpts = Object.values(diffs).map((d) => [d.id, h('span', { class: 'iw-diffopt' }, h('span', { class: 'iw-pips' }, Array.from({ length: 3 }, (_, k) => h('i', { class: k < (DIFF_INFO[d.id]?.pips || 2) ? 'on' : '' }))), d.name)]);
+    const dOpts = Object.values(diffs).map((d) => [d.id, h('span', { class: 'iw-diffopt' }, h('span', { class: 'iw-pips' }, Array.from({ length: 3 }, (_, k) => h('i', { class: k < (DIFF_INFO[d.id]?.pips || 2) ? 'on' : '' }))), tr(d.name))]);
     const dText = h('div', { class: 'iw-setup__desc' });
     const diffSeg = this._seg(dOpts, st.difficulty, (v) => {
-      st.difficulty = v; dText.textContent = DIFF_INFO[v]?.text || ''; restartAnim(dText, 'is-in');
+      st.difficulty = v; dText.textContent = tr(DIFF_INFO[v]?.text || ''); restartAnim(dText, 'is-in');
       safeCall(() => this.api.setSettings && this.api.setSettings({ difficulty: v })); updateStart();
     });
-    dText.textContent = DIFF_INFO[st.difficulty]?.text || '';
-    const diffRow = h('div', { class: 'iw-setrow iw-setrow--stack' }, h('div', { class: 'iw-setrow__label' }, h('i', { html: GLYPHS.bot }), 'BOT SKILL'), diffSeg.el);
+    dText.textContent = tr(DIFF_INFO[st.difficulty]?.text || '');
+    const diffRow = h('div', { class: 'iw-setrow iw-setrow--stack' }, h('div', { class: 'iw-setrow__label' }, h('i', { html: GLYPHS.bot }), tr('BOT SKILL')), diffSeg.el);
     this._bind(diffRow, { id: 'difficulty', type: 'row', adjust: diffSeg.adjust, accept: diffSeg.cycle });
     const lOpts = durations.map((d) => [d, durLabel(d)]);
     const lenSeg = this._seg(lOpts, st.duration, (v) => {
       st.duration = v; safeCall(() => this.api.setSettings && this.api.setSettings({ matchLength: v })); updateStart();
     });
-    const lenRow = h('div', { class: 'iw-setrow iw-setrow--stack' }, h('div', { class: 'iw-setrow__label' }, h('i', { html: GLYPHS.clock }), 'MATCH LENGTH'), lenSeg.el);
+    const lenRow = h('div', { class: 'iw-setrow iw-setrow--stack' }, h('div', { class: 'iw-setrow__label' }, h('i', { html: GLYPHS.clock }), tr('MATCH LENGTH')), lenSeg.el);
     this._bind(lenRow, { id: 'length', type: 'row', adjust: lenSeg.adjust, accept: lenSeg.cycle });
     const matchPanel = this._panel('iw-ss__match iw-in iw-in--up', diffRow, dText, lenRow);
 
@@ -1006,14 +1045,14 @@ export class Menus {
     const W = this._weapons()[lo.weapon];
     const weaponChip = h('button', { class: 'iw-wchip iw-in' },
       h('span', { class: 'iw-wchip__icon', html: weaponIcon(W.kind || lo.weapon) }),
-      h('span', { class: 'iw-wchip__text' }, h('small', null, 'WEAPON'), h('b', null, W.name)),
+      h('span', { class: 'iw-wchip__text' }, h('small', null, tr('WEAPON')), h('b', null, tr(W.name))),
       h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.pencil })));
     this._fx(weaponChip);
     this._bind(weaponChip, { id: 'weapon', accept: () => { this._sfx('ui_click'); this._go('loadout'); } });
     const prof = this._profile();
     const lookAv = h('span', { class: 'iw-lchip__av' }, h('span', { class: 'iw-lchip__blob', html: splatSVG({ seed: 17, cls: 'iw-fa', r: 62, arms: 8, drops: 0 }) }), h('span', { class: 'iw-lchip__squid', html: SQUID }));
     const lookChip = h('button', { class: 'iw-wchip iw-lchip iw-in' }, lookAv,
-      h('span', { class: 'iw-wchip__text' }, h('small', null, 'SQUIDKID'), h('b', null, prof.name)),
+      h('span', { class: 'iw-wchip__text' }, h('small', null, tr('SQUIDKID')), h('b', null, prof.name)),
       h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.hanger })));
     this._fx(lookChip);
     this._bind(lookChip, { id: 'look', accept: () => { this._sfx('ui_click'); this._go('locker'); } });
@@ -1022,10 +1061,10 @@ export class Menus {
     const startSub = h('span');
     const start = this._btn({ id: 'start', label: 'START!', icon: GLYPHS.play, cls: 'iw-btn--start iw-in iw-in--pop', sound: 'ui_confirm', accept: () => this._startMatch() });
     start.querySelector('.iw-btn__text').appendChild(h('span', { class: 'iw-btn__sub' }, startSub));
-    start.append(h('span', { class: 'iw-start__charge' }, h('i')), h('span', { class: 'iw-start__ready' }, h('i', { html: GLYPHS.check }), 'READY'), h('span', { class: 'iw-start__chev' }, h('i'), h('i'), h('i')));
+    start.append(h('span', { class: 'iw-start__charge' }, h('i')), h('span', { class: 'iw-start__ready' }, h('i', { html: GLYPHS.check }), tr('READY')), h('span', { class: 'iw-start__chev' }, h('i'), h('i'), h('i')));
     const updateStart = () => {
       const m = byId(st.mapId);
-      startSub.textContent = `${m ? m.name : ''} · ${TIME_INFO[timeOf(st.mapId)].label} · ${diffs[st.difficulty].name} · ${durLabel(st.duration)}`;
+      startSub.textContent = `${m ? tr(m.name) : ''} · ${tr(TIME_INFO[timeOf(st.mapId)].label)} · ${tr(diffs[st.difficulty].name)} · ${durLabel(st.duration)}`;
     };
 
     // ---- state changes
@@ -1033,15 +1072,15 @@ export class Menus {
       const t = timeOf(st.mapId);
       tgl.dataset.time = t; hero.dataset.time = t; el.dataset.time = t;
       optDay.classList.toggle('is-on', t === 'day'); optDusk.classList.toggle('is-on', t === 'dusk');
-      timeText.textContent = TIME_INFO[t].text;
+      timeText.textContent = tr(TIME_INFO[t].text);
       if (anim) { restartAnim(tgl, 'is-flip'); restartAnim(timeText, 'is-in'); }
       updateStart();
     };
     const renderStage = (anim) => {
       const m = byId(st.mapId), i = maps.indexOf(m);
-      nameEl.innerHTML = m.name.split(' ').map((w, wi) => `<span class="iw-ss__word">${[...w].map((ch, k) => `<span style="--i:${wi * 4 + k}">${esc(ch)}</span>`).join('')}</span>`).join(' ');
-      blurbEl.textContent = m.blurb || '';
-      counter.innerHTML = `STAGE <b>${String(i + 1).padStart(2, '0')}</b><em>/ ${String(maps.length).padStart(2, '0')}</em>`;
+      nameEl.innerHTML = tr(m.name).split(' ').map((w, wi) => `<span class="iw-ss__word">${[...w].map((ch, k) => `<span style="--i:${wi * 4 + k}">${esc(ch)}</span>`).join('')}</span>`).join(' ');
+      blurbEl.textContent = tr(m.blurb || '');
+      counter.innerHTML = `${tr('STAGE')} <b>${String(i + 1).padStart(2, '0')}</b><em>/ ${String(maps.length).padStart(2, '0')}</em>`;
       layoutMap.innerHTML = m.thumb || mapThumb(m, i + 2);
       if (anim) { restartAnim(caption, 'is-in'); restartAnim(layoutEl, 'is-in'); restartAnim(counter, 'is-in'); }
       renderTime(false);
@@ -1052,6 +1091,7 @@ export class Menus {
       this._moveFocus(start, 'right');
     };
     const select = (id, how, fromEl) => {
+      this._preloadHero(id);
       const t = tickets.find((x) => x._mid === id);
       if (st.mapId === id) {
         if (how === 'lock') lockIn();
@@ -1090,7 +1130,7 @@ export class Menus {
     const el = h('div', { class: 'iw-screen iw-setup iw-ss' },
       bg, h('div', { class: 'iw-ss__scrim' }),
       this._header('TURF WAR', { sub: 'Pick a stage and the time of day · 4 v 4 against bots' }),
-      h('div', { class: 'iw-ss__left' }, h('div', { class: 'iw-seclabel iw-in' }, h('i', { html: GLYPHS.map }), 'STAGES'), listEl, matchPanel),
+      h('div', { class: 'iw-ss__left' }, h('div', { class: 'iw-seclabel iw-in' }, h('i', { html: GLYPHS.map }), tr('STAGES')), listEl, matchPanel),
       hero,
       h('div', { class: 'iw-ss__foot' }, weaponChip, lookChip, start),
       this._prompts([[['↑', '↓'], 'DPad', 'Stage'], [['←', '→'], null, 'Day · Dusk'], ['Enter', 'A', 'Select'], ['Esc', 'B', 'Back']]));
@@ -1193,12 +1233,12 @@ export class Menus {
     const L = LOOK;
     const n = (x) => (Array.isArray(x) ? x.length : Math.max(0, x | 0));
     return {
-      hair: { key: 'hair', title: 'TENTACLE STYLE', count: n(L.HAIR_STYLES), names: L.HAIR_STYLE_NAMES || L.HAIR_NAMES, art: 'portrait', kind: 'head', cause: 'hair' },
-      hat: { key: 'hat', title: 'HEADGEAR', count: n(L.HATS), names: L.HAT_NAMES, art: 'portrait', kind: 'head', cause: 'hair' },
-      eyes: { key: 'eyes', title: 'EYES', count: n(L.IRIS), names: L.IRIS_NAMES, art: 'iris', cause: 'eyes' },
-      brows: { key: 'brows', title: 'BROWS', count: n(L.BROWS), names: L.BROW_NAMES, art: 'portrait', kind: 'face', cause: 'eyes' },
-      skin: { key: 'skin', title: 'SKIN TONE', count: n(L.SKIN_TONES), names: L.SKIN_NAMES, art: 'skin', cause: 'skin' },
-      outfit: { key: 'outfit', title: 'OUTFIT', count: n(L.OUTFITS), names: L.OUTFIT_NAMES, art: 'portrait', kind: 'body', cause: 'outfit' },
+      hair: { key: 'hair', title: N_('TENTACLE STYLE'), count: n(L.HAIR_STYLES), names: L.HAIR_STYLE_NAMES || L.HAIR_NAMES, art: 'portrait', kind: 'head', cause: 'hair' },
+      hat: { key: 'hat', title: N_('HEADGEAR'), count: n(L.HATS), names: L.HAT_NAMES, art: 'portrait', kind: 'head', cause: 'hair' },
+      eyes: { key: 'eyes', title: N_('EYES'), count: n(L.IRIS), names: L.IRIS_NAMES, art: 'iris', cause: 'eyes' },
+      brows: { key: 'brows', title: N_('BROWS'), count: n(L.BROWS), names: L.BROW_NAMES, art: 'portrait', kind: 'face', cause: 'eyes' },
+      skin: { key: 'skin', title: N_('SKIN TONE'), count: n(L.SKIN_TONES), names: L.SKIN_NAMES, art: 'skin', cause: 'skin' },
+      outfit: { key: 'outfit', title: N_('OUTFIT'), count: n(L.OUTFITS), names: L.OUTFIT_NAMES, art: 'portrait', kind: 'body', cause: 'outfit' },
     };
   }
 
@@ -1208,7 +1248,7 @@ export class Menus {
     const input = h('input', { class: 'iw-name__input', type: 'text', maxlength: '16', spellcheck: 'false', autocomplete: 'off', value: prof.name });
     input.dataset.orig = prof.name;
     const nameRow = h('div', { class: 'iw-name iw-in' },
-      h('span', { class: 'iw-name__label' }, 'NAME'),
+      h('span', { class: 'iw-name__label' }, tr('NAME')),
       h('span', { class: 'iw-name__field' }, input, h('i', { class: 'iw-name__pen', html: GLYPHS.pencil })));
     const commit = () => {
       nameRow.classList.remove('is-editing');
@@ -1253,7 +1293,7 @@ export class Menus {
     const tabsEl = h('div', { class: 'iw-tabs iw-ltabs' });
     const pill = h('span', { class: 'iw-tabs__hl' });
     const tabBtns = tabs.map((t, i) => {
-      const b = h('button', { class: 'iw-tab' }, h('i', { html: GLYPHS[t.icon] || GLYPHS.star }), h('span', null, t.label));
+      const b = h('button', { class: 'iw-tab' }, h('i', { html: GLYPHS[t.icon] || GLYPHS.star }), h('span', null, tr(t.label)));
       this._bind(b, { id: 'ltab-' + t.id, type: 'tab', accept: () => selectTab(i, true), adjust: (d) => { if (selectTab(i + d, true)) this._setFocus(tabBtns[tabIdx]); } });
       return b;
     });
@@ -1262,7 +1302,7 @@ export class Menus {
     // ---- grid + info
     const gridWrap = h('div', { class: 'iw-lgrids' });
     const infoSub = h('small'), infoName = h('b'), infoText = h('span', { class: 'iw-linfo__text' });
-    const infoEq = h('em', { class: 'iw-linfo__eq' }, h('i', { html: GLYPHS.check }), 'WEARING');
+    const infoEq = h('em', { class: 'iw-linfo__eq' }, h('i', { html: GLYPHS.check }), tr('WEARING'));
     const info = h('div', { class: 'iw-linfo' }, h('div', { class: 'iw-linfo__head' }, h('div', { class: 'iw-linfo__names' }, infoSub, infoName), infoEq), infoText);
     const panel = this._panel('iw-lpanel iw-in', gridWrap, info);
 
@@ -1270,13 +1310,13 @@ export class Menus {
     const shuffle = this._btn({ id: 'shuffle', label: 'SHUFFLE', icon: GLYPHS.dice, cls: 'iw-btn--ghost iw-lbtn iw-lbtn--dice', sound: null, accept: () => randomise() });
     shuffle.appendChild(h('span', { class: 'iw-lbtn__key' }, this._hint('R', null)));
     const done = this._btn({ id: 'done', label: 'DONE', icon: GLYPHS.check, cls: 'iw-btn--primary iw-lbtn', sound: 'ui_confirm', accept: () => this._back() });
-    const saved = h('span', { class: 'iw-lsaved' }, h('i', { html: GLYPHS.check }), h('span', null, 'Saves automatically'));
+    const saved = h('span', { class: 'iw-lsaved' }, h('i', { html: GLYPHS.check }), h('span', null, tr('Saves automatically')));
     const foot = h('div', { class: 'iw-lfoot iw-in iw-in--up' }, shuffle, saved, done);
     const body = h('div', { class: 'iw-locker__body' }, tabsEl, panel, foot);
 
     // ---- right side: the kid's name tag (editable) above the pedestal, drag hint below, the current look as chips
     const spinHint = h('div', { class: 'iw-lspin iw-in iw-in--up' }, h('i', { html: GLYPHS.rotate }),
-      h('span', { class: 'iw-kbm' }, 'DRAG TO SPIN'), h('span', { class: 'iw-padg', html: padGlyph('RS') + '<b>SPIN</b>' }));
+      h('span', { class: 'iw-kbm' }, tr('DRAG TO SPIN')), h('span', { class: 'iw-padg', html: padGlyph('RS') + `<b>${tr('SPIN')}</b>` }));
     const sheet = h('div', { class: 'iw-lsheet' });
     const tag = h('div', { class: 'iw-ltag iw-in iw-in--down' }, h('span', { class: 'iw-ltag__blob', html: splatSVG({ seed: 44, cls: 'iw-fa', r: 60, arms: 9, drops: 3 }) }), nameRow, sheet);
 
@@ -1293,7 +1333,12 @@ export class Menus {
     const handles = [];
     const tileStyle = (t) => (t._sec.key === '_presets' ? resolve(presets[t._i].style) : { ...style, [t._sec.key]: t._i });
     const isOn = (t) => (t._sec.key === '_presets' ? same(resolve(presets[t._i].style), style) : style[t._sec.key] === t._i);
-    const optName = (sec, i) => (sec.key === '_presets' ? presets[i].name : (sec.names && sec.names[i]) || `${sec.title[0]}${sec.title.slice(1).toLowerCase()} ${i + 1}`);
+    const optName = (sec, i) => {
+      if (sec.key === '_presets') return tr(presets[i].name);
+      if (sec.names && sec.names[i]) return tr(sec.names[i]);
+      const T = tr(sec.title);
+      return `${T[0]}${T.slice(1).toLowerCase()} ${i + 1}`;
+    };
     const fallbackArt = (sec, i) => {
       if (sec.art === 'skin') return skinSwatch(LOOK.SKIN_TONES[i]);
       if (sec.art === 'iris') return irisSwatch(LOOK.IRIS[i]);
@@ -1320,11 +1365,11 @@ export class Menus {
       tiles = [];
       const tab = tabs[tabIdx];
       for (const k of tab.sections) {
-        const sec = k === '_presets' ? { key: '_presets', title: 'CHOOSE YOUR SQUIDKID', count: presets.length, art: 'portrait', kind: 'bust', cause: 'preset' } : slots[k];
+        const sec = k === '_presets' ? { key: '_presets', title: N_('CHOOSE YOUR SQUIDKID'), count: presets.length, art: 'portrait', kind: 'bust', cause: 'preset' } : slots[k];
         const grid = h('div', { class: `iw-lgrid iw-lgrid--${sec.art === 'portrait' ? sec.kind : 'swatch'}`, style: { '--cols': cols(sec) } });
         for (let i = 0; i < sec.count; i++) { const t = makeTile(sec, i, tiles.length); tiles.push(t); grid.appendChild(t); }
         gridWrap.appendChild(h('section', { class: 'iw-lsec', style: { '--dir': dirSign } },
-          h('div', { class: 'iw-lsec__title' }, h('span', null, sec.title), h('small', null, `${sec.count} ${sec.key === '_presets' ? 'LOOKS' : 'OPTIONS'}`)), grid));
+          h('div', { class: 'iw-lsec__title' }, h('span', null, tr(sec.title)), h('small', null, sec.key === '_presets' ? tr('{n} LOOKS', { n: sec.count }) : tr('{n} OPTIONS', { n: sec.count }))), grid));
       }
       refresh();
       requestPortraits();
@@ -1358,15 +1403,15 @@ export class Menus {
     };
     const showInfo = (t) => {
       const sec = t._sec, i = t._i;
-      infoSub.textContent = sec.key === '_presets' ? 'SQUIDKID' : sec.title;
+      infoSub.textContent = sec.key === '_presets' ? tr('SQUIDKID') : tr(sec.title);
       infoName.textContent = optName(sec, i);
-      infoText.textContent = sec.key === '_presets' ? (presets[i].blurb || '') : `${i + 1} of ${sec.count}`;
+      infoText.textContent = sec.key === '_presets' ? tr(presets[i].blurb || '') : tr('{n} of {total}', { n: i + 1, total: sec.count });
       info.classList.toggle('is-on', isOn(t));
       restartAnim(info, 'is-swap');
     };
     // the current look as a sticker sheet (one chip per slot)
     const renderSheet = () => {
-      const rows = [['hair', 'HAIR'], ['hat', 'HAT'], ['eyes', 'EYES'], ['brows', 'BROWS'], ['skin', 'SKIN'], ['outfit', 'OUTFIT']].filter(([k]) => slots[k] && slots[k].count > 0);
+      const rows = [['hair', tr('HAIR')], ['hat', tr('HAT')], ['eyes', tr('EYES')], ['brows', tr('BROWS')], ['skin', tr('SKIN')], ['outfit', tr('OUTFIT')]].filter(([k]) => slots[k] && slots[k].count > 0);
       sheet.innerHTML = '';
       for (const [k, label] of rows) {
         const sec = slots[k], i = style[k] | 0;
@@ -1465,7 +1510,7 @@ export class Menus {
     let shown = equipped;
     const specials = this._specials();
     const subs = this.api.subs || SUB;
-    const classOf = (w) => w.class || KIND_LABEL[w.kind] || (w.kind ? w.kind[0].toUpperCase() + w.kind.slice(1) : '');
+    const classOf = (w) => tr(w.class || KIND_LABEL[w.kind] || (w.kind ? w.kind[0].toUpperCase() + w.kind.slice(1) : ''));
     const subOf = (w) => (w.sub && subs[w.sub]) || this._sub();
     // "NEW" stickers for weapons the player hasn't looked at yet (the original four count as seen)
     const s0 = this._settings();
@@ -1483,10 +1528,10 @@ export class Menus {
         h('span', { class: 'iw-wcard__ink' }),
         h('span', { class: 'iw-wcard__blob', html: splatSVG({ seed: 40 + i * 3, cls: 'iw-fa', r: 58, arms: 8, drops: 0 }) }),
         h('span', { class: 'iw-wcard__icon', html: weaponIcon(w.kind || id) }),
-        h('span', { class: 'iw-wcard__name' }, w.name),
+        h('span', { class: 'iw-wcard__name' }, tr(w.name)),
         h('span', { class: 'iw-wcard__kind' }, classOf(w)),
         h('span', { class: 'iw-wcard__eq', html: GLYPHS.check }),
-        isNew ? h('span', { class: 'iw-wcard__new' }, 'NEW!') : null,
+        isNew ? h('span', { class: 'iw-wcard__new' }, tr('NEW!')) : null,
         h('span', { class: 'iw-wcard__glare' }));
       c.dataset.cur = 'own';
       this._fx(c, { tilt: 14 });
@@ -1507,12 +1552,12 @@ export class Menus {
     // ---- detail panel
     const kind = h('span', { class: 'iw-wd__kind' });
     const nm = h('span', { class: 'iw-wd__name iw-display' });
-    const eqBadge = h('span', { class: 'iw-wd__eq' }, h('i', { html: GLYPHS.check }), 'EQUIPPED');
-    const cmpBadge = h('span', { class: 'iw-wd__cmp' }, h('i', { class: 'iw-wd__cmpdot' }), 'vs ', h('b'));
+    const eqBadge = h('span', { class: 'iw-wd__eq' }, h('i', { html: GLYPHS.check }), tr('EQUIPPED'));
+    const cmpBadge = h('span', { class: 'iw-wd__cmp' }, h('i', { class: 'iw-wd__cmpdot' }), tr('vs') + ' ', h('b'));
     const blurb = h('p', { class: 'iw-wd__blurb' });
     const statKeys = [...STAT_LABELS.map(([k]) => k), ...Object.keys((Ws[order[0]] && Ws[order[0]].stats) || {}).filter((k) => !STAT_LABELS.some(([x]) => x === k))].slice(0, 6);
     const statEls = statKeys.map((k, i) => {
-      const label = (STAT_LABELS.find(([x]) => x === k) || [k, k[0].toUpperCase() + k.slice(1)])[1];
+      const label = tr((STAT_LABELS.find(([x]) => x === k) || [k, k[0].toUpperCase() + k.slice(1)])[1]);
       const bar = h('span', { class: 'iw-stat__bar' }, h('i', { class: 'iw-stat__ghost' }), h('i', { class: 'iw-stat__fill' }), h('i', { class: 'iw-stat__ticks' }));
       const num = h('b', { class: 'iw-stat__num' }, '0');
       const delta = h('em', { class: 'iw-stat__delta' });
@@ -1520,10 +1565,10 @@ export class Menus {
       return { k, row, bar, num, delta, cur: 0, target: 0, shownInt: -1, delay: 0.25 + i * 0.07 };
     });
     const subIcon = h('span', { class: 'iw-kit__icon' }), subName = h('b'), subText = h('span');
-    const subChip = h('div', { class: 'iw-kit' }, subIcon, h('div', null, h('small', null, 'SUB WEAPON'), subName, subText));
+    const subChip = h('div', { class: 'iw-kit' }, subIcon, h('div', null, h('small', null, tr('SUB WEAPON')), subName, subText));
     const spIcon = h('span', { class: 'iw-kit__icon is-sp' });
     const spName = h('b'); const spBlurb = h('span'); const spCost = h('em', { class: 'iw-kit__cost' });
-    const spChip = h('div', { class: 'iw-kit' }, spIcon, h('div', null, h('small', null, 'SPECIAL'), h('div', { class: 'iw-kit__row' }, spName, spCost), spBlurb));
+    const spChip = h('div', { class: 'iw-kit' }, spIcon, h('div', null, h('small', null, tr('SPECIAL')), h('div', { class: 'iw-kit__row' }, spName, spCost), spBlurb));
     const detail = this._panel('iw-wd iw-in iw-in--up',
       h('div', { class: 'iw-wd__head' }, h('div', { class: 'iw-wd__title' }, kind, nm), h('div', { class: 'iw-wd__badges' }, cmpBadge, eqBadge)),
       blurb,
@@ -1536,11 +1581,11 @@ export class Menus {
       shown = id;
       const w = Ws[id], eqW = Ws[equipped];
       kind.textContent = classOf(w).toUpperCase();
-      nm.textContent = w.name;
-      blurb.textContent = w.blurb || '';
+      nm.textContent = tr(w.name);
+      blurb.textContent = tr(w.blurb || '');
       detail.classList.toggle('is-equipped', id === equipped);
       detail.classList.toggle('is-compare', id !== equipped);
-      cmpBadge.lastChild.textContent = eqW.name;
+      cmpBadge.lastChild.textContent = tr(eqW.name);
       for (const s of statEls) {
         const v = clamp((w.stats && w.stats[s.k]) || 0);
         const g = clamp((eqW.stats && eqW.stats[s.k]) || 0);
@@ -1556,14 +1601,14 @@ export class Menus {
       }
       const sub = subOf(w);
       subIcon.innerHTML = SUB_ICONS[sub.id] || SUB_ICONS.bomb;
-      subName.textContent = sub.name;
-      subText.textContent = `Costs ${Math.round(sub.inkCost || 70)}% of your ink tank. Hold to aim, release to throw.`;
+      subName.textContent = tr(sub.name);
+      subText.textContent = tr('Costs {n}% of your ink tank. Hold to aim, release to throw.', { n: Math.round(sub.inkCost || 70) });
       const sp = specials[w.special] || Object.values(specials)[0];
       spIcon.innerHTML = specialIcon(sp.id);
-      spName.textContent = sp.name;
-      spBlurb.textContent = sp.blurb || '';
+      spName.textContent = tr(sp.name);
+      spBlurb.textContent = tr(sp.blurb || '');
       spCost.textContent = w.specialCost ? `${Math.round(w.specialCost)}p` : '';
-      spCost.title = 'Turf points to fill the special gauge';
+      spCost.title = tr('Turf points to fill the special gauge');
       if (!first) restartAnim(detail, 'is-swap');
       markSeen(id);
     };
@@ -1573,8 +1618,8 @@ export class Menus {
     const prof = this._profile();
     const lookAv = h('span', { class: 'iw-lchip__av' }, h('span', { class: 'iw-lchip__blob', html: splatSVG({ seed: 17, cls: 'iw-fa', r: 62, arms: 8, drops: 0 }) }), h('span', { class: 'iw-lchip__squid', html: SQUID }));
     const lookChip = h('button', { class: 'iw-wchip iw-lchip iw-lchip--sm iw-in iw-in--down' }, lookAv,
-      h('span', { class: 'iw-wchip__text' }, h('small', null, 'SQUIDKID'), h('b', null, prof.name)),
-      h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.hanger }), 'LOCKER'));
+      h('span', { class: 'iw-wchip__text' }, h('small', null, tr('SQUIDKID')), h('b', null, prof.name)),
+      h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.hanger }), tr('LOCKER')));
     this._fx(lookChip);
     this._bind(lookChip, { id: 'look', accept: () => { this._sfx('ui_click'); this._go('locker'); } });
     this._portraitInto(lookAv, { kind: 'head', size: 128 });
@@ -1582,9 +1627,9 @@ export class Menus {
     const grid = h('div', { class: 'iw-wgrid' + (compact ? ' is-compact' : ''), style: { '--cols': cols } }, cards);
     const el = h('div', { class: 'iw-screen iw-loadout' },
       h('div', { class: 'iw-scrim-left' }),
-      this._header('LOADOUT', { sub: `${n} weapons · every one comes with a sub and a special` }),
+      this._header('LOADOUT', { sub: tr('{n} weapons · every one comes with a sub and a special', { n }) }),
       h('div', { class: 'iw-loadout__body' },
-        h('div', { class: 'iw-seclabel iw-in' }, h('i', { html: WEAPON_ICONS.shooter }), 'WEAPON', h('span', { class: 'iw-seclabel__count' }, `${order.indexOf(equipped) + 1} / ${n}`)),
+        h('div', { class: 'iw-seclabel iw-in' }, h('i', { html: WEAPON_ICONS.shooter }), tr('WEAPON'), h('span', { class: 'iw-seclabel__count' }, `${order.indexOf(equipped) + 1} / ${n}`)),
         grid,
         detail),
       h('div', { class: 'iw-loadout__look' }, lookChip),
@@ -1623,7 +1668,7 @@ export class Menus {
   _seg(options, value, onChange) {
     let idx = Math.max(0, options.findIndex((o) => o[0] === value));
     const opts = options.map(([v, label], i) => {
-      const o = h('span', { class: 'iw-seg__opt' + (i === idx ? ' is-sel' : '') }, label);
+      const o = h('span', { class: 'iw-seg__opt' + (i === idx ? ' is-sel' : '') }, typeof label === 'string' ? tr(label) : label);
       o.addEventListener('click', (e) => { e.stopPropagation(); set(i, true); });
       return o;
     });
@@ -1655,7 +1700,7 @@ export class Menus {
     const fill = h('span', { class: 'iw-slider__fill' });
     const knob = h('span', { class: 'iw-slider__knob' });
     const def = DEFAULT_SETTINGS[key];
-    const mark = def != null ? h('span', { class: 'iw-slider__def', style: { '--d': clamp((def - min) / (max - min)).toFixed(4) }, title: 'Default' }) : null;
+    const mark = def != null ? h('span', { class: 'iw-slider__def', style: { '--d': clamp((def - min) / (max - min)).toFixed(4) }, title: tr('Default') }) : null;
     const track = h('span', { class: 'iw-slider__track iw-noclick' }, mark, fill, knob);
     const val = h('span', { class: 'iw-slider__val' });
     const el = h('span', { class: 'iw-slider' }, track, val);
@@ -1702,7 +1747,7 @@ export class Menus {
     const knob = h('span', { class: 'iw-toggle__knob' });
     const el = h('span', { class: 'iw-toggle' + (v ? ' is-on' : '') },
       h('span', { class: 'iw-toggle__ink' }),
-      h('span', { class: 'iw-toggle__txt iw-toggle__off' }, 'OFF'), h('span', { class: 'iw-toggle__txt iw-toggle__on' }, 'ON'), knob);
+      h('span', { class: 'iw-toggle__txt iw-toggle__off' }, tr('OFF')), h('span', { class: 'iw-toggle__txt iw-toggle__on' }, tr('ON')), knob);
     const set = (nv) => {
       nv = !!nv;
       if (nv === v) { this._sfx('ui_error', 0.2); restartAnim(el, 'is-edge'); return; }
@@ -1723,7 +1768,7 @@ export class Menus {
     const controls = new Map();
     const pill = h('span', { class: 'iw-tabs__hl' });
     const tabBtns = SETTINGS_TABS.map((t, i) => {
-      const b = h('button', { class: 'iw-tab' }, h('i', { html: GLYPHS[t.icon] }), h('span', null, t.label));
+      const b = h('button', { class: 'iw-tab' }, h('i', { html: GLYPHS[t.icon] }), h('span', null, tr(t.label)));
       this._bind(b, { id: 'tab-' + t.id, type: 'tab', accept: () => selectTab(i, true), adjust: (d) => { if (selectTab(i + d, true)) this._setFocus(tabBtns[tabIdx]); } });
       return b;
     });
@@ -1738,12 +1783,12 @@ export class Menus {
     const P = { key: null, cur: null };
     const rowDef = (key) => { for (const t of SETTINGS_TABS) { const r = t.rows.find((x) => x.key === key); if (r) return r; } return null; };
     const optLabel = (r, v) => {
-      if (r.key === 'difficulty') return (this._diffs()[v] || {}).name || v;
+      if (r.key === 'difficulty') return tr((this._diffs()[v] || {}).name || v);
       if (r.key === 'matchLength') return durLabel(v);
       const o = (r.options || []).find((x) => x[0] === v);
-      return o ? o[1] : String(v);
+      return o ? tr(o[1]) : String(v);
     };
-    const fmtVal = (r, v) => (!r ? '' : r.type === 'slider' ? r.fmt(+v) : r.type === 'toggle' ? (v ? 'ON' : 'OFF') : r.type === 'seg' ? optLabel(r, v).toUpperCase() : '');
+    const fmtVal = (r, v) => (!r ? '' : r.type === 'slider' ? r.fmt(+v) : r.type === 'toggle' ? (v ? tr('ON') : tr('OFF')) : r.type === 'seg' ? optLabel(r, v).toUpperCase() : '');
     const showPreview = (key, { label, help, tab } = {}) => {
       if (P.key === key) return;
       P.key = key;
@@ -1757,10 +1802,10 @@ export class Menus {
       for (const old of [...pvStage.children]) { if (old._out) continue; old._out = true; old.classList.add('is-out'); setTimeout(() => old.remove(), 260); }
       pvStage.appendChild(pv.el);
       P.cur = pv;
-      pvLabel.textContent = label || (r ? r.label : '');
+      pvLabel.textContent = tr(label || (r ? r.label : ''));
       pvVal.textContent = fmtVal(r, r ? s[key] : null);
       pvVal.classList.toggle('is-empty', !pvVal.textContent);
-      pvHelp.textContent = help || (r ? r.help : '');
+      pvHelp.textContent = tr(help || (r ? r.help : ''));
       restartAnim(card, 'is-swap');
     };
 
@@ -1771,7 +1816,7 @@ export class Menus {
       const tab = SETTINGS_TABS[tabIdx];
       tab.rows.forEach((r, i) => {
         let ctrl;
-        if (r.type === 'link') ctrl = { el: h('span', { class: 'iw-row__link' }, 'VIEW', h('i', { html: GLYPHS.next })), accept: () => { this._sfx('ui_click'); this._go('howto'); } };
+        if (r.type === 'link') ctrl = { el: h('span', { class: 'iw-row__link' }, tr('VIEW'), h('i', { html: GLYPHS.next })), accept: () => { this._sfx('ui_click'); this._go('howto'); } };
         else if (r.type === 'slider') ctrl = this._slider(r, s[r.key]);
         else if (r.type === 'toggle') ctrl = this._toggle(r, s[r.key]);
         else {
@@ -1782,7 +1827,7 @@ export class Menus {
           ctrl.accept = ctrl.cycle;
         }
         const row = h('div', { class: 'iw-row iw-rowin' + (r.type === 'link' ? ' iw-row--link' : ''), style: { '--i': i, '--dir': dirSign } },
-          h('div', { class: 'iw-row__label' }, h('i', { class: 'iw-row__pip' }), r.label),
+          h('div', { class: 'iw-row__label' }, h('i', { class: 'iw-row__pip' }), tr(r.label)),
           h('div', { class: 'iw-row__ctrl' }, ctrl.el));
         row._key = r.key;
         this._bind(row, { id: 'set-' + r.key, type: 'row', accept: ctrl.accept, adjust: ctrl.adjust });
@@ -1821,13 +1866,14 @@ export class Menus {
     const reset = this._btn({ id: 'reset', label: 'RESET TO DEFAULTS', icon: GLYPHS.reset, cls: 'iw-btn--ghost iw-btn--small', sound: null, accept: () => {
       if (!resetArmed) {
         resetArmed = 2.6; reset.classList.add('is-armed');
-        reset.querySelector('.iw-btn__label').textContent = 'PRESS AGAIN TO CONFIRM';
+        reset.querySelector('.iw-btn__label').textContent = tr('PRESS AGAIN TO CONFIRM');
         this._sfx('ui_click');
         return;
       }
       resetArmed = 0; reset.classList.remove('is-armed');
-      reset.querySelector('.iw-btn__label').textContent = 'RESET TO DEFAULTS';
-      safeCall(() => this.api.setSettings && this.api.setSettings({ ...DEFAULT_SETTINGS }));
+      reset.querySelector('.iw-btn__label').textContent = tr('RESET TO DEFAULTS');
+      // a reset keeps the language: switching the whole UI back under the player's cursor would be a trap
+      safeCall(() => this.api.setSettings && this.api.setSettings({ ...DEFAULT_SETTINGS, lang: this._settings().lang }));
       if (!this._accentExternal) this._applyAccent();
       const s = this._settings();
       for (const [k, c] of controls) c.refresh(s[k]);
@@ -1835,8 +1881,8 @@ export class Menus {
       rowsEl.querySelectorAll('.iw-row').forEach((r) => restartAnim(r, 'is-flash'));
       savedPulse();
     } });
-    const saved = h('div', { class: 'iw-saved' }, h('i', { html: GLYPHS.check }), h('span', null, 'Changes save automatically'));
-    const savedPulse = () => { saved.lastChild.textContent = 'Saved!'; restartAnim(saved, 'is-on'); clearTimeout(this._savedT); this._savedT = setTimeout(() => { if (saved.isConnected) saved.lastChild.textContent = 'Changes save automatically'; }, 1400); };
+    const saved = h('div', { class: 'iw-saved' }, h('i', { html: GLYPHS.check }), h('span', null, tr('Changes save automatically')));
+    const savedPulse = () => { saved.lastChild.textContent = tr('Saved!'); restartAnim(saved, 'is-on'); clearTimeout(this._savedT); this._savedT = setTimeout(() => { if (saved.isConnected) saved.lastChild.textContent = tr('Changes save automatically'); }, 1400); };
 
     const panel = this._panel('iw-settings__panel iw-in', tabsEl, rowsEl, h('div', { class: 'iw-settings__foot' }, saved, reset));
     const el = h('div', { class: 'iw-screen iw-settings' },
@@ -1852,7 +1898,7 @@ export class Menus {
       onFocus: (f) => {
         if (f._key) showPreview(f._key);
         else if (f.dataset.nav === 'tab') { const t = SETTINGS_TABS[tabBtns.indexOf(f)]; if (t) showPreview('_tab_' + t.id, { label: t.label, help: TAB_BLURB[t.id], tab: t }); }
-        else if (f.dataset.id === 'reset') showPreview('_reset', { label: 'Reset', help: 'Restore every setting to its original value.' });
+        else if (f.dataset.id === 'reset') showPreview('_reset', { label: 'Reset', help: 'Restore every setting to its original value. Your language stays as it is.' });
       },
       onSetting: (key, value) => {
         savedPulse();
@@ -1876,7 +1922,7 @@ export class Menus {
         if (P.cur && P.cur.tick) P.cur.tick(dt);
         if (resetArmed > 0) {
           resetArmed -= dt;
-          if (resetArmed <= 0) { resetArmed = 0; reset.classList.remove('is-armed'); reset.querySelector('.iw-btn__label').textContent = 'RESET TO DEFAULTS'; }
+          if (resetArmed <= 0) { resetArmed = 0; reset.classList.remove('is-armed'); reset.querySelector('.iw-btn__label').textContent = tr('RESET TO DEFAULTS'); }
         }
       },
     };
@@ -1884,23 +1930,25 @@ export class Menus {
 
   // ================================================================ SCREEN: howto
   _controlsList(mode, compact = false) {
-    const K = (...ks) => ks.map((k) => (k === 'or' ? '<em>or</em>' : k === 'LMB' ? mouseGlyph('L') : k === 'RMB' ? mouseGlyph('R') : k === 'MOUSE' ? mouseGlyph('M') : keycap(k))).join('');
+    const K = (...ks) => ks.map((k) => (k === 'or' ? `<em>${tr('or')}</em>` : k === 'LMB' ? mouseGlyph('L') : k === 'RMB' ? mouseGlyph('R') : k === 'MOUSE' ? mouseGlyph('M') : keycap(k))).join('');
+    const T = (text) => `<span class="iw-tgest">${esc(tr(text))}</span>`;
     const rows = [
-      ['Move', null, K('W', 'A', 'S', 'D'), padGlyph('LS')],
-      ['Aim', null, K('MOUSE'), padGlyph('RS')],
-      ['Fire', null, K('LMB'), padGlyph('RT')],
-      ['Swim · squid form', 'hold', K('SHIFT'), padGlyph('LT')],
-      ['Jump', null, K('SPACE'), padGlyph('A')],
-      ['Aim bomb · release to throw', 'hold', K('RMB', 'or', 'E'), padGlyph('RB')],
-      ['Special', null, K('F', 'or', 'Q'), padGlyph('Y')],
-      ['Map', 'hold', K('TAB'), padGlyph('View')],
-      ['Pause', null, K('ESC'), padGlyph('Start')],
+      ['Move', null, K('W', 'A', 'S', 'D'), padGlyph('LS'), T(N_('Drag on the left side'))],
+      ['Aim', null, K('MOUSE'), padGlyph('RS'), T(N_('Drag on the right side'))],
+      ['Fire', null, K('LMB'), padGlyph('RT'), T(N_('Shoot button · drag it to keep aiming'))],
+      ['Swim · squid form', 'hold', K('SHIFT'), padGlyph('LT'), T(N_('Squid button'))],
+      ['Jump', null, K('SPACE'), padGlyph('A'), T(N_('Jump button'))],
+      ['Aim bomb · release to throw', 'hold', K('RMB', 'or', 'E'), padGlyph('RB'), T(N_('Bomb button'))],
+      ['Special', null, K('F', 'or', 'Q'), padGlyph('Y'), T(N_('Special button'))],
+      ['Map', 'hold', K('TAB'), padGlyph('View'), T(N_('Map button · tap a pin to Super Jump'))],
+      ['Pause', null, K('ESC'), padGlyph('Start'), T(N_('Pause button, top left'))],
     ];
     const list = compact ? rows.filter((r) => ['Move', 'Fire', 'Swim · squid form', 'Jump', 'Aim bomb · release to throw', 'Special'].includes(r[0])) : rows;
-    return h('div', { class: 'iw-ctl' + (compact ? ' iw-ctl--compact' : '') }, list.map(([act, hold, kb, pad]) =>
+    const short = { 'Swim · squid form': N_('Swim'), 'Aim bomb · release to throw': N_('Aim bomb') };
+    return h('div', { class: 'iw-ctl' + (compact ? ' iw-ctl--compact' : '') + (mode === 'touch' ? ' iw-ctl--touch' : '') }, list.map(([act, hold, kb, pad, touch]) =>
       h('div', { class: 'iw-ctl__row' },
-        h('span', { class: 'iw-ctl__act' }, compact ? act.replace(' · release to throw', '').replace(' · squid form', '') : act, hold ? h('em', null, hold) : null),
-        h('span', { class: 'iw-ctl__keys', html: mode === 'pad' ? pad : kb }))));
+        h('span', { class: 'iw-ctl__act' }, tr(compact ? short[act] || act : act), hold ? h('em', null, tr(hold)) : null),
+        h('span', { class: 'iw-ctl__keys', html: mode === 'pad' ? pad : mode === 'touch' ? touch : kb }))));
   }
 
   _scr_howto() {
@@ -1913,12 +1961,14 @@ export class Menus {
     const cards = rules.map(([art, title, text], i) => h('div', { class: 'iw-rule iw-in iw-in--pop', style: { '--tilt': `${[-1.2, 1, 0.8, -1][i]}deg` } },
       h('div', { class: 'iw-rule__art', html: RULE_ART[art] }),
       h('div', { class: 'iw-rule__num' }, String(i + 1)),
-      h('div', { class: 'iw-rule__title' }, title),
-      h('p', { class: 'iw-rule__text' }, text)));
+      h('div', { class: 'iw-rule__title' }, tr(title)),
+      h('p', { class: 'iw-rule__text' }, tr(text))));
     let mode = this._input;
     const listWrap = h('div', { class: 'iw-ctl-wrap' });
     const renderList = () => { listWrap.innerHTML = ''; listWrap.appendChild(this._controlsList(mode)); restartAnim(listWrap, 'is-in'); };
-    const seg = this._seg([['kbm', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.keyboard }), 'KEYBOARD & MOUSE')], ['pad', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.gamepad }), 'CONTROLLER')]], mode, (v) => { mode = v; renderList(); });
+    const schemes = [['kbm', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.keyboard }), tr('KEYBOARD & MOUSE'))], ['pad', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.gamepad }), tr('CONTROLLER'))]];
+    if (TOUCH_CAPABLE) schemes.push(['touch', h('span', { class: 'iw-segico' }, h('i', { html: GLYPHS.hand }), tr('TOUCH'))]);
+    const seg = this._seg(schemes, mode, (v) => { mode = v; renderList(); });
     const segRow = h('div', { class: 'iw-ctl-switch' }, seg.el);
     this._bind(segRow, { id: 'scheme', type: 'row', adjust: seg.adjust, accept: seg.cycle });
     renderList();
@@ -1927,7 +1977,7 @@ export class Menus {
       this._header('HOW TO PLAY', { sub: 'Turf War in 30 seconds' }),
       h('div', { class: 'iw-howto__body' },
         h('div', { class: 'iw-howto__rules' }, cards),
-        this._panel('iw-howto__ctl iw-in iw-in--right', h('div', { class: 'iw-seclabel' }, h('i', { html: GLYPHS.gamepad }), 'CONTROLS'), segRow, listWrap)),
+        this._panel('iw-howto__ctl iw-in iw-in--right', h('div', { class: 'iw-seclabel' }, h('i', { html: GLYPHS.gamepad }), tr('CONTROLS')), segRow, listWrap)),
       this._prompts([[['←', '→'], 'DPad', 'Switch controls'], ['Esc', 'B', 'Back']]));
     return {
       el, initial: segRow,
@@ -1941,17 +1991,17 @@ export class Menus {
 
   // ================================================================ SCREEN: credits
   _scr_credits() {
-    const sec = (title, ...lines) => h('section', { class: 'iw-cred__sec' }, h('h3', null, title), lines.map((l) => (typeof l === 'string' ? h('p', null, l) : l)));
+    const sec = (title, ...lines) => h('section', { class: 'iw-cred__sec' }, h('h3', null, tr(title)), lines.map((l) => (typeof l === 'string' ? h('p', null, tr(l)) : l)));
     const cast = h('div', { class: 'iw-cred__cast' }, BOT_NAMES.map((n, i) => h('span', { style: { '--c': i % 2 ? 'var(--b)' : 'var(--a)' } }, h('i', { html: SQUID }), n)));
     const roll = h('div', { class: 'iw-cred__roll' },
-      h('div', { class: 'iw-cred__logo', html: logoMarkup(GAME_TITLE, GAME_SUBTITLE, 'md') }),
-      h('p', { class: 'iw-cred__lead' }, 'An original 4 v 4 turf-war shooter.'),
+      h('div', { class: 'iw-cred__logo', html: logoMarkup(GAME_TITLE, tr(GAME_SUBTITLE), 'md') }),
+      h('p', { class: 'iw-cred__lead' }, tr('An original 4 v 4 turf-war shooter.')),
       sec('Made with', 'Procedural everything — squidkids, weapons, stage, ink, music and sound are all generated in code.'),
-      sec('Rendering', 'three.js', h('p', { class: 'dim' }, 'by the three.js authors & contributors')),
-      sec('Typography', 'Titan One — Font Diner', 'Rubik — Hubert & Fischer', h('p', { class: 'dim' }, 'SIL Open Font License')),
+      sec('Rendering', h('p', null, 'three.js'), h('p', { class: 'dim' }, tr('by the three.js authors & contributors'))),
+      sec('Typography', 'Titan One — Font Diner', 'Rubik — Hubert & Fischer', 'M PLUS Rounded 1c — Coji Morishita, M+ FONTS PROJECT', h('p', { class: 'dim' }, 'SIL Open Font License')),
       sec('Starring the squidkids', cast),
       sec('Special thanks', 'Everyone who ever painted a wall', 'Every bot that got splatted in testing', 'And you, for playing'),
-      h('div', { class: 'iw-cred__end' }, h('div', { class: 'iw-cred__endsplat', html: splatSVG({ seed: 77, cls: 'iw-fa' }) }), h('span', { class: 'iw-display' }, 'STAY FRESH!')));
+      h('div', { class: 'iw-cred__end' }, h('div', { class: 'iw-cred__endsplat', html: splatSVG({ seed: 77, cls: 'iw-fa' }) }), h('span', { class: 'iw-display' }, tr('STAY FRESH!'))));
     const viewport = h('div', { class: 'iw-cred__view' }, roll);
     const el = h('div', { class: 'iw-screen iw-credits' },
       h('div', { class: 'iw-scrim-full' }),
@@ -2031,7 +2081,7 @@ export class Menus {
       { id: 'settings', label: 'SETTINGS', icon: GLYPHS.gear, cls: 'iw-btn--menu', accept: () => this._go('settings') },
       { id: 'howto', label: 'HOW TO PLAY', icon: GLYPHS.question, cls: 'iw-btn--menu', accept: () => this._go('howto') },
       { id: 'quit', label: 'QUIT MATCH', icon: GLYPHS.close, cls: 'iw-btn--menu iw-btn--danger', accept: () => this._openModal({
-        title: 'QUIT MATCH?', text: 'You will leave this Turf War and head back to the lobby. Your turf will not count.', danger: true,
+        title: N_('QUIT MATCH?'), text: N_('You will leave this Turf War and head back to the lobby. Your turf will not count.'), danger: true,
         buttons: [
           { label: 'KEEP PLAYING', accept: () => this._closeModal(), sound: null },
           { label: 'QUIT', cls: 'iw-btn--danger', sound: 'ui_confirm', accept: () => {
@@ -2051,39 +2101,39 @@ export class Menus {
     const diff = snap.difficulty && this._diffs()[snap.difficulty];
     const clockNum = h('b', { class: 'iw-pclock__num' }, fmtTime(snap.time));
     const clockArc = h('i', { class: 'iw-pclock__arc' });
-    const clock = h('div', { class: 'iw-pclock' }, h('span', { class: 'iw-pclock__ring' }, clockArc), h('div', { class: 'iw-pclock__txt' }, clockNum, h('small', null, 'LEFT')));
+    const clock = h('div', { class: 'iw-pclock' }, h('span', { class: 'iw-pclock__ring' }, clockArc), h('div', { class: 'iw-pclock__txt' }, clockNum, h('small', null, tr('LEFT'))));
     const stat = (cls, icon, label) => {
       const b = h('b');
-      const n = h('span', { class: `iw-pstat ${cls}` }, h('i', { html: icon }), b, h('small', null, label));
+      const n = h('span', { class: `iw-pstat ${cls}` }, h('i', { html: icon }), b, h('small', null, tr(label)));
       return { el: n, b };
     };
     const sTurf = stat('iw-pstat--turf', GLYPHS.drop, 'TURF'), sSplat = stat('', SPLAT_ICON, 'SPLATS'), sDeath = stat('', DEATH_ICON, 'SPLATTED'), sSp = stat('iw-pstat--sp', specialIcon((this._weapons()[selfP.weapon] || {}).special), 'SPECIAL');
     const you = h('div', { class: 'iw-pyou' },
       h('span', { class: 'iw-pyou__av', html: SQUID }),
-      h('div', { class: 'iw-pyou__id' }, h('small', null, 'YOUR MATCH'), h('b', null, selfP.name || 'You')),
+      h('div', { class: 'iw-pyou__id' }, h('small', null, tr('YOUR MATCH')), h('b', null, selfP.name || tr('You'))),
       h('div', { class: 'iw-pyou__stats' }, sTurf.el, sSplat.el, sDeath.el, sSp.el));
     const rosterRows = [];
     const roster = (team) => {
       const list = snap.players.filter((p) => p.team === team);
       return h('div', { class: `iw-roster iw-roster--${team ? 'b' : 'a'}` },
-        h('div', { class: 'iw-roster__head' }, h('i', { class: 'iw-roster__dot' }), h('span', null, snap.names[team] || TEAM_NAMES[team]), h('em', null, team === selfP.team ? 'YOUR TEAM' : 'RIVALS')),
+        h('div', { class: 'iw-roster__head' }, h('i', { class: 'iw-roster__dot' }), h('span', null, tr(snap.names[team] || TEAM_NAMES[team])), h('em', null, team === selfP.team ? tr('YOUR TEAM') : tr('RIVALS'))),
         list.map((p) => {
           const st = h('span', { class: 'iw-rrow__st' });
           const row = h('div', { class: 'iw-rrow' + (p.isSelf ? ' is-self' : '') },
             h('span', { class: 'iw-rrow__w', html: weaponIcon((this._weapons()[p.weapon] || {}).kind || p.weapon) }),
-            h('span', { class: 'iw-rrow__name' }, p.name, p.isSelf ? h('em', null, 'YOU') : null),
+            h('span', { class: 'iw-rrow__name' }, p.name, p.isSelf ? h('em', null, tr('YOU')) : null),
             st);
           rosterRows.push({ row, st, name: p.name, team: p.team, sig: '' });
           return row;
         }));
     };
     const teams = h('div', { class: 'iw-pteams' }, roster(0), roster(1));
-    const ctlWrap = h('div', { class: 'iw-pctl' }, h('div', { class: 'iw-seclabel' }, h('i', { html: GLYPHS.gamepad }), 'QUICK CONTROLS'), this._controlsList(this._input, true));
+    const ctlWrap = h('div', { class: 'iw-pctl' }, h('div', { class: 'iw-seclabel' }, h('i', { html: GLYPHS.gamepad }), tr('QUICK CONTROLS')), this._controlsList(this._input, true));
     const matchPanel = this._panel('iw-pmatch iw-panel--flat iw-in iw-in--right',
       h('div', { class: 'iw-pmatch__top' },
         h('div', { class: 'iw-pmatch__info' },
-          h('div', { class: 'iw-pmatch__mode' }, h('span', { class: 'iw-pmatch__tag' }, 'TURF WAR'), diff ? h('span', { class: 'iw-pmatch__diff' }, h('i', { html: GLYPHS.bot }), `${diff.name} bots`) : null),
-          h('div', { class: 'iw-pmatch__map' }, h('i', { html: GLYPHS.map }), snap.map || 'Turf War')),
+          h('div', { class: 'iw-pmatch__mode' }, h('span', { class: 'iw-pmatch__tag' }, tr('TURF WAR')), diff ? h('span', { class: 'iw-pmatch__diff' }, h('i', { html: GLYPHS.bot }), tr('{name} bots', { name: tr(diff.name) })) : null),
+          h('div', { class: 'iw-pmatch__map' }, h('i', { html: GLYPHS.map }), tr(snap.map || 'Turf War'))),
         clock),
       you, teams, ctlWrap);
     colorVars(matchPanel, 'ta', snap.colors[0]);
@@ -2099,7 +2149,7 @@ export class Menus {
       sTurf.b.innerHTML = `${fmtInt(me.turf || 0)}<small>p</small>`;
       sSplat.b.textContent = String(me.splats || 0);
       sDeath.b.textContent = String(me.deaths || 0);
-      sSp.b.textContent = me.special ? 'READY' : `${Math.round(clamp(me.specialFrac || 0) * 100)}%`;
+      sSp.b.textContent = me.special ? tr('READY') : `${Math.round(clamp(me.specialFrac || 0) * 100)}%`;
       sSp.el.classList.toggle('is-ready', !!me.special);
       sSp.el.style.setProperty('--sp', clamp(me.specialFrac || 0).toFixed(3));
       for (const r of rosterRows) {
@@ -2111,7 +2161,7 @@ export class Menus {
         r.row.classList.toggle('is-dead', !p.alive);
         r.row.classList.toggle('is-sp', p.alive && p.special);
         if (!p.alive) r.st.innerHTML = `<span class="iw-st iw-st--dead"><i>${DEATH_ICON}</i><b>${Math.max(1, Math.ceil(p.respawn))}s</b></span>`;
-        else if (p.special) r.st.innerHTML = `<span class="iw-st iw-st--sp"><i>${specialIcon((this._weapons()[p.weapon] || {}).special)}</i>READY</span>`;
+        else if (p.special) r.st.innerHTML = `<span class="iw-st iw-st--sp"><i>${specialIcon((this._weapons()[p.weapon] || {}).special)}</i>${tr('READY')}</span>`;
         else r.st.innerHTML = `<span class="iw-st iw-st--alive"><i>${SQUID}</i></span>`;
       }
     };
@@ -2120,7 +2170,7 @@ export class Menus {
     const el = h('div', { class: 'iw-screen iw-pause' },
       h('div', { class: 'iw-pause__dim' }),
       h('div', { class: 'iw-pause__col' },
-        h('div', { class: 'iw-pause__title iw-in iw-in--down' }, h('span', { class: 'iw-pause__blob', html: splatSVG({ seed: 3, cls: 'iw-fa', r: 60, arms: 8, drops: 4 }) }), h('span', { class: 'iw-display' }, 'PAUSED')),
+        h('div', { class: 'iw-pause__title iw-in iw-in--down' }, h('span', { class: 'iw-pause__blob', html: splatSVG({ seed: 3, cls: 'iw-fa', r: 60, arms: 8, drops: 4 }) }), h('span', { class: 'iw-display' }, tr('PAUSED'))),
         h('nav', { class: 'iw-pause__menu' }, btns)),
       matchPanel,
       this._prompts([['Enter', 'A', 'Select'], ['Esc', 'Start', 'Resume']]));
@@ -2155,15 +2205,15 @@ export class Menus {
     const reduced = prefersReducedMotion();
 
     // ---- title block: VICTORY/DEFEAT, stage, match tags, your medals
-    const titleEl = h('div', { class: 'iw-res__title iw-display' }, win ? 'VICTORY!' : 'DEFEAT');
-    const tags = awards.match.map((t) => h('span', { class: `iw-res__tag iw-res__tag--${t.id}` }, h('i', { html: awardIcon(t.icon) }), t.label, h('small', null, t.value)));
+    const titleEl = h('div', { class: 'iw-res__title iw-display' }, win ? tr('VICTORY!') : tr('DEFEAT'));
+    const tags = awards.match.map((t) => h('span', { class: `iw-res__tag iw-res__tag--${t.id}` }, h('i', { html: awardIcon(t.icon) }), tr(t.label), h('small', null, t.value)));
     const myAwards = (self ? self._aw : []).slice(0, 4);
     const medals = myAwards.map((aw, i) => { const m = h('div', { class: 'iw-medalwrap', html: medalMarkup(aw, i) }).firstElementChild; return m; });
-    const medalRow = medals.length ? h('div', { class: 'iw-res__medals' + (medals.length > 3 ? ' is-4' : '') }, h('div', { class: 'iw-res__medalcap' }, 'YOUR MEDALS'), h('div', { class: 'iw-res__medallist' }, medals)) : null;
+    const medalRow = medals.length ? h('div', { class: 'iw-res__medals' + (medals.length > 3 ? ' is-4' : '') }, h('div', { class: 'iw-res__medalcap' }, tr('YOUR MEDALS')), h('div', { class: 'iw-res__medallist' }, medals)) : null;
     const head = h('div', { class: 'iw-res__head iw-in iw-in--pop' + (win ? ' is-win' : ' is-lose') },
       h('div', { class: 'iw-res__splat', html: splatSVG({ seed: win ? 9 : 14, cls: 'iw-fta', r: 60, arms: 10, drops: 4 }) }),
       titleEl,
-      h('div', { class: 'iw-res__metarow' }, h('div', { class: 'iw-res__meta' }, h('i', { html: GLYPHS.map }), `${d.mapName || 'Turf War'} · Turf War`), tags),
+      h('div', { class: 'iw-res__metarow' }, h('div', { class: 'iw-res__meta' }, h('i', { html: GLYPHS.map }), `${tr(d.mapName || 'Turf War')} · ${tr('Turf War')}`), tags),
       medalRow);
 
     // ---- coverage bar (JS-driven growth so the numbers + sound land together)
@@ -2176,8 +2226,8 @@ export class Menus {
       h('i', { class: 'iw-cover__mid' }));
     const cover = h('div', { class: 'iw-res__cover iw-in' + (pa >= pb ? ' is-a' : ' is-b') },
       h('div', { class: 'iw-cover__names' },
-        h('span', { class: 'ta' + (pa >= pb ? ' is-win' : '') }, pa >= pb ? crownA : null, names[0] || 'Alpha', numA),
-        h('span', { class: 'tb' + (pb > pa ? ' is-win' : '') }, numB, names[1] || 'Bravo', pb > pa ? crownB : null)),
+        h('span', { class: 'ta' + (pa >= pb ? ' is-win' : '') }, pa >= pb ? crownA : null, tr(names[0] || 'Alpha'), numA),
+        h('span', { class: 'tb' + (pb > pa ? ' is-win' : '') }, numB, tr(names[1] || 'Bravo'), pb > pa ? crownB : null)),
       coverBar);
 
     // ---- team tables with count-ups + award badges
@@ -2188,10 +2238,10 @@ export class Menus {
       const isWin = team === winTeam;
       return h('div', { class: `iw-ttable iw-ttable--${team ? 'b' : 'a'} ${isWin ? 'is-win' : 'is-lose'}` },
         h('div', { class: 'iw-ttable__head iw-in' },
-          h('span', { class: 'iw-ttable__team' }, h('i', { class: 'iw-ttable__dot' }), names[team] || TEAM_NAMES[team], isWin ? h('em', { class: 'iw-ttable__win' }, h('i', { html: GLYPHS.crown }), 'WIN') : null),
-          h('span', { class: 'iw-ttable__col', title: 'Turf inked' }, h('i', { html: GLYPHS.drop }), 'TURF'),
-          h('span', { class: 'iw-ttable__col', title: 'Splats' }, h('i', { html: SPLAT_ICON })),
-          h('span', { class: 'iw-ttable__col', title: 'Times splatted' }, h('i', { html: DEATH_ICON }))),
+          h('span', { class: 'iw-ttable__team' }, h('i', { class: 'iw-ttable__dot' }), tr(names[team] || TEAM_NAMES[team]), isWin ? h('em', { class: 'iw-ttable__win' }, h('i', { html: GLYPHS.crown }), tr('WIN')) : null),
+          h('span', { class: 'iw-ttable__col', title: tr('Turf inked') }, h('i', { html: GLYPHS.drop }), tr('TURF')),
+          h('span', { class: 'iw-ttable__col', title: tr('Splats') }, h('i', { html: SPLAT_ICON })),
+          h('span', { class: 'iw-ttable__col', title: tr('Times splatted') }, h('i', { html: DEATH_ICON }))),
         rows.map((p, ri) => {
           const turfNum = h('b', null, '0');
           const turfBar = h('i', { class: 'iw-prow__turfbar' });
@@ -2201,7 +2251,7 @@ export class Menus {
           const isMvp = p._aw.some((a) => a.id === 'mvp');
           const row = h('div', { class: 'iw-prow iw-in iw-in--left' + (p.isSelf ? ' is-self' : '') + (isMvp ? ' is-mvp' : '') },
             h('span', { class: 'iw-prow__w', html: weaponIcon((this._weapons()[p.weapon] || {}).kind || p.weapon) }),
-            h('span', { class: 'iw-prow__name' }, h('span', { class: 'iw-prow__nm' }, p.name), p.isSelf ? h('em', null, 'YOU') : null, badges),
+            h('span', { class: 'iw-prow__name' }, h('span', { class: 'iw-prow__nm' }, p.name), p.isSelf ? h('em', null, tr('YOU')) : null, badges),
             h('span', { class: 'iw-prow__turf' }, turfBar, turfNum, h('small', null, 'p')),
             nSplat, nDeath);
           rowFx.push({ row, turfNum, turfBar, nSplat, nDeath, badges, turf: p.turf || 0, rel: (p.turf || 0) / best, aws: p._aw.slice(0, 3), start: 0.8 + ri * 0.13, shown: -1, done: false });
@@ -2212,19 +2262,19 @@ export class Menus {
     // ---- XP
     const xp = { gained: 0, levelBefore: 1, levelAfter: 1, xpBefore: 0, xpAfter: 0, xpToNextBefore: 1000, xpToNextAfter: 1000, ...(d.xp || {}) };
     const lvlNum = h('span', { class: 'iw-lvl__n' }, String(xp.levelBefore));
-    const lvl = h('span', { class: 'iw-lvl iw-lvl--big' }, h('small', null, 'LV'), lvlNum, h('i', { class: 'iw-lvl__burst', html: GLYPHS.star }));
+    const lvl = h('span', { class: 'iw-lvl iw-lvl--big' }, h('small', null, tr('LV')), lvlNum, h('i', { class: 'iw-lvl__burst', html: GLYPHS.star }));
     const bar = h('span', { class: 'iw-xpbar iw-xpbar--big' }, h('i'));
     const gainEl = h('b', { class: 'iw-xp__gain' }, '+0 XP');
     const nextEl = h('span', { class: 'iw-xp__next' });
-    const lvUp = h('span', { class: 'iw-xp__lvup' }, 'LEVEL UP!');
+    const lvUp = h('span', { class: 'iw-xp__lvup' }, tr('LEVEL UP!'));
     // honest XP breakdown (only when the parts add up to the reported gain)
     const bd = [];
     if (self) {
       const base = win ? PROGRESSION.xpWin : PROGRESSION.xpLose;
       const tx = Math.round((self.turf || 0) * PROGRESSION.xpPerTurfPoint), sx = Math.round((self.splats || 0) * PROGRESSION.xpPerSplat);
       if (xp.gained > 0 && Math.abs(base + tx + sx - xp.gained) <= 2) {
-        bd.push([win ? 'WIN BONUS' : 'MATCH', base], [`TURF`, tx]);
-        if (sx) bd.push(['SPLATS', sx]);
+        bd.push([win ? tr('WIN BONUS') : tr('MATCH'), base], [tr('TURF'), tx]);
+        if (sx) bd.push([tr('SPLATS'), sx]);
       }
     }
     let acc = 0;
@@ -2325,7 +2375,7 @@ export class Menus {
     }
     const totalFill = segs.reduce((a, s) => a + Math.max(0, s.to - s.from), 0) || 1;
     let si = 0, cur = segs[0].from, filled = 0, pause = 0, xpTick = 0, done = false;
-    const setBar = (v, max) => { bar.style.setProperty('--t', clamp(v / Math.max(1, max)).toFixed(4)); nextEl.textContent = `${fmtInt(Math.max(0, max - v))} XP to next level`; };
+    const setBar = (v, max) => { bar.style.setProperty('--t', clamp(v / Math.max(1, max)).toFixed(4)); nextEl.textContent = tr('{n} XP to next level', { n: fmtInt(Math.max(0, max - v)) }); };
     setBar(cur, segs[0].max);
     const showBd = (frac) => { for (const b of bdEls) if (!b.shown && frac >= b.at - 1e-6) { b.shown = true; b.el.classList.add('is-in'); } };
     const finish = () => {

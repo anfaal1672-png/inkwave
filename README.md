@@ -1,66 +1,69 @@
+<p align="right"><b>日本語</b> · <a href="README.en.md">English</a></p>
+
 <p align="center">
-  <img src="assets/stages/halyard-day.webp" alt="Halyard Marina at golden hour" width="100%">
+  <img src="assets/stages/halyard-day.webp" alt="夕暮れのハリヤード・マリーナ" width="100%">
 </p>
 
 <h1 align="center">INKWAVE</h1>
 
 <p align="center">
-  An original Splatoon-style 4v4 turf-war shooter that runs in your browser.<br>
-  Paint the ground, swim through your ink, out-turf the other team.
+  ブラウザで遊べる、スプラトゥーン風の 4 対 4 ナワバリバトル（オリジナル作品）。<br>
+  地面を塗って、インクを泳いで、相手チームより広く塗ろう。
 </p>
 
 <p align="center">
-  <a href="https://inkwave-aah.pages.dev"><b>▶ Play now</b></a> ·
-  <a href="#controls">Controls</a> ·
-  <a href="#running-locally">Run locally</a> ·
-  <a href="#how-it-works">How it works</a> ·
-  <a href="CONTRIBUTING.md">Contributing</a>
+  <a href="#操作方法">操作方法</a> ·
+  <a href="#ローカルで動かす">ローカルで動かす</a> ·
+  <a href="#しくみ">しくみ</a> ·
+  <a href="CONTRIBUTING.md">開発に参加する</a>
 </p>
 
 <p align="center">
-  <a href="https://github.com/jaydendavisnc/inkwave/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/jaydendavisnc/inkwave/actions/workflows/ci.yml/badge.svg"></a>
   <img alt="three.js r186" src="https://img.shields.io/badge/three.js-r186-000000?logo=three.js&logoColor=white">
-  <img alt="No build step" src="https://img.shields.io/badge/build-none%20needed-2ea44f">
+  <img alt="開発時のビルド不要" src="https://img.shields.io/badge/dev%20build-none%20needed-2ea44f">
   <a href="LICENSE"><img alt="MIT" src="https://img.shields.io/badge/license-MIT-blue"></a>
 </p>
 
 ---
 
-## Features
+## 特徴
 
-- **Turf war, 4 v 4.** Three minutes, most ground painted wins. Play against bots on three difficulty levels.
-- **Squid form.** Hold to dive into your ink: swim fast, refill your tank, climb inked walls, dolphin-jump water gaps.
-- **Seven weapons**, each with its own feel: Spritzer (shooter), Swell Roller, Glint Charger, Popper Blaster, Twinfin Dualies (dodge roll), Tidebucket Slosher and Gyre Splatling. Every kit comes with Splat Bombs and a special.
-- **Three stages, day or dusk.** Tidewater Plaza, Kelpline Terminal and Halyard Marina, a working marina with a car ferry moored across the middle where the water gaps are the whole point.
-- **Ink that behaves like liquid.** Splats spread and settle, fresh ink is glossy and dries, drips run down walls, and swimming leaves a wake in the surface itself.
-- **A map you can actually read.** Hold <kbd>Tab</kbd> and the camera cranes up into a tilt-shift diorama of the live stage, with pins for your team and one-click Super Jumps.
-- **Locker.** Choose your squidkid: tentacle style, headgear, face, outfit.
-- **Everything procedural.** Characters, animation, weapons, textures, props, sound effects and music are all generated in code. There are no downloaded assets except two fonts.
+- **4 対 4 のナワバリバトル**：3 分間で、より広く地面を塗ったチームの勝ち。ボット相手に 3 段階の難易度で遊べます。
+- **イカになる**：自分のインクに潜ると、速く泳ぐ・インクを補充する・塗ったカベを登る・水路を飛び越える、ができます。
+- **7 種類のブキ**：スプリッツァー（シューター）、スウェルローラー、グリントチャージャー、ポッパーブラスター、ツインフィンマニューバー（スライド付き）、タイドバケットスロッシャー、ジャイロスピナー。どれもサブはスプラッシュボム、スペシャルはブキごとに付いています。
+- **3 つのステージと、昼・夕方**：タイドウォーター広場、ケルプライン・ターミナル、ハリヤード・マリーナ。ハリヤード・マリーナは中央にカーフェリーが停泊する港で、水路の越え方が勝負を分けます。
+- **液体らしいインク**：塗ったインクは広がって落ち着き、塗りたてはつやがあって乾いていきます。カベを垂れ、泳ぐと表面に波の跡が残ります。
+- **見やすいマップ**：<kbd>Tab</kbd> を押し続けるとカメラが上空に上がり、試合中のステージをジオラマのように見渡せます。仲間のピンを選べばスーパージャンプできます。
+- **ロッカー**：インクリングを選び、ゲソ、アタマ、顔、服を変えて自分好みにできます。
+- **ほぼすべてを手続き生成**：キャラクター、アニメーション、ブキ、テクスチャ、小物、効果音、音楽はすべてコードで生成しています。ダウンロードするアセットは、フォント、ステージ選択画面の画像、焼き込んだライトマップだけです。
+- **日本語と英語**：UI は日本語（スプラトゥーンの公式用語）が初期設定です。「設定 → ゲームプレイ → 言語」で英語に切り替えられます。
+- **スマホで遊べる**：画面の好きな位置から操作できる移動スティック、スワイプでの視点操作、画面上のボタンで遊べます。「設定 → タッチ操作」で、左利き用の配置、ボタンの大きさ・濃さを変えられます。スマホとタブレットは初回起動時に画質「低」で始まり、30fps を保つように解像度を自動で調整します。
 
 <p align="center">
-  <img src="assets/stages/tidewater-day.webp" width="49%" alt="Tidewater Plaza">
-  <img src="assets/stages/kelpline-dusk.webp" width="49%" alt="Kelpline Terminal at dusk">
+  <img src="assets/stages/tidewater-day.webp" width="49%" alt="タイドウォーター広場">
+  <img src="assets/stages/kelpline-dusk.webp" width="49%" alt="夕方のケルプライン・ターミナル">
 </p>
 
-## Controls
+## 操作方法
 
-| Action | Keyboard / mouse | Gamepad |
-|---|---|---|
-| Move | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> | Left stick |
-| Aim | Mouse | Right stick |
-| Fire | Left click | RT |
-| Squid form | <kbd>Shift</kbd> | LT |
-| Jump / dodge roll | <kbd>Space</kbd> | A |
-| Sub weapon (bomb) | Right click / <kbd>E</kbd> | RB |
-| Special | <kbd>F</kbd> | Y |
-| Map + Super Jump | Hold <kbd>Tab</kbd> or <kbd>M</kbd>, then <kbd>1</kbd>–<kbd>4</kbd> or click a pin | View |
-| Pause | <kbd>Esc</kbd> | Start |
+| 操作 | キーボード・マウス | コントローラー | タッチ |
+|---|---|---|---|
+| 移動 | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> | 左スティック | 画面の左側をドラッグ |
+| ねらう | マウス | 右スティック | 画面の右側をドラッグ |
+| メインウェポン | 左クリック | RT | 撃つボタン（押したままドラッグでねらえる） |
+| イカになる・センプク | <kbd>Shift</kbd> | LT | イカボタン（押している間。設定で「タップで切り替え」も可） |
+| ジャンプ・スライド | <kbd>Space</kbd> | A | ジャンプボタン |
+| サブウェポン（ボム） | 右クリック / <kbd>E</kbd> | RB | ボムボタン（押してねらい、はなして投げる） |
+| スペシャル | <kbd>F</kbd> / <kbd>Q</kbd> | Y | スペシャルボタン |
+| マップ・スーパージャンプ | <kbd>Tab</kbd> か <kbd>M</kbd> を押し続けて、<kbd>1</kbd>〜<kbd>4</kbd> かピンをクリック | View | マップボタンを押して、ピンをタップ |
+| ポーズ | <kbd>Esc</kbd> | Start | 左上のポーズボタン |
 
-Gamepads work on the hosted (https) version. On a plain `http://` LAN address browsers block the Gamepad API.
+- コントローラーは https で配信したときに使えます。`http://` の LAN アドレスでは、ブラウザが Gamepad API を使わせません。
+- スマホは横向きで遊びます。試合が始まると、ブラウザが許す場合は全画面になります。
 
-## Running locally
+## ローカルで動かす
 
-There is no build step. Any static file server works; the included one also serves to your LAN and sends no-cache headers so module updates are never stale.
+開発時にビルドは要りません。どの静的ファイルサーバーでも動きます。同梱のサーバーは LAN にも公開し、`no-cache` ヘッダを付けるので、モジュールを更新しても古いものが残りません。
 
 ```bash
 git clone https://github.com/jaydendavisnc/inkwave.git
@@ -68,33 +71,42 @@ cd inkwave
 npm start        # http://localhost:8490
 ```
 
-Useful URL parameters: `?map=halyard&time=dusk` picks a stage, `&autostart=180` skips the menus into a 180 s match, `&autopilot` lets a bot drive you.
+便利な URL パラメータ：
+- `?map=halyard&time=dusk`：ステージと時間帯を選ぶ
+- `&autostart=180`：メニューを飛ばして 180 秒の試合を始める
+- `&autopilot`：自分のキャラクターをボットに操作させる
+- `?lang=en`：英語で表示する
 
 ```bash
-npm install      # once, for the headless tools
-npm run check    # syntax-check every module
-npm run smoke    # boot + 8 s of autopilot in headless Chrome, fails on console errors
-npm run build    # assemble dist/ (game + only the three.js addons it imports)
+npm install         # 最初に 1 回（ヘッドレスのツール用）
+npm run check       # 全モジュールの構文チェック
+npm run smoke       # ヘッドレス Chrome で起動し、8 秒間オートパイロットで遊ぶ。コンソールエラーがあれば失敗（smoke:mobile はスマホ模擬）
+npm run test:touch  # タッチ操作だけで、タイトル → 試合（全ボタン）→ 結果まで進める
+npm run build       # 本番ビルドを dist/ に作る（esbuild でバンドル、ハッシュ付きファイル名、Service Worker）
 ```
 
-## How it works
+## しくみ
 
-- **Ink is painted in texture space.** Every paintable face owns a region of one 4K atlas; splats are drawn into it on the GPU while a coarse CPU grid keeps the turf score and gameplay queries in sync. The level shader layers the ink over the surface with its own height, gloss and wetness. See [`src/world/paint.js`](src/world/paint.js) and [`src/world/inkShading.js`](src/world/inkShading.js).
-- **Stages are data.** A layout is a list of boxes and ramps for one half of the arena; the other half is the 180° rotation, so both teams always get an identical field. Ambient occlusion is baked offline (`tools/bake-ao.mjs`). See [`src/world/maps.js`](src/world/maps.js).
-- **Characters are fully procedural.** Geometry, materials, a 60-bone rig and every animation (locomotion, squid form, weapon poses, secondary motion) are code, driven by a spring-based pose system. See [`docs/RIG.md`](docs/RIG.md).
-- **Systems talk through events.** Weapons, actors and the match emit typed events; effects, HUD and audio subscribe. The contract is documented in [`docs/EVENTS.md`](docs/EVENTS.md) and [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
-- **Deterministic tooling.** The game exposes a freeze/step debug interface so filmstrips, handling measurements and bot simulations are reproducible frame by frame (`tools/film.py`, `tools/measure-handling.mjs`).
+- **インクはテクスチャ空間に塗る**：塗れる面はそれぞれ、1 枚の 4K アトラスの一部を受け持ちます。スプラットは GPU でアトラスに描き込み、粗い CPU グリッドが塗り面積とゲーム中の判定を同期させます。レベルのシェーダーは、インクの高さ・つや・濡れ具合を地面の上に重ねます。[`src/world/paint.js`](src/world/paint.js) と [`src/world/inkShading.js`](src/world/inkShading.js) を参照してください。
+- **ステージはデータ**：レイアウトは、フィールド半分ぶんの箱とスロープの一覧です。残り半分は 180° 回転したものなので、両チームは必ず同じ地形で戦います。環境光の遮蔽（AO）はオフラインで焼き込みます（`tools/bake-ao.mjs`）。[`src/world/maps.js`](src/world/maps.js) を参照してください。
+- **キャラクターはすべて手続き生成**：ジオメトリ、マテリアル、60 本のボーンのリグ、すべてのアニメーション（移動、イカ、ブキの構え、二次的な揺れ）をコードで作り、ばねを使ったポーズシステムで動かします。[`docs/RIG.md`](docs/RIG.md) を参照してください。
+- **システムはイベントでつながる**：ブキ、キャラクター、試合が型付きのイベントを出し、エフェクト、HUD、音がそれを受け取ります。取り決めは [`docs/EVENTS.md`](docs/EVENTS.md) と [`docs/CONTRACTS.md`](docs/CONTRACTS.md) にあります。
+- **再現できるツール**：ゲームには時間を止めて 1 フレームずつ進めるデバッグ機能があり、フィルムストリップ、操作感の計測、ボットのシミュレーションをフレーム単位で再現できます（`tools/film.py`、`tools/measure-handling.mjs`）。
+- **翻訳**：UI の文字列は英語で書いて `tr()` で囲み、日本語は [`src/i18n/ja.js`](src/i18n/ja.js) に置きます。日本語フォント（M PLUS Rounded 1c）は、使う文字だけのサブセットです。
 
-Rendering is three.js r186 (vendored, plain ES modules with an import map) with GTAO, bloom and a custom grade pass.
+描画は three.js r186（リポジトリに同梱、import map で読む素の ES モジュール）で、GTAO、ブルーム、独自のカラーグレーディングを使っています。本番ビルド（`npm run build`）は esbuild でまとめ、Service Worker を付けるので、2 回目以降はキャッシュから起動します。ロード時間とフレームの負荷の計測結果（フェーズごと）は [`docs/PERF_BASELINE.md`](docs/PERF_BASELINE.md) にあります。既知の問題と今後の改善候補は [`docs/KNOWN_ISSUES.md`](docs/KNOWN_ISSUES.md) にまとめています。
 
-## Browser support
+## 対応ブラウザ
 
-Chrome and Edge are the target; Firefox works. Safari runs but is slower. A discrete or recent integrated GPU is recommended for the High preset; the settings menu has Medium and Low tiers.
+- 主な対象は Chrome と Edge です。Firefox でも動きます。Safari でも動きますが、遅めです。
+- 画質「高」には、単体 GPU か新しめの内蔵 GPU をおすすめします。設定には「中」と「低」もあります。
+- スマホとタブレットは横向きで遊びます。今のところ、確認は Chrome のスマホ模擬だけで、実機ではまだ確認していません。
+- iPhone で全画面で遊ぶには、「ホーム画面に追加」してから起動します（iPhone の Safari は Web ページの全画面表示に対応していないため）。自分だけが開ける Web サイトとして置く手順は [`docs/DEPLOY.md`](docs/DEPLOY.md) にあります。
 
-## Contributing
+## 開発に参加する
 
-Issues and pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) for the project layout and the checks to run first.
+Issue と Pull Request を歓迎します。プロジェクトの構成と、先に実行してほしいチェックは [CONTRIBUTING.md](CONTRIBUTING.md) にあります。
 
-## License
+## ライセンス
 
-[MIT](LICENSE) © 2026 Jayden Davis. INKWAVE is an independent project and is not affiliated with Nintendo; Splatoon is a trademark of Nintendo.
+[MIT](LICENSE) © 2026 Jayden Davis。INKWAVE は個人の独立したプロジェクトで、任天堂とは関係ありません。Splatoon（スプラトゥーン）は任天堂の商標です。
