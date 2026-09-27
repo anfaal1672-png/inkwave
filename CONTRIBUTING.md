@@ -19,6 +19,7 @@ Open the URL in Chrome, Edge or Firefox. Everything reloads on refresh; there is
 npm run check        # node --check on every module
 npm run smoke        # boots the game headlessly and plays 8 s on autopilot (needs Google Chrome installed)
 npm run smoke:mobile # the same in landscape-phone emulation (touch, 3× DPR, 4× CPU throttle, Fast 4G)
+npm run test:touch   # touch-only play-through: title → match (every on-screen control) → results
 ```
 
 The headless tools find Chrome/Chromium per platform (`tools/browser.mjs`); set `CHROME_PATH` to use another binary. The smoke runs start the dev server themselves when nothing is listening on :8490. On Linux without a GPU, WebGL runs in software (SwiftShader), so the smoke uses the low preset there and takes a few minutes.

@@ -89,8 +89,10 @@ html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callou
 .iw-hud.is-touch .iw-no-touch, .iw-hud.is-touch .iw-map__label, .iw-hud.is-touch .iw-sp__ready .iw-key { display: none; }
 .iw-dio.is-touch .iw-pin:not(.iw-pin--self) .iw-pin__badge { pointer-events: auto; }
 
-/* ---- how-to: touch gestures column */
-.iw-tgest { display: inline-block; padding: .28em .6em; border-radius: .5em; background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .25); font-weight: 700; font-size: .92em; }
+/* ---- how-to: touch gestures column (long descriptions wrap instead of running off the panel) */
+.iw-ctl--touch .iw-ctl__keys { flex: 1 1 auto; min-width: 0; text-align: right; }
+.iw-ctl--touch .iw-ctl__act { flex: none; }
+.iw-tgest { white-space: normal; line-height: 1.25; text-align: left; display: inline-block; padding: .28em .6em; border-radius: .5em; background: rgba(255, 255, 255, .1); box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .25); font-weight: 700; font-size: .92em; }
 
 /* ---- settings preview: touch layout on a phone */
 .iw-pv--touch { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 1); }
@@ -131,7 +133,9 @@ html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callou
   .iw-ss__left { bottom: calc(var(--u) * 1.2); }
   .iw-ss__match .iw-setup__desc { display: none; }
   .iw-pmatch { top: calc(var(--u) * 1.4); bottom: calc(var(--u) * 1.4); transform: none; }
-  .iw-wgrid.is-compact .iw-wcard__name, :lang(ja) .iw-wgrid.is-compact .iw-wcard__name { font-size: 9px; }
+  /* weapon cards: the name matters more than the class line (the detail panel names the class) */
+  .iw-wgrid.is-compact .iw-wcard__name, :lang(ja) .iw-wgrid.is-compact .iw-wcard__name { font-size: 10.5px; letter-spacing: -.02em; }
+  .iw-wgrid.is-compact .iw-wcard__kind { display: none; }
   /* settings: icons only for the tabs you are not on, so five tabs fit */
   .iw-settings .iw-tab:not(.is-sel) > span { display: none; }
 }
