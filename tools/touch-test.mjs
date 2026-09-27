@@ -56,6 +56,17 @@ async function hold(sel, ms, id = 8) {
   if (!c) throw new Error('not on screen: ' + sel);
   await down(id, c.x, c.y); await wait(ms); await up(id);
 }
+// menu taps: wait for the screen's ink wipe to finish (taps during a transition are ignored by design), then tap and
+// re-tap if the expected state has not arrived — software WebGL can drop a tap on a slow frame
+async function tapUntil(sel, cond, { tries = 3, ms = 20000 } = {}) {
+  for (let i = 0; i < tries; i++) {
+    await until('!__inkwave.menus.wipe.busy', 60000);
+    await wait(500);
+    await tap(sel);
+    try { await until(cond, ms); return i; } catch { /* tap again */ }
+  }
+  throw new Error(`${sel}: ${cond} never happened after ${tries} taps`);
+}
 const results = [];
 async function step(name, fn) {
   try {
@@ -79,11 +90,10 @@ await step('title: tap to start', async () => {
   await until('__inkwave.menus.current === "main"', 60000);
   return await ev(() => document.querySelector('.iw-title__presstext')?.textContent || __inkwave.menus._input);
 });
-await step('main: PLAY', async () => { await wait(1200); await tap('[data-id="play"]'); await until('__inkwave.menus.current === "setup"', 60000); });
+await step('main: PLAY', async () => { await tapUntil('[data-id="play"]', '__inkwave.menus.current === "setup"'); });
 await step('setup: START', async () => {
-  await wait(1500);
-  await tap('[data-id="start"]');
-  await until('__inkwave.match && !__inkwave.match.attract && __inkwave.match.state === "playing"', 900000);
+  await tapUntil('[data-id="start"]', '__inkwave.match && !__inkwave.match.attract');
+  await until('__inkwave.match.state === "playing"', 900000);
   await until('document.querySelector(".iw-touch.is-on")', 60000);
   return 'touch controls shown';
 });
@@ -157,9 +167,7 @@ await step('pause button → resume', async () => {
   await until('!__inkwave.match.paused && document.querySelector(".iw-touch.is-on")', 60000);
   await tap('.iw-tbtn--pause');
   await until('__inkwave.match.paused && __inkwave.menus.current === "pause"', 30000);
-  await wait(800);
-  await tap('[data-id="resume"]');
-  await until('!__inkwave.match.paused && !__inkwave.menus.current', 30000);
+  await tapUntil('[data-id="resume"]', '!__inkwave.match.paused && !__inkwave.menus.current');
 });
 await step('finish → results', async () => {
   await ev(() => __inkwave.debug.endMatch());
