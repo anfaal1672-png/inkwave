@@ -5,7 +5,7 @@ import { Renderer } from './core/renderer.js';
 import { Input } from './core/input.js';
 import { mapTheme,
   DEFAULT_SETTINGS, QUALITY, TEAM_PALETTES, COLORBLIND_PALETTE, TEAM_NAMES, WEAPONS, WEAPON_ORDER, SUB, SPECIALS,
-  MAPS, DIFFICULTY, PLAYER, PROGRESSION, VERSION, MATCH,
+  MAPS, DIFFICULTY, PLAYER, PROGRESSION, VERSION, MATCH, GAME_TITLE, GAME_SUBTITLE,
 } from './config.js';
 import { Level } from './world/level.js';
 import { MAP_LAYOUTS } from './world/maps.js';
@@ -23,6 +23,7 @@ import { CameraRig } from './game/cameraRig.js';
 import { Match } from './game/match.js';
 import { Minimap } from './game/minimap.js';
 import { Showcase } from './game/showcase.js';
+import { tr, setLang, relabel } from './i18n/index.js';
 
 const params = new URLSearchParams(location.search);
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
@@ -50,6 +51,8 @@ class Game {
     // v1.1: fov became horizontal — migrate old vertical values once
     if (this.settings.fovMode !== 'h') { this.settings.fov = DEFAULT_SETTINGS.fov; this.settings.fovMode = 'h'; saveJSON('inkwave.settings', this.settings); }
     this.profile = loadJSON('inkwave.profile', DEFAULT_PROFILE);
+    setLang(this.settings.lang);
+    document.title = `${GAME_TITLE} — ${tr(GAME_SUBTITLE)}`;
     const app = document.getElementById('app');
     this.uiRoot = document.getElementById('ui-root');
     this.fadeEl = document.getElementById('fade');
@@ -64,7 +67,7 @@ class Game {
     this.menus?.show('loading');
     this.bootMarks = [];
     const progress = async (p, label) => { this.bootMarks.push([label, Math.round(performance.now() - t0)]); this.menus?.setLoading(p, label); await nextFrame(); };
-    await progress(0.05, 'Mixing ink…');
+    await progress(0.05, tr('Mixing ink…'));
 
     // renderer / scene
     this.R = new Renderer(app, this.settings);
@@ -89,7 +92,7 @@ class Game {
     this.CharacterClass = charMod.Character;
     try { this.PropKit = (await import('./world/props.js')).PropKit; } catch (e) { console.error('[inkwave] prop kit failed to load', e); this.PropKit = null; }
     G.audio = audioMod.audio; G.music = musicMod.music;
-    await progress(0.15, 'Building the plaza…');
+    await progress(0.15, tr('Building the plaza…'));
 
     // world
     // (old ?map=sunset links = Tidewater at dusk)
@@ -104,7 +107,7 @@ class Game {
       this.texlib = await createTextureLibrary(G.renderer, { size: q.paintAtlas >= 4096 ? 512 : 256 });
     } catch (e) { console.error('[inkwave] texture library failed — procedural fallback', e); this.texlib = null; }
     await this._buildWorld(map);
-    await progress(0.4, 'Filling the harbor…');
+    await progress(0.4, tr('Filling the harbor…'));
     const B = G.level.bounds;
     G.env = new envMod.Environment(G.renderer, scene, { bounds: B, theme: this.theme, shadowSize: q.shadowSize, footprint: this._footprint(G.level) });
     if (G.env.envMap) scene.environment = G.env.envMap;
@@ -112,7 +115,7 @@ class Game {
     scene.environmentIntensity = 0.66;
     G.renderer.toneMappingExposure = 0.94;
     if (G.env.hemi) G.env.hemi.intensity = Math.max(G.env.hemi.intensity, 0.38);
-    await progress(0.55, 'Teaching squids to swim…');
+    await progress(0.55, tr('Teaching squids to swim…'));
     G.projectiles = new Projectiles(scene);
     G.fx = new fxMod.FX(scene, { quality: q });
     G.fx.setLighting?.(G.env.getSkyColors?.());
@@ -130,19 +133,19 @@ class Game {
     try { const m = await import('./fx/fxHooks.js'); this.fxHooks = m.initFxHooks?.(G) || null; } catch (e) { if (!/Failed to fetch|Cannot find module|404/i.test(String(e))) console.error('[inkwave] fxHooks', e); }
     try { const m = await import('./fx/screenfx.js'); this.screenfx = m.ScreenFX ? new m.ScreenFX(this.R, G) : null; } catch (e) { if (!/Failed to fetch|Cannot find module|404/i.test(String(e))) console.error('[inkwave] screenfx', e); }
     this.showcase = new Showcase(G.renderer, this.CharacterClass);
-    await progress(0.7, 'Tuning the tentacles…');
+    await progress(0.7, tr('Tuning the tentacles…'));
 
     this._setPalette(this._pickPalette());
     this._bindEvents();
     this._startAttract();
     // warm up: compile every shader now so the first shot/splat never hitches
-    await progress(0.85, 'Warming up…');
+    await progress(0.85, tr('Warming up…'));
     this._warmup();
     // compile in parallel (KHR_parallel_shader_compile) so the loading screen keeps animating instead of freezing
     try { await G.renderer.compileAsync(scene, camera); } catch { G.renderer.compile(scene, camera); }
-    await progress(0.93, 'Warming up…');
+    await progress(0.93, tr('Warming up…'));
     for (let i = 0; i < 3; i++) { this._frame(1 / 60); await nextFrame(); }
-    await progress(1, 'Ready!');
+    await progress(1, tr('Ready!'));
     await new Promise((r) => setTimeout(r, 250));
 
     this.timer = new THREE.Timer(); this.timer.connect?.(document);
@@ -323,6 +326,7 @@ class Game {
     if ('quality' in partial || 'shadows' in partial || 'bloom' in partial) this.R?.applySettings(this.settings);
     if ('master' in partial || 'music' in partial || 'sfx' in partial) this._applyAudioVolumes();
     if ('colorblind' in partial && G.mode !== 'match') this._setPalette(this._pickPalette());
+    if ('lang' in partial) { setLang(this.settings.lang); relabel(document.body); document.title = `${GAME_TITLE} — ${tr(GAME_SUBTITLE)}`; }
   }
   _applyAudioVolumes() { G.audio?.setVolumes?.({ master: this.settings.master, music: this.settings.music, sfx: this.settings.sfx }); }
 
@@ -407,20 +411,20 @@ class Game {
       const local = this.match.local;
       if (attacker?.isLocal) {
         G.audio?.play('splat_enemy', { volume: 0.9 });
-        this.hud?.feed({ text: `You splatted ${victim.name}!`, color: G.teamHex[local.team], kind: 'kill' });
+        this.hud?.feed({ text: tr('You splatted {name}!', { name: victim.name }), color: G.teamHex[local.team], kind: 'kill' });
       } else if (victim.isLocal) {
         G.audio?.play('splatted_self');
         G.audio?.duck?.(0.45, 2.2);
-        const by = attacker ? attacker.name : cause === 'water' ? 'the sea' : 'enemy ink';
+        const by = attacker ? attacker.name : cause === 'water' ? tr('the sea') : tr('enemy ink');
         this.hud?.showSplatted({ by, byColor: attacker ? G.teamHex[attacker.team] : '#6fd0ff', respawn: PLAYER.respawnTime });
         this.rig.mode = 'spectate';
         this.rig.spectate = { actor: attacker && attacker.alive ? attacker : null, pos: victim.pos.clone(), from: victim.pos.clone() };
         this.rig.lookAt.copy(victim.pos);
       } else if (victim.team === local?.team) {
         G.audio?.play('ally_splatted', { volume: 0.5 });
-        this.hud?.feed({ text: `${victim.name} was splatted${attacker ? ' by ' + attacker.name : ''}`, color: G.teamHex[victim.enemyTeam], kind: 'death' });
+        this.hud?.feed({ text: attacker ? tr('{victim} was splatted by {attacker}', { victim: victim.name, attacker: attacker.name }) : tr('{victim} was splatted', { victim: victim.name }), color: G.teamHex[victim.enemyTeam], kind: 'death' });
       } else if (attacker && attacker.team === local?.team) {
-        this.hud?.feed({ text: `${attacker.name} splatted ${victim.name}`, color: G.teamHex[attacker.team], kind: 'ally' });
+        this.hud?.feed({ text: tr('{attacker} splatted {victim}', { attacker: attacker.name, victim: victim.name }), color: G.teamHex[attacker.team], kind: 'ally' });
       }
     });
     on('respawn', ({ actor }) => {
@@ -431,7 +435,7 @@ class Game {
       if (actor.isLocal && !this.match?.attract) { G.audio?.play('special_ready'); }
     });
     on('special:use', ({ actor, id }) => {
-      if (actor.isLocal && !this.match?.attract) this.hud?.banner('special', SPECIALS[id].name.toUpperCase() + '!');
+      if (actor.isLocal && !this.match?.attract) this.hud?.banner('special', tr('{name}!', { name: tr(SPECIALS[id].name).toUpperCase() }));
     });
     on('shake', ({ amount, pos }) => { if (!this.match?.attract) this.rig.addShake(amount, pos); });
     on('recoil', ({ amount }) => { if (!this.match?.attract) this.rig.recoil(amount); });
@@ -875,10 +879,10 @@ class Game {
     if (m.state === 'playing' && a.alive) {
       if (m.controller?.mapHeld) prompt = null;   // the map diorama carries its own super-jump hints
       else if (a.superJumpState) prompt = null;
-      else if (this._lowInkFlash > 0) { this._lowInkFlash -= dt; prompt = 'Low ink! Hold SHIFT in your ink to refill'; }
-      else if (a.specialReady() && (this._hints.specialT = (this._hints.specialT || 0) + dt) > 2) prompt = `Special ready! Press F`;
-      else if (inkF < 0.25 && a.form !== 'squid') prompt = 'Hold SHIFT to swim in your ink and refill';
-      else if (m.duration - m.time < 8 && !this._hints.shot) prompt = 'Paint the ground — most turf wins!';
+      else if (this._lowInkFlash > 0) { this._lowInkFlash -= dt; prompt = tr('Low ink! Hold SHIFT in your ink to refill'); }
+      else if (a.specialReady() && (this._hints.specialT = (this._hints.specialT || 0) + dt) > 2) prompt = tr('Special ready! Press F');
+      else if (inkF < 0.25 && a.form !== 'squid') prompt = tr('Hold SHIFT to swim in your ink and refill');
+      else if (m.duration - m.time < 8 && !this._hints.shot) prompt = tr('Paint the ground — most turf wins!');
       if (!a.specialReady()) this._hints.specialT = 0;
       if (a.intent.fire) this._hints.shot = true;
     }
@@ -904,5 +908,5 @@ const game = new Game();
 game.boot().catch((e) => {
   console.error(e);
   const el = document.getElementById('boot-error');
-  if (el) { el.textContent = 'Something went wrong while loading: ' + e.message; el.style.display = 'block'; }
+  if (el) { el.textContent = tr('Something went wrong while loading:') + ' ' + e.message; el.style.display = 'block'; }
 });

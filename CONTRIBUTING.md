@@ -33,6 +33,16 @@ It prints download size (raw and brotli), the boot timeline per loading stage, a
 
 Keep pull requests focused. If you change gameplay tuning, say what you measured and how (see `tools/measure-handling.mjs` and `tools/film.py` for the deterministic capture helpers).
 
+## UI text and translations
+
+The UI is Japanese by default, with English selectable under Settings → Gameplay → Language. Write UI strings in English and wrap them in `tr()` from `src/i18n/index.js` (or `N_()` where a data table defines them), then add the Japanese to `src/i18n/ja.js`. English strings are the keys, and anything untranslated falls back to English.
+
+```bash
+node tools/i18n-check.mjs                  # every key has a Japanese entry with the same {placeholders}
+node tools/i18n-audit.mjs --shots out/ja   # renders every screen + HUD state, flags leftover English, saves screenshots
+python3 tools/subset-fonts.py              # after adding new kanji: rebuild the Japanese font subsets
+```
+
 ## Project map
 
 | Path | What lives there |

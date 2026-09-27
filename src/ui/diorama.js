@@ -10,6 +10,7 @@
 import { h, clamp } from './ui-util.js';
 import { keycap, weaponIcon, richText } from './ui-icons.js';
 import { G } from '../core/ctx.js';
+import { tr, N_, label } from '../i18n/index.js';
 import * as THREE from 'three';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3();
@@ -33,7 +34,7 @@ export class DioramaOverlay {
       this.arc,
       h('div', { class: 'iw-dio__pins' }, this.pins.map((p) => p.el)),
       this.cursor,
-      h('div', { class: 'iw-dio__head' }, h('small', { class: 'iw-dio__kicker' }, 'STAGE MAP'), this.title, this.when),
+      h('div', { class: 'iw-dio__head' }, h('small', { class: 'iw-dio__kicker', ...label('STAGE MAP') }, tr('STAGE MAP')), this.title, this.when),
       this.foot);
     root.prepend(this.el);
     this.k = 0; this.on = false;
@@ -44,7 +45,8 @@ export class DioramaOverlay {
   _pin(i) {
     const self = i === 4, home = i === 3;
     const icon = h('span', { class: 'iw-pin__icon', html: self ? ARROW : home ? HOME_ICON : '' });
-    const name = h('span', { class: 'iw-pin__name' }, self ? 'YOU' : home ? 'BASE' : '');
+    const nameKey = self ? N_('YOU') : home ? N_('BASE') : null;
+    const name = h('span', { class: 'iw-pin__name', ...(nameKey ? label(nameKey) : null) }, nameKey ? tr(nameKey) : '');
     const state = h('span', { class: 'iw-pin__state' });
     const el = h('div', { class: 'iw-pin' + (self ? ' iw-pin--self' : '') + (home ? ' iw-pin--home' : '') },
       h('span', { class: 'iw-pin__ground' }), h('span', { class: 'iw-pin__stem' }),
@@ -183,11 +185,11 @@ export class DioramaOverlay {
 
   _head() {
     const m = G.game?.mapDef;
-    this.title.textContent = (m?.name || 'Stage').toUpperCase();
-    this.when.textContent = G.game?.time === 'dusk' ? 'DUSK' : 'DAY';
+    this.title.textContent = tr(m?.name || 'Stage').toUpperCase();
+    this.when.textContent = G.game?.time === 'dusk' ? tr('DUSK') : tr('DAY');
     const pad = G.input?.lastDevice === 'pad';
     this.foot.innerHTML = pad
-      ? richText('Right stick to point · A or D-pad to Super Jump · release VIEW to close')
-      : `${keycap('1')}${keycap('2')}${keycap('3')} <span>Super Jump to a teammate</span> ${keycap('4')} <span>Base</span> <em>·</em> <span>Point + click a pin</span> <em>·</em> <span>release</span> ${keycap('TAB')}`;
+      ? richText(tr('Right stick to point · A or D-pad to Super Jump · release VIEW to close'))
+      : `${keycap('1')}${keycap('2')}${keycap('3')} <span>${tr('Super Jump to a teammate')}</span> ${keycap('4')} <span>${tr('Base')}</span> <em>·</em> <span>${tr('Point + click a pin')}</span> <em>·</em> <span>${tr('release')}</span> ${keycap('TAB')}`;
   }
 }

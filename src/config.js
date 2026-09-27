@@ -217,6 +217,7 @@ export const PROGRESSION = {
 
 // ---- Settings defaults (persisted in localStorage 'inkwave.settings') ----
 export const DEFAULT_SETTINGS = {
+  lang: 'ja',               // UI language: 'ja' | 'en' (src/i18n)
   sensitivity: 1.0,         // mouse multiplier 0.2..3
   padSensitivity: 1.0,
   invertY: false,

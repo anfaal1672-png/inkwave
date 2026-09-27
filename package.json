@@ -8,6 +8,7 @@
     "smoke": "./tools/smoke.sh desktop",
     "smoke:mobile": "./tools/smoke.sh mobile",
     "measure": "node tools/measure-load.mjs",
+    "i18n": "node tools/i18n-check.mjs",
     "build": "python3 tools/build-dist.py",
     "release": "./tools/release-pages.sh"
   },

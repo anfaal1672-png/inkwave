@@ -2,6 +2,7 @@
 // Everything is a markup string (cheap to clone via innerHTML) using currentColor / CSS classes for team ink:
 //   .iw-fa = accent/team A ink, .iw-fb = accent/team B ink (see ui.css).
 import { esc, splatShape, blobPath } from './ui-util.js';
+import { setRichText } from '../i18n/index.js';
 
 const K = '#15121c';        // outline ink
 const DK = '#2b2735';       // dark plastic
@@ -351,3 +352,6 @@ export const RULE_ART = {
 // ------------------------------------------------------------------ helpers
 export const weaponIcon = (idOrKind) => WEAPON_ICONS[idOrKind] || WEAPON_ICONS.shooter;
 export const specialIcon = (id) => SPECIAL_ICONS[id] || SPECIAL_ICONS.slam;
+
+// live language switching re-renders key-cap strings with this (i18n relabel)
+setRichText(richText);
