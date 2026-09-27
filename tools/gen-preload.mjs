@@ -1,10 +1,12 @@
-// Writes <link rel="modulepreload"> tags for every module the boot needs into index.html, so the browser fetches the
-// whole graph in parallel instead of discovering it one import level at a time (each level is a network round trip —
-// on a phone that is most of the module-loading time).
+// Writes <link rel="modulepreload"> tags into index.html for the modules the loading screen needs, so the browser
+// fetches that graph in parallel instead of discovering it one import level at a time (each level is a network round
+// trip — on a phone that is most of the module-loading time).
 // usage: node tools/gen-preload.mjs          rewrite the block between the markers in index.html
 //        node tools/gen-preload.mjs --check  exit 1 if the block is stale (part of npm run check)
-// The graph starts at src/main.js and follows static imports plus the dynamic imports the boot awaits (the
-// `loadModule(...)` / `await import(...)` calls in main.js). three / three/addons resolve through the import map.
+// Only what stands between the first byte and the loading screen is preloaded: src/main.js with its static imports
+// plus the UI modules main.js imports to draw the loading screen (src/ui/*). The rest of the boot's dynamic imports
+// start fetching from main.js once that screen is up — preloading them too made them compete with the loading
+// screen for bandwidth and delayed its first paint on slow connections. three / three/addons use the import map.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { resolve, dirname, relative, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,13 +29,12 @@ function visit(file, dynamicToo) {
   seen.add(file);
   const src = readFileSync(file, 'utf8');
   const specs = [...src.matchAll(/^\s*import\s[^'"]*?from\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|^\s*export\s[^'"]*?from\s*['"]([^'"]+)['"]/gm)].map((m) => m[1] || m[2] || m[3]);
-  // main.js: the boot's awaited dynamic imports belong to the critical path too (dev/stubs.js is the error fallback)
-  if (dynamicToo) for (const m of src.matchAll(/(?:loadModule|import)\(\s*['"](\.[^'"]+)['"]/g)) if (!m[1].includes('/dev/')) specs.push(m[1]);
+  // main.js: the loading-screen UI it imports dynamically (menus / HUD / diorama) is on the critical path too
+  if (dynamicToo) for (const m of src.matchAll(/(?:loadModule|import)\(\s*['"](\.\/ui\/[^'"]+)['"]/g)) specs.push(m[1]);
   for (const s of specs) { const f = resolveSpec(s, file); if (f) visit(f, false); }
   order.push(file);
 }
 visit(join(ROOT, 'src', 'main.js'), true);
-// dynamic imports inside the modules main.js loads dynamically (menus → diorama etc.) are plain static imports there
 const block = [START, ...order.map((f) => `<link rel="modulepreload" href="./${relative(ROOT, f).split('\\').join('/')}">`), END].join('\n');
 const re = new RegExp(`${START.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s\\S]*?${END}`);
 const next = re.test(html) ? html.replace(re, block) : html.replace('<script type="module" src="./src/main.js"></script>', `${block}\n<script type="module" src="./src/main.js"></script>`);

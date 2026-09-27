@@ -70,6 +70,10 @@ class Game {
     this.bootMarks = [];
     const progress = async (p, label) => { this.bootMarks.push([label, Math.round(performance.now() - t0)]); this.menus?.setLoading(p, label); await nextFrame(); };
     await progress(0.05, tr('Mixing ink…'));
+    // fetch the rest of the boot's modules in parallel while the loading screen animates (awaited where they are used;
+    // index.html only preloads what the loading screen itself needs — tools/gen-preload.mjs)
+    for (const m of ['./game/character.js', './fx/fx.js', './world/environment.js', './audio/audio.js', './audio/music.js',
+      './world/props.js', './world/texlib.js', './fx/fxHooks.js', './fx/screenfx.js']) import(m).catch(() => {});
 
     // renderer / scene
     this.R = new Renderer(app, this.settings);
