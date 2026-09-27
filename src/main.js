@@ -1,6 +1,6 @@
 // INKWAVE — boot, main loop and game-flow orchestration (menus ⇄ attract mode ⇄ matches ⇄ results).
 import * as THREE from 'three';
-import { G, on, emit, clamp, damp, VIEW, compileForTarget } from './core/ctx.js';
+import { G, on, emit, clamp, damp, VIEW, refreshView, compileForTarget } from './core/ctx.js';
 import { Renderer } from './core/renderer.js';
 import { Input } from './core/input.js';
 import { TouchControls, TOUCH_CAPABLE, TOUCH_PRIMARY } from './core/touch.js';
@@ -727,6 +727,9 @@ class Game {
     if (this.frozen) return;
     this.fpsAcc += dt; this.fpsN++;
     if (this.fpsAcc > 0.5) { this.fps = Math.round(this.fpsN / this.fpsAcc); this.fpsAcc = 0; this.fpsN = 0; }
+    // every 0.5 s, at the top of the frame (layout is still clean here, so this read is cheap): catches a viewport
+    // change no event reported correctly (see VIEW in core/ctx.js)
+    if ((this._viewT = (this._viewT || 0) + dt) >= 0.5) { this._viewT = 0; refreshView(); }
     this._dynRes(dt);
     dt = Math.min(dt, 1 / 24);
     this._frame(dt);
