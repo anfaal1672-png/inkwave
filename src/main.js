@@ -34,10 +34,18 @@ function loadJSON(key, def) { try { const v = JSON.parse(localStorage.getItem(ke
 function saveJSON(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ } }
 const DEFAULT_PROFILE = { name: 'Player', level: 1, xp: 0, wins: 0, matches: 0, totalTurf: 0, weapon: 'shooter' };
 
-async function loadModule(path, stubName) {
-  try { return await import(path); }
+// Modules the boot loads dynamically (literal import() calls so a bundler can see and split them — tools/build.mjs)
+const MODULES = {
+  menus: () => import('./ui/menus.js'), hud: () => import('./ui/hud.js'),
+  character: () => import('./game/character.js'), fx: () => import('./fx/fx.js'), environment: () => import('./world/environment.js'),
+  audio: () => import('./audio/audio.js'), music: () => import('./audio/music.js'),
+  props: () => import('./world/props.js'), texlib: () => import('./world/texlib.js'),
+  fxHooks: () => import('./fx/fxHooks.js'), screenfx: () => import('./fx/screenfx.js'),
+};
+async function loadModule(name, stubName) {
+  try { return await MODULES[name](); }
   catch (e) {
-    console.error(`[inkwave] failed to load ${path} — using stub`, e);
+    console.error(`[inkwave] failed to load ${name} — using stub`, e);
     const stubs = await import('./dev/stubs.js');
     return stubName ? stubs : {};
   }
@@ -60,7 +68,7 @@ class Game {
     this.fadeEl = document.getElementById('fade');
 
     // UI first so the loading screen shows immediately
-    const [menusMod, hudMod] = await Promise.all([loadModule('./ui/menus.js'), loadModule('./ui/hud.js')]);
+    const [menusMod, hudMod] = await Promise.all([loadModule('menus'), loadModule('hud')]);
     this.menus = G.menus = menusMod.Menus ? new menusMod.Menus(this.uiRoot, this._menuApi()) : null;
     this.hud = G.hud = hudMod.HUD ? new hudMod.HUD(this.uiRoot, { playSound: (n, o) => G.audio?.play(n, o) }) : null;
     // map diorama pins/finish live inside the HUD layer (under every other HUD element)
@@ -72,8 +80,7 @@ class Game {
     await progress(0.05, tr('Mixing ink…'));
     // fetch the rest of the boot's modules in parallel while the loading screen animates (awaited where they are used;
     // index.html only preloads what the loading screen itself needs — tools/gen-preload.mjs)
-    for (const m of ['./game/character.js', './fx/fx.js', './world/environment.js', './audio/audio.js', './audio/music.js',
-      './world/props.js', './world/texlib.js', './fx/fxHooks.js', './fx/screenfx.js']) import(m).catch(() => {});
+    for (const k of ['character', 'fx', 'environment', 'audio', 'music', 'props', 'texlib', 'fxHooks', 'screenfx']) MODULES[k]().catch(() => {});
 
     // renderer / scene
     this.R = new Renderer(app, this.settings);
@@ -104,11 +111,11 @@ class Game {
 
     // modules built by other authors
     const [charMod, fxMod, envMod, audioMod, musicMod] = await Promise.all([
-      loadModule('./game/character.js', true), loadModule('./fx/fx.js', true), loadModule('./world/environment.js', true),
-      loadModule('./audio/audio.js', true), loadModule('./audio/music.js', true),
+      loadModule('character', true), loadModule('fx', true), loadModule('environment', true),
+      loadModule('audio', true), loadModule('music', true),
     ]);
     this.CharacterClass = charMod.Character;
-    try { this.PropKit = (await import('./world/props.js')).PropKit; } catch (e) { console.error('[inkwave] prop kit failed to load', e); this.PropKit = null; }
+    try { this.PropKit = (await MODULES.props()).PropKit; } catch (e) { console.error('[inkwave] prop kit failed to load', e); this.PropKit = null; }
     G.audio = audioMod.audio; G.music = musicMod.music;
     await progress(0.15, tr('Building the plaza…'));
 
@@ -119,7 +126,7 @@ class Game {
     this.time = params.get('time') === 'dusk' || params.get('map') === 'sunset' ? 'dusk' : (this.settings.timeOfDay === 'dusk' ? 'dusk' : 'day');
     this.theme = mapTheme(map, this.time);
     const q = QUALITY[this.settings.quality] || QUALITY.high;
-    const texlibP = import('./world/texlib.js')
+    const texlibP = MODULES.texlib()
       .then(({ createTextureLibrary }) => createTextureLibrary(G.renderer, { size: q.paintAtlas >= 4096 ? 512 : 256 }))
       .catch((e) => { console.error('[inkwave] texture library failed — procedural fallback', e); return null; });
     [this.murals, this.texlib] = await Promise.all([createMuralTexture(), texlibP]);
@@ -147,8 +154,8 @@ class Game {
     this.rig = new CameraRig(camera);
     G.post = this.R; G.game = this; G.rig = this.rig;
     // optional modules the VFX / screen-FX modules (absent = skipped)
-    try { const m = await import('./fx/fxHooks.js'); this.fxHooks = m.initFxHooks?.(G) || null; } catch (e) { if (!/Failed to fetch|Cannot find module|404/i.test(String(e))) console.error('[inkwave] fxHooks', e); }
-    try { const m = await import('./fx/screenfx.js'); this.screenfx = m.ScreenFX ? new m.ScreenFX(this.R, G) : null; } catch (e) { if (!/Failed to fetch|Cannot find module|404/i.test(String(e))) console.error('[inkwave] screenfx', e); }
+    try { const m = await MODULES.fxHooks(); this.fxHooks = m.initFxHooks?.(G) || null; } catch (e) { if (!/Failed to fetch|Cannot find module|404/i.test(String(e))) console.error('[inkwave] fxHooks', e); }
+    try { const m = await MODULES.screenfx(); this.screenfx = m.ScreenFX ? new m.ScreenFX(this.R, G) : null; } catch (e) { if (!/Failed to fetch|Cannot find module|404/i.test(String(e))) console.error('[inkwave] screenfx', e); }
     this.showcase = new Showcase(G.renderer, this.CharacterClass);
     await progress(0.7, tr('Tuning the tentacles…'));
 
@@ -250,7 +257,8 @@ class Game {
       const meta = await (await fetch(`assets/lightmaps/${layoutId}.json`, { cache: 'no-cache' })).json();
       level.layoutLightmap(meta.ppm, meta.size);
       if (level.layoutHash !== meta.hash) { console.warn(`[inkwave] lightmap for ${layoutId} is stale — re-run tools/bake-ao.mjs`); level.lightSize = 0; for (const f of level.faces) f.light = null; return null; }
-      const tex = await new THREE.TextureLoader().loadAsync(`assets/lightmaps/${layoutId}.png?h=${meta.hash}`);
+      // meta.file: the production build ships a WebP next to the PNG the baker writes (tools/build.mjs)
+      const tex = await new THREE.TextureLoader().loadAsync(`assets/lightmaps/${meta.file || layoutId + '.png'}?h=${meta.hash}`);
       tex.colorSpace = THREE.NoColorSpace;
       tex.generateMipmaps = true; tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter;
       tex.anisotropy = 4;

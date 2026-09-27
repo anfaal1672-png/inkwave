@@ -1,0 +1,122 @@
+{
+  "when": "2026-09-27T09:14:18.277Z",
+  "profile": "desktop",
+  "cache": "warm",
+  "settings": {
+    "quality": "low",
+    "fovMode": "h"
+  },
+  "runs": 1,
+  "url": "http://localhost:8492/?map=tidewater&autostart=60&autopilot",
+  "renderer": "swiftshader (software)",
+  "boot": {
+    "bootMs": 43003,
+    "domContentLoaded": 1432,
+    "load": 1433,
+    "fcp": 4308,
+    "stages": [
+      [
+        "インクを調合中…",
+        50
+      ],
+      [
+        "広場を組み立て中…",
+        1481
+      ],
+      [
+        "港に水を張っています…",
+        6657
+      ],
+      [
+        "イカに泳ぎを教えています…",
+        8647
+      ],
+      [
+        "ゲソを整えています…",
+        41
+      ],
+      [
+        "ウォーミングアップ中…",
+        772
+      ],
+      [
+        "ウォーミングアップ中…",
+        1208
+      ],
+      [
+        "準備完了！",
+        23615
+      ]
+    ]
+  },
+  "transfer": {
+    "requests": 0,
+    "fromCache": 34,
+    "kb": 0,
+    "gzipKb": 0,
+    "brotliKb": 0,
+    "byType": {
+      "Document": {
+        "count": 0,
+        "kb": 0,
+        "brotliKb": 0
+      },
+      "Font": {
+        "count": 0,
+        "kb": 0,
+        "brotliKb": 0
+      },
+      "Stylesheet": {
+        "count": 0,
+        "kb": 0,
+        "brotliKb": 0
+      },
+      "Script": {
+        "count": 0,
+        "kb": 0,
+        "brotliKb": 0
+      },
+      "Fetch": {
+        "count": 0,
+        "kb": 0,
+        "brotliKb": 0
+      },
+      "Image": {
+        "count": 0,
+        "kb": 0,
+        "brotliKb": 0
+      }
+    }
+  },
+  "frame": {
+    "frames": 5,
+    "fpsAvg": 0.5,
+    "fps1Low": 0.4,
+    "frameMsAvg": 2198.8,
+    "frameMsP99": 2436.6,
+    "simMs": 8.26,
+    "renderMs": 316.35,
+    "drawCalls": 168,
+    "triangles": 841780,
+    "dynScale": 1,
+    "quality": "low",
+    "geometries": 122,
+    "textures": 29,
+    "jsHeapMB": 81
+  },
+  "spread": {
+    "bootMs": [
+      43003,
+      43003
+    ],
+    "fpsAvg": [
+      0.5,
+      0.5
+    ],
+    "fps1Low": [
+      0.4,
+      0.4
+    ]
+  },
+  "errors": []
+}

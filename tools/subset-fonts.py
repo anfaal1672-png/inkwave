@@ -2,7 +2,7 @@
 """Build the Japanese UI font subsets: assets/fonts/MPLUSRounded1c-{500,800}-jp.woff2.
 
 M PLUS Rounded 1c (SIL OFL 1.1) is downloaded once from Google Fonts into .cache/fonts/ (git-ignored). The subset keeps
-  - every hiragana, katakana, CJK symbol/punctuation and full-width ASCII form (player names, future strings)
+  - every hiragana, katakana and CJK symbol/punctuation (player names, future strings)
   - every other non-ASCII character the Japanese strings in src/i18n/ja.js use (their kanji, arrows, ×, …)
 Latin text keeps rendering in Rubik / Titan One: the CSS stacks list those first, so the Japanese faces are only
 downloaded when a page actually shows Japanese.
@@ -27,8 +27,6 @@ RANGES = [
     (0x3000, 0x303F),  # CJK symbols & punctuation
     (0x3040, 0x309F),  # hiragana
     (0x30A0, 0x30FF),  # katakana
-    (0xFF01, 0xFF5E),  # full-width ASCII forms
-    (0xFF61, 0xFF9F),  # half-width katakana
 ]
 
 

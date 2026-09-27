@@ -34,6 +34,10 @@ const LIGHT = new Set(['main', 'loadout', 'setup', 'locker', 'settings', 'howto'
 // module so the UI lab in tools/ finds them too). Missing art falls back to the layout thumbnail.
 const STAGE_DIR = new URL('../../assets/stages/', import.meta.url).href;
 const stageArt = (id, time, small) => `${STAGE_DIR}${id}-${time === 'dusk' ? 'dusk' : 'day'}${small ? '-sm' : ''}.webp`;
+// The stage-select hero fills ~62 % of the width: the 1920 render only for big sharp screens, else the 1280 one
+// (tools/stage-variants.py) — a phone's 3× DPR is capped at 1.5 here, the hero is a backdrop, not a photo.
+const stageHero = (id, time) => (innerWidth * Math.min(window.devicePixelRatio || 1, 1.5) * 0.62 > 1300
+  ? stageArt(id, time) : `${STAGE_DIR}${id}-${time === 'dusk' ? 'dusk' : 'day'}-md.webp`);
 const TIME_INFO = {
   day: { label: N_('DAY'), text: N_('Bright sun, crisp shadows.') },
   dusk: { label: N_('DUSK'), text: N_('Low sun, long shadows, harbour lights.') },
@@ -831,21 +835,27 @@ export class Menus {
     return t === 'dusk' || t === 'day' ? t : (s.timeOfDay === 'dusk' ? 'dusk' : 'day');
   }
 
-  /** Warm the image cache with every stage render (hero + thumbnail, day + dusk) so switches never flash. */
+  /** Warm the image cache with the stage thumbnails (tickets, blurred backdrop: ~250 KB for all six). The big hero
+   *  renders load per stage as the player gets to them (_preloadHero) — preloading all six from the main menu cost
+   *  ~1.7 MB before anyone had opened stage select. */
   _preloadStages() {
     if (this._stageImgs) return;
     this._stageImgs = [];
-    for (const m of this._maps()) {
-      for (const t of ['day', 'dusk']) {
-        for (const sm of [true, false]) {
-          const im = new Image();
-          im.decoding = 'async';
-          im.src = stageArt(m.id, t, sm);
-          if (im.decode) im.decode().catch(() => {});
-          this._stageImgs.push(im);
-        }
-      }
-    }
+    for (const m of this._maps()) for (const t of ['day', 'dusk']) this._warm(stageArt(m.id, t, true));
+  }
+  /** Both times of day of one stage's hero render (so the DAY / DUSK flip never waits on the network). */
+  _preloadHero(id) {
+    const done = this._heroes || (this._heroes = new Set());
+    if (done.has(id)) return;
+    done.add(id);
+    for (const t of ['day', 'dusk']) this._warm(stageHero(id, t));
+  }
+  _warm(src) {
+    const im = new Image();
+    im.decoding = 'async';
+    im.src = src;
+    if (im.decode) im.decode().catch(() => {});
+    this._stageImgs.push(im);
   }
 
   _scr_setup() {
@@ -862,6 +872,7 @@ export class Menus {
     const timeOf = (id) => this._stageTime(id);
     const reduced = prefersReducedMotion();
     this._preloadStages();
+    this._preloadHero(st.mapId);
 
     // ---- JS tweens (driven by tick → honour the lab's freeze / slow-mo)
     const tweens = [];
@@ -921,7 +932,7 @@ export class Menus {
         L.classList.add('is-noart');
         L.appendChild(h('div', { class: 'iw-ss__fallback', html: (m && m.thumb) || mapThumb(m, 3) }));
       }, { once: true });
-      img.src = stageArt(id, time);
+      img.src = stageHero(id, time);
       L._img = img;
       return L;
     };
@@ -1080,6 +1091,7 @@ export class Menus {
       this._moveFocus(start, 'right');
     };
     const select = (id, how, fromEl) => {
+      this._preloadHero(id);
       const t = tickets.find((x) => x._mid === id);
       if (st.mapId === id) {
         if (how === 'lock') lockIn();

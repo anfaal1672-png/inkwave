@@ -32,6 +32,15 @@ npm run measure -- --profile desktop --runs 3            # or --profile mobile, 
 
 It prints download size (raw and brotli), the boot timeline per loading stage, and fps / 1 % low / draw calls over 10 s of live play as JSON. Baseline numbers live in [docs/PERF_BASELINE.md](docs/PERF_BASELINE.md). Frame rates under software WebGL are only comparable with each other, never with real hardware.
 
+## Production build
+
+```bash
+npm run build        # → dist/: bundled + minified JS split per dynamic import, hashed file names, service worker
+npm run smoke:dist   # the smoke runs against dist/ (served on :8492)
+```
+
+Development never needs the build: `npm start` serves the source tree as-is. `tools/build.mjs` bundles with esbuild, turns the baked lightmaps into WebP (`tools/lightmaps-webp.py`, needs Pillow), writes `sw.js` (second visits and offline play come from the cache) and a Cloudflare Pages `_headers` file. After new stage shots, `python3 tools/stage-variants.py` regenerates the 1280-px stage-select renders; after new modules on the boot path, `node tools/gen-preload.mjs` refreshes the dev preload list (`npm run check` flags it when stale).
+
 Keep pull requests focused. If you change gameplay tuning, say what you measured and how (see `tools/measure-handling.mjs` and `tools/film.py` for the deterministic capture helpers).
 
 ## UI text and translations

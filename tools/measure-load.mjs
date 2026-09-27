@@ -1,7 +1,7 @@
 // Load + runtime measurement: download size, boot timeline and in-match frame rate, as JSON.
 // usage: node tools/measure-load.mjs [--profile desktop|mobile] [--runs 3] [--seconds 10] [--cache cold|warm]
 //                                    [--settings '{"quality":"low"}'] [--url http://localhost:8490/] [--map tidewater]
-//                                    [--out result.json]
+//                                    [--out result.json] [--root dist]
 // Needs the dev server (npm start) or any static server on --url. Each run is a fresh browser profile.
 //   transfer  bytes per resource type as served (the dev server does not compress), plus the gzip / brotli size of
 //             the same files — what a compressing CDN (Cloudflare Pages) would actually send
@@ -18,9 +18,10 @@ import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { launchOptions, applyProfile, PROFILES } from './browser.mjs';
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
+// the folder the server at --url serves (the compressed-size estimates read the files from there): dist for a build
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', opt('root', '.'));
 const profileName = opt('profile', 'desktop');
 const profile = PROFILES[profileName];
 if (!profile) throw new Error('unknown profile ' + profileName);
@@ -53,6 +54,9 @@ async function oneRun(i) {
     const page = await browser.newPage();
     const cdp = await applyProfile(page, profile);
     await cdp.send('Network.enable');
+    // a production build registers its service worker right after `load`, long before the boot ends: on a cold run
+    // keep it out of the way so every byte of the first visit is counted (not "from service worker")
+    if (cache !== 'warm') await cdp.send('Network.setBypassServiceWorker', { bypass: true });
     if (settings) await page.evaluateOnNewDocument((v) => { try { localStorage.setItem('inkwave.settings', v); } catch { /* ignore */ } }, settings);
     const errors = [];
     page.on('pageerror', (e) => errors.push(e.message));

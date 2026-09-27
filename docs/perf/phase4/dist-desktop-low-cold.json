@@ -1,0 +1,122 @@
+{
+  "when": "2026-09-27T09:18:42.494Z",
+  "profile": "desktop",
+  "cache": "cold",
+  "settings": {
+    "quality": "low",
+    "fovMode": "h"
+  },
+  "runs": 1,
+  "url": "http://localhost:8492/?map=tidewater&autostart=60&autopilot",
+  "renderer": "swiftshader (software)",
+  "boot": {
+    "bootMs": 43193,
+    "domContentLoaded": 101,
+    "load": 101,
+    "fcp": 2872,
+    "stages": [
+      [
+        "インクを調合中…",
+        17
+      ],
+      [
+        "広場を組み立て中…",
+        219
+      ],
+      [
+        "港に水を張っています…",
+        8090
+      ],
+      [
+        "イカに泳ぎを教えています…",
+        8826
+      ],
+      [
+        "ゲソを整えています…",
+        47
+      ],
+      [
+        "ウォーミングアップ中…",
+        905
+      ],
+      [
+        "ウォーミングアップ中…",
+        1522
+      ],
+      [
+        "準備完了！",
+        22984
+      ]
+    ]
+  },
+  "transfer": {
+    "requests": 34,
+    "fromCache": 0,
+    "kb": 2789.2,
+    "gzipKb": 1015.1,
+    "brotliKb": 899.5,
+    "byType": {
+      "Script": {
+        "count": 26,
+        "kb": 2345.6,
+        "brotliKb": 633.7
+      },
+      "Font": {
+        "count": 4,
+        "kb": 210.9,
+        "brotliKb": 210.1
+      },
+      "Stylesheet": {
+        "count": 1,
+        "kb": 198.8,
+        "brotliKb": 30.6
+      },
+      "Image": {
+        "count": 1,
+        "kb": 30.1,
+        "brotliKb": 23.9
+      },
+      "Document": {
+        "count": 1,
+        "kb": 3.6,
+        "brotliKb": 1.1
+      },
+      "Fetch": {
+        "count": 1,
+        "kb": 0.3,
+        "brotliKb": 0.1
+      }
+    }
+  },
+  "frame": {
+    "frames": 6,
+    "fpsAvg": 0.5,
+    "fps1Low": 0.4,
+    "frameMsAvg": 1871.2,
+    "frameMsP99": 2433.4,
+    "simMs": 10.39,
+    "renderMs": 263.15,
+    "drawCalls": 170,
+    "triangles": 892181,
+    "dynScale": 1,
+    "quality": "low",
+    "geometries": 123,
+    "textures": 29,
+    "jsHeapMB": 75
+  },
+  "spread": {
+    "bootMs": [
+      43193,
+      43193
+    ],
+    "fpsAvg": [
+      0.5,
+      0.5
+    ],
+    "fps1Low": [
+      0.4,
+      0.4
+    ]
+  },
+  "errors": []
+}

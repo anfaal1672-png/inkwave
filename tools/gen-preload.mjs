@@ -30,7 +30,7 @@ function visit(file, dynamicToo) {
   const src = readFileSync(file, 'utf8');
   const specs = [...src.matchAll(/^\s*import\s[^'"]*?from\s*['"]([^'"]+)['"]|^\s*import\s*['"]([^'"]+)['"]|^\s*export\s[^'"]*?from\s*['"]([^'"]+)['"]/gm)].map((m) => m[1] || m[2] || m[3]);
   // main.js: the loading-screen UI it imports dynamically (menus / HUD / diorama) is on the critical path too
-  if (dynamicToo) for (const m of src.matchAll(/(?:loadModule|import)\(\s*['"](\.\/ui\/[^'"]+)['"]/g)) specs.push(m[1]);
+  if (dynamicToo) for (const m of src.matchAll(/import\(\s*['"](\.\/ui\/[^'"]+)['"]/g)) specs.push(m[1]);
   for (const s of specs) { const f = resolveSpec(s, file); if (f) visit(f, false); }
   order.push(file);
 }

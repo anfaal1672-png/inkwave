@@ -74,7 +74,7 @@ Useful URL parameters: `?map=halyard&time=dusk` picks a stage, `&autostart=180` 
 npm install      # once, for the headless tools
 npm run check    # syntax-check every module
 npm run smoke    # boot + 8 s of autopilot in headless Chrome, fails on console errors
-npm run build    # assemble dist/ (game + only the three.js addons it imports)
+npm run build    # production build in dist/ (esbuild bundle, hashed files, service worker)
 ```
 
 ## How it works
