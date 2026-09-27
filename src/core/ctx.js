@@ -23,14 +23,24 @@ export function emit(name, payload) {
   for (const fn of set) fn(payload);
 }
 
-// Viewport size in CSS px, refreshed by the resize event (which fires before the frame's rAF callbacks). The frame
-// loop reads this instead of window.innerWidth / innerHeight: those force a synchronous layout whenever the HUD has
-// written to the DOM earlier in the same frame.
+// Viewport size in CSS px. The frame loop reads this instead of window.innerWidth / innerHeight: those force a
+// synchronous layout whenever the HUD has written to the DOM earlier in the same frame.
+// iOS Safari can fire resize / orientationchange while innerWidth / innerHeight still hold the old orientation (the
+// game then kept rendering at the portrait size, stretched across the landscape screen). So the size is also re-read
+// by a ResizeObserver on the root element (runs after layout — no forced reflow), a moment after an orientation change,
+// and by refreshView(), which the loop calls every 0.5 s as a last resort.
 export const VIEW = { w: 0, h: 0 };
+export function refreshView() {
+  if (typeof window === 'undefined') return;
+  VIEW.w = window.innerWidth; VIEW.h = window.innerHeight;
+}
 if (typeof window !== 'undefined') {
-  const upd = () => { VIEW.w = window.innerWidth; VIEW.h = window.innerHeight; };
+  const upd = () => refreshView();
   upd();
   window.addEventListener('resize', upd);
+  window.addEventListener('orientationchange', () => { upd(); setTimeout(upd, 150); setTimeout(upd, 600); });
+  window.visualViewport?.addEventListener('resize', upd);
+  if (typeof ResizeObserver === 'function' && document.documentElement) new ResizeObserver(upd).observe(document.documentElement);
 }
 
 // compileAsync for materials that are drawn into a render target (the composer's HDR buffer, a showcase or bake
