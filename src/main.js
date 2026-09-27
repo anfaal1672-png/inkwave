@@ -44,6 +44,7 @@ async function loadModule(path, stubName) {
 }
 
 class Game {
+  get minimap() { return this._minimap || (this._minimap = new Minimap(G.level, G.paint)); }
   async boot() {
     const t0 = performance.now();
     // real top-down thumbnails for the stage cards, generated from each layout's geometry
@@ -114,11 +115,10 @@ class Game {
     this.time = params.get('time') === 'dusk' || params.get('map') === 'sunset' ? 'dusk' : (this.settings.timeOfDay === 'dusk' ? 'dusk' : 'day');
     this.theme = mapTheme(map, this.time);
     const q = QUALITY[this.settings.quality] || QUALITY.high;
-    this.murals = await createMuralTexture();
-    try {
-      const { createTextureLibrary } = await import('./world/texlib.js');
-      this.texlib = await createTextureLibrary(G.renderer, { size: q.paintAtlas >= 4096 ? 512 : 256 });
-    } catch (e) { console.error('[inkwave] texture library failed — procedural fallback', e); this.texlib = null; }
+    const texlibP = import('./world/texlib.js')
+      .then(({ createTextureLibrary }) => createTextureLibrary(G.renderer, { size: q.paintAtlas >= 4096 ? 512 : 256 }))
+      .catch((e) => { console.error('[inkwave] texture library failed — procedural fallback', e); return null; });
+    [this.murals, this.texlib] = await Promise.all([createMuralTexture(), texlibP]);
     await this._buildWorld(map);
     await progress(0.4, tr('Filling the harbor…'));
     const B = G.level.bounds;
@@ -233,7 +233,8 @@ class Game {
     scene.add(this.grateMesh);
     this.decor = new Decor(scene, level);
     G.nav = new NavGraph(level, G.physics);
-    this.minimap = new Minimap(level, G.paint);
+    // the minimap is match-only (HUD corner + TAB map): built on first use, not while the title screen waits on boot
+    this._minimap = null;
     if (G.env?.rebuildForArena) G.env.rebuildForArena(level.bounds, this._footprint(level));
     else if (G.env?.setFootprint) G.env.setFootprint(this._footprint(level));
     if (G.teamColors[0]) this._setPalette(this.palette || this._pickPalette());
@@ -292,7 +293,7 @@ class Game {
     this.props?.setTeamColors?.(G.teamColors[0], G.teamColors[1]);
     G.projectiles.refreshColors();
     for (const a of G.actors) a.character.setColor(G.teamColors[a.team]);
-    this.minimap.version = -1;
+    if (this._minimap) this._minimap.version = -1;
     this.menus?.setAccent?.(p.a, p.b);
   }
   _teamOfColor(color) {

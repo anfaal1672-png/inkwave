@@ -1390,8 +1390,9 @@ export async function createTextureLibrary(renderer, { size = 512 } = {}) {
     renderer.setRenderTarget(out, i);
     renderer.render(scene, cam);
   }
-  // wait for the GPU so the reported time is honest (one-pixel readback)
-  renderer.readRenderTargetPixels(out, 0, 0, 1, 1, new Uint8Array(4), undefined, 2);
+  // (no readback to wait for the GPU here: stats.ms is the CPU-side submit time. A sync readback stalled the boot until
+  // the bake finished instead of letting it overlap the environment build; ?texlibSync restores it for timing work.)
+  if (typeof location !== 'undefined' && /[?&]texlibSync\b/.test(location.search)) renderer.readRenderTargetPixels(out, 0, 0, 1, 1, new Uint8Array(4), undefined, 2);
 
   renderer.setRenderTarget(prevRT);
   renderer.autoClear = prevAutoClear;

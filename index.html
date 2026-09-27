@@ -33,6 +33,74 @@
   // fade in once the loading screen is mounted
   window.addEventListener('DOMContentLoaded', () => setTimeout(() => { const f = document.getElementById('fade'); if (f) { f.style.opacity = '0'; f.style.pointerEvents = 'none'; } }, 60));
 </script>
+<!-- modulepreload:start (tools/gen-preload.mjs) -->
+<link rel="modulepreload" href="./vendor/three/build/three.core.js">
+<link rel="modulepreload" href="./vendor/three/build/three.module.js">
+<link rel="modulepreload" href="./src/core/ctx.js">
+<link rel="modulepreload" href="./vendor/three/jsm/shaders/CopyShader.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/Pass.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/ShaderPass.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/MaskPass.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/EffectComposer.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/RenderPass.js">
+<link rel="modulepreload" href="./vendor/three/jsm/shaders/LuminosityHighPassShader.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/UnrealBloomPass.js">
+<link rel="modulepreload" href="./vendor/three/jsm/shaders/OutputShader.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/OutputPass.js">
+<link rel="modulepreload" href="./vendor/three/jsm/shaders/GTAOShader.js">
+<link rel="modulepreload" href="./vendor/three/jsm/shaders/PoissonDenoiseShader.js">
+<link rel="modulepreload" href="./vendor/three/jsm/math/SimplexNoise.js">
+<link rel="modulepreload" href="./vendor/three/jsm/postprocessing/GTAOPass.js">
+<link rel="modulepreload" href="./src/config.js">
+<link rel="modulepreload" href="./src/core/renderer.js">
+<link rel="modulepreload" href="./src/core/input.js">
+<link rel="modulepreload" href="./src/i18n/ja.js">
+<link rel="modulepreload" href="./src/i18n/index.js">
+<link rel="modulepreload" href="./src/ui/ui-util.js">
+<link rel="modulepreload" href="./src/ui/ui-icons.js">
+<link rel="modulepreload" href="./src/core/touch.js">
+<link rel="modulepreload" href="./src/world/maps.js">
+<link rel="modulepreload" href="./src/world/level.js">
+<link rel="modulepreload" href="./src/world/paint.js">
+<link rel="modulepreload" href="./src/world/texlib.js">
+<link rel="modulepreload" href="./src/world/inkShading.js">
+<link rel="modulepreload" href="./src/world/levelMaterial.js">
+<link rel="modulepreload" href="./src/fx/swimWake.js">
+<link rel="modulepreload" href="./vendor/three/jsm/utils/BufferGeometryUtils.js">
+<link rel="modulepreload" href="./src/world/decor.js">
+<link rel="modulepreload" href="./src/world/murals.js">
+<link rel="modulepreload" href="./src/world/mapThumb.js">
+<link rel="modulepreload" href="./src/world/props-marina-vessels.js">
+<link rel="modulepreload" href="./src/world/dressing.js">
+<link rel="modulepreload" href="./src/game/physics.js">
+<link rel="modulepreload" href="./src/game/nav.js">
+<link rel="modulepreload" href="./src/game/weapons.js">
+<link rel="modulepreload" href="./src/game/cameraRig.js">
+<link rel="modulepreload" href="./src/game/actor.js">
+<link rel="modulepreload" href="./src/game/bots.js">
+<link rel="modulepreload" href="./src/game/character-style.js">
+<link rel="modulepreload" href="./src/game/player.js">
+<link rel="modulepreload" href="./src/game/match.js">
+<link rel="modulepreload" href="./src/game/minimap.js">
+<link rel="modulepreload" href="./src/game/showcase.js">
+<link rel="modulepreload" href="./src/ui/menu-art.js">
+<link rel="modulepreload" href="./src/ui/menus.js">
+<link rel="modulepreload" href="./src/ui/hud.js">
+<link rel="modulepreload" href="./src/ui/diorama.js">
+<link rel="modulepreload" href="./src/game/character-mats.js">
+<link rel="modulepreload" href="./src/game/character-geo.js">
+<link rel="modulepreload" href="./src/game/character-weapons.js">
+<link rel="modulepreload" href="./src/game/character.js">
+<link rel="modulepreload" href="./src/fx/fx.js">
+<link rel="modulepreload" href="./src/world/environment.js">
+<link rel="modulepreload" href="./src/audio/music.js">
+<link rel="modulepreload" href="./src/audio/audio.js">
+<link rel="modulepreload" href="./src/world/props-marina-dock.js">
+<link rel="modulepreload" href="./src/world/props.js">
+<link rel="modulepreload" href="./src/fx/fxHooks.js">
+<link rel="modulepreload" href="./src/fx/screenfx.js">
+<link rel="modulepreload" href="./src/main.js">
+<!-- modulepreload:end -->
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>

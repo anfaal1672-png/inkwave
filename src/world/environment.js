@@ -1152,14 +1152,25 @@ function makeWaveTexture(size = 256, seed = 11) {
   const H = new Float32Array(N), GX = new Float32Array(N), GY = new Float32Array(N);
   let hMin = Infinity, hMax = -Infinity, gMax = 0;
   const TAU = Math.PI * 2;
+  // phase = a(x) + b(y) with a = TAU·kx·u, b = TAU·ky·v + φ: sin/cos of the sum from per-column and per-row tables
+  // (4 multiplies per wave and texel instead of a sin + cos — the boot's biggest CPU loop on phones)
+  const K = waves.length;
+  const sa = new Float64Array(K * size), ca = new Float64Array(K * size), sb = new Float64Array(K * size), cb = new Float64Array(K * size);
+  for (let k = 0; k < K; k++) {
+    const w = waves[k];
+    for (let i = 0; i < size; i++) {
+      const a = TAU * w[0] * (i / size), b = TAU * w[1] * (i / size) + w[3];
+      sa[k * size + i] = Math.sin(a); ca[k * size + i] = Math.cos(a);
+      sb[k * size + i] = Math.sin(b); cb[k * size + i] = Math.cos(b);
+    }
+  }
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const u = x / size, v = y / size;
       let h = 0, gx = 0, gy = 0;
-      for (let k = 0; k < waves.length; k++) {
+      for (let k = 0; k < K; k++) {
         const w = waves[k];
-        const ph = TAU * (w[0] * u + w[1] * v) + w[3];
-        const s = Math.sin(ph), c = Math.cos(ph);
+        const ix = k * size + x, iy = k * size + y;
+        const s = sa[ix] * cb[iy] + ca[ix] * sb[iy], c = ca[ix] * cb[iy] - sa[ix] * sb[iy];
         h += w[2] * s; gx += w[2] * w[0] * c; gy += w[2] * w[1] * c;
       }
       const i = y * size + x;

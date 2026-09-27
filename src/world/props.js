@@ -355,6 +355,10 @@ const FONT_D = 'InkwavePropsDisplay', FONT_T = 'InkwavePropsText';
 function loadFonts() {
   if (_fontPromise) return _fontPromise;
   if (typeof FontFace === 'undefined' || typeof document === 'undefined') return (_fontPromise = Promise.resolve());
+  // the game page declares these faces in ui.css: load those (FD / FT fall back to them by name). Standalone labs
+  // without the stylesheet register their own copies below.
+  const css = [...document.fonts].some((f) => f.family.replace(/["']/g, '') === 'Titan One');
+  if (css) return (_fontPromise = Promise.all([document.fonts.load('40px "Titan One"'), document.fonts.load('800 40px Rubik')]).then(() => {}, () => {}));
   const d = new FontFace(FONT_D, `url(${new URL('../../assets/fonts/TitanOne-latin.woff2', import.meta.url)})`);
   const t = new FontFace(FONT_T, `url(${new URL('../../assets/fonts/Rubik-latin.woff2', import.meta.url)})`, { weight: '400 900' });
   _fontPromise = Promise.all([d.load(), t.load()]).then((f) => { f.forEach((x) => document.fonts.add(x)); }).catch(() => {});
