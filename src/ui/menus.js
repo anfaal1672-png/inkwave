@@ -1964,7 +1964,7 @@ export class Menus {
       h('div', { class: 'iw-cred__logo', html: logoMarkup(GAME_TITLE, tr(GAME_SUBTITLE), 'md') }),
       h('p', { class: 'iw-cred__lead' }, tr('An original 4 v 4 turf-war shooter.')),
       sec('Made with', 'Procedural everything — squidkids, weapons, stage, ink, music and sound are all generated in code.'),
-      sec('Rendering', 'three.js', h('p', { class: 'dim' }, tr('by the three.js authors & contributors'))),
+      sec('Rendering', h('p', null, 'three.js'), h('p', { class: 'dim' }, tr('by the three.js authors & contributors'))),
       sec('Typography', 'Titan One — Font Diner', 'Rubik — Hubert & Fischer', 'M PLUS Rounded 1c — Coji Morishita, M+ FONTS PROJECT', h('p', { class: 'dim' }, 'SIL Open Font License')),
       sec('Starring the squidkids', cast),
       sec('Special thanks', 'Everyone who ever painted a wall', 'Every bot that got splatted in testing', 'And you, for playing'),

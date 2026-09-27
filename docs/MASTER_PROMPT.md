@@ -85,8 +85,9 @@
 - 完了条件: 同じコマンドで何度でも再計測でき、値のぶれ幅が PR に書かれている。
 
 ## Phase 1: 日本語化 (i18n)
-- src/i18n/ を新設: index.js (t(key, params), setLang, getLang, 言語変更イベント), ja.js, en.js。
-  キーは「画面.要素」形式 (例: 'menu.play', 'weapon.shooter.name', 'tip.swim')。
+- src/i18n/ を新設: index.js (tr(s, params), N_(s), setLang, getLang, onLang, relabel), ja.js。
+  (実装済み) キーは英語の原文そのもの。英語版の辞書は不要で、訳がない文字列は英語のまま表示される。
+  関数名は t ではなく tr (UI コードで t が時間の変数として多用されているため)。
   パラメータ置換 ({n}, {name}) と、[SHIFT] のようなキーキャップ記法 (ui-icons.js richText) をそのまま扱えること。
 - 文字列を抜き出す対象 (漏れがないように grep で確認し、チェックリストを PR に載せる):
   - src/config.js: GAME_SUBTITLE, WEAPONS の name/class/blurb, SUB / SPECIALS の名前と説明,
@@ -96,7 +97,7 @@
   - src/ui/hud.js, diorama.js, menu-art.js (表彰名 AWARD の label/desc), ui-icons.js と menu-art.js の SVG <text>
   - src/main.js のロード段階ラベル ('Mixing ink…' など)
   - index.html: <html lang>, <title>, meta description、エラー表示文言
-- 設定データ (config.js) にはキーだけ持たせ、表示時に t() で引く。数値データと表示テキストを分けること。
+- 設定データ (config.js) の英語の表示テキストはそのまま残し、表示するところで tr() を通す。データ表の定義側には N_() で目印を付ける。
 - ステージ内の看板や壁画 (src/world/murals.js, props.js の fillText) は「世界観の一部」として英語のまま残し、
   変更しない (変更する場合は別途確認)。
 - フォント:

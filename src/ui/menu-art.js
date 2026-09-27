@@ -8,7 +8,7 @@ import {
   h, clamp, lerp, easeInOutCubic, easeOutBack, easeOutCubic, rng, splatShape, splatSVG, shade, fmtInt, safeCall,
 } from './ui-util.js';
 import { SQUID, GLYPHS, WEAPON_ICONS, SPLAT_ICON, SPECIAL_ICONS, mouseGlyph, padGlyph, keycap } from './ui-icons.js';
-import { tr, N_ } from '../i18n/index.js';
+import { tr, N_, LANGS } from '../i18n/index.js';
 
 const K = '#15121c';
 const TAU = Math.PI * 2;
@@ -597,7 +597,7 @@ function previewQuality(ctx) {
       [N_('Particles'), `${Math.round((q.particles ?? 1) * 100)}%`],
     ];
     chips.innerHTML = '';
-    rows.forEach(([k, val], i) => chips.appendChild(h('span', { class: 'iw-pv-chip' + (/Off|0%/.test(val) ? ' is-off' : ''), style: { '--i': i } }, h('small', null, tr(k)), h('b', null, tr(val)))));
+    rows.forEach(([k, val], i) => chips.appendChild(h('span', { class: 'iw-pv-chip' + (/Off|0%/.test(val) ? ' is-off' : ''), style: { '--i': i } }, h('small', null, tr(k)), h('b', null, val === 'Off' || val === 'On' ? tr(val) : val))));
   };
   set(ctx.value);
   return { el, set };
@@ -823,6 +823,15 @@ function previewLink() {
   return { el, set() {} };
 }
 
+function previewLang(ctx) {
+  const opts = LANGS.map(([id, name]) => h('span', { class: 'iw-pv-lang__opt', 'data-l': id }, h('b', null, id === 'ja' ? 'あ' : 'A'), h('small', null, name)));
+  const el = h('div', { class: 'iw-pv iw-pv--lang' }, h('div', { class: 'iw-pv-lang' }, opts), h('div', { class: 'iw-pv-cap' }));
+  const cap = el.querySelector('.iw-pv-cap');
+  const set = (v) => { opts.forEach((o) => o.classList.toggle('is-on', o.dataset.l === v)); cap.innerHTML = tr('Menus, HUD and tips switch <b>instantly</b>'); };
+  set(ctx.value);
+  return { el, set };
+}
+
 function previewTab(ctx) {
   const t = ctx.tab || {};
   const el = h('div', { class: 'iw-pv iw-pv--tab', html: `<div class="iw-pv-tab__icon">${GLYPHS[t.icon] || GLYPHS.gear}</div>
@@ -857,6 +866,7 @@ export function createPreview(key, ctx = {}) {
     case 'matchLength': return previewLength(ctx);
     case '_howto': return previewLink(ctx);
     case '_reset': return previewReset(ctx);
+    case 'lang': return previewLang(ctx);
     default: return previewTab(ctx);
   }
 }

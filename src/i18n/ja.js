@@ -281,6 +281,7 @@ export const JA = {
   'Language': '言語 / Language',
   'Menus, HUD and tips. Signs painted on the stages stay in English.': 'メニュー・HUD・ヒントの言語。ステージに描かれた看板は英語のままです。',
   'English': 'English',
+  'Menus, HUD and tips switch <b>instantly</b>': 'メニュー・HUD・ヒントが<b>すぐに</b>切り替わります',
   'Camera shake': 'カメラの揺れ',
   'Screen shake from explosions, slams and hits.': '爆発や着地、被弾による画面の揺れ。',
   'Vibration': '振動',

@@ -1564,3 +1564,18 @@ circle.iw-ico-cut { fill: var(--cut, #fff); }
 /* stage select: keep the header subtitle clear of the hero's corner splat; tickets never touch the hero */
 .iw-ss__splat:not(.is-b) { left: auto; right: calc(var(--u) * 16); top: calc(var(--u) * -3.2); width: calc(var(--u) * 9); }
 .iw-ss__left { width: calc(var(--u) * 24.6); }
+
+/* ---- Japanese typography: phrase-aware wrapping (never mid-word in katakana), strict kinsoku; long katakana weapon
+   names get a smaller size so they fit their card instead of truncating */
+:lang(ja) .iw-ui, :lang(ja) .iw-hud, :lang(ja) .iw-hud-over { word-break: auto-phrase; line-break: strict; }
+:lang(ja) .iw-wcard__name { font-size: calc(var(--u) * 1.08); letter-spacing: -.02em; }
+:lang(ja) .iw-wgrid.is-compact .iw-wcard__name { font-size: calc(var(--u) * .84); }
+
+/* ---- settings preview: language */
+.iw-pv--lang { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: calc(var(--u) * 1.2); }
+.iw-pv-lang { display: flex; gap: calc(var(--u) * 1.2); }
+.iw-pv-lang__opt { display: flex; flex-direction: column; align-items: center; gap: .45em; padding: calc(var(--u) * .9) calc(var(--u) * 1.3); border-radius: calc(var(--u) * .9);
+  background: rgba(255, 255, 255, .06); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .12); opacity: .55; transition: opacity .2s, scale .3s var(--spring), background .2s; }
+.iw-pv-lang__opt b { font: 400 calc(var(--u) * 3.2) / 1 var(--font-display); -webkit-text-stroke: .12em var(--k); paint-order: stroke fill; }
+.iw-pv-lang__opt small { font: 800 var(--fs-xs) / 1 var(--font-body); letter-spacing: .06em; }
+.iw-pv-lang__opt.is-on { opacity: 1; scale: 1.08; background: rgba(var(--a-rgb), .22); box-shadow: inset 0 0 0 2px var(--a); }

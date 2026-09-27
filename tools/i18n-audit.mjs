@@ -21,7 +21,7 @@ const ALLOW = new Set([
   'INKWAVE', 'MVP', 'XP', 'Lv', 'FPS', 'BGM', 'MSAA', 'OK', 'GO', 'vs', 'VS', 'px', 'HP', 'BOOM', 'English',
   'SHIFT', 'SPACE', 'TAB', 'ESC', 'Esc', 'Enter', 'VIEW', 'LB', 'RB', 'LT', 'RT', 'LS', 'RS', 'LMB', 'RMB',
   'Titan', 'One', 'Font', 'Diner', 'Rubik', 'Hubert', 'Fischer', 'PLUS', 'Rounded', 'FONTS', 'PROJECT', 'SIL', 'Open',
-  'License', 'three', 'js', 'Player', 'SEC', 'MIN',
+  'License', 'three', 'js', 'Player', 'SEC', 'MIN', 'Language',
 ]);
 
 const browser = await puppeteer.launch({ ...launchOptions({ width: W, height: H }), protocolTimeout: 1200000 });
