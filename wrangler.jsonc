@@ -1,0 +1,9 @@
+// Cloudflare Workers (static assets): serves the production build in dist/ — build it first (npm run build; the
+// Cloudflare dashboard's "Build command"). dist/_headers (cache rules) is honoured. Guide: docs/DEPLOY.md
+{
+  "name": "inkwave",
+  "compatibility_date": "2026-09-01",
+  "assets": {
+    "directory": "./dist"
+  }
+}
