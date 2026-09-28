@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: INKWAVE の実装担当。designer が書いた実装計画に沿ってコードを変更し、チェックを実行して結果を報告する。コミットとプッシュはしない。
-model: claude-sonnet-5
+model: claude-sonnet-5-5
 effort: medium
 ---
 
