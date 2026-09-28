@@ -13,8 +13,9 @@ import { G, clamp, lerp, angleDiff } from '../core/ctx.js';
 import { PLAYER } from '../config.js';
 import { Physics, Hit } from './physics.js';
 import { CHEATS } from './cheats.js';
+import { solveWeapon, bodyCenter, weaponReach } from './aimbot.js';
 
-const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _fwd = new THREE.Vector3(), _c = new THREE.Vector3();
+const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _fwd = new THREE.Vector3(), _c = new THREE.Vector3(), _mz = new THREE.Vector3();
 const _hit = new Hit();
 const _res = { t: 0, dist: 0 };
 const _stick = { x: 0, y: 0, mag: 0 };
@@ -40,7 +41,7 @@ export class PlayerController {
     const it = a.intent;
     if (!this.enabled) {
       it.move.set(0, 0, 0); it.fire = it.jump = it.squid = it.sub = it.special = false;
-      this.assist.has = false;
+      this.assist.has = false; a.aimLock = null;
       return;
     }
     const usingPad = !!inp.pad && inp.lastDevice === 'pad';
@@ -108,10 +109,10 @@ export class PlayerController {
       rig.yaw += angleDiff(rig.yaw, as.yaw) * k;
       rig.pitch += (as.pitch - rig.pitch) * k;
     }
-    // aimbot (cheat): lock onto the enemy nearest the crosshair anywhere in front of you; optional auto-fire
-    const bot = CHEATS.cheatAimbot && !mapUp ? this._aimbotTarget() : null;
+    // aimbot (cheat): per-weapon fire solution (lead, arcs, lobs over cover) — the camera snaps onto it
+    const bot = CHEATS.cheatAimbot && !mapUp ? this._aimbot(dt) : ((a.aimLock = null), null);
     if (bot) {
-      const k = 1 - Math.exp(-22 * dt);
+      const k = 1 - Math.exp(-40 * dt);
       rig.yaw += angleDiff(rig.yaw, bot.yaw) * k;
       rig.pitch += (bot.pitch - rig.pitch) * k;
     }
@@ -128,7 +129,7 @@ export class PlayerController {
     it.fire = inp.mouse.left || inp.padValue(7) > 0.3 || !!th?.fire;
     it.sub = inp.mouse.right || inp.down('KeyE') || inp.padButton(5) || !!th?.sub;
     it.special = inp.down('KeyF') || inp.down('KeyQ') || inp.padButton(3) || inp.padButton(11) || !!th?.special;
-    if (bot && CHEATS.cheatAutoFire && bot.inRange) it.fire = true;
+    if (bot && bot.fire !== null) it.fire = bot.fire;
     this.mapHeld = inp.down('Tab') || inp.down('KeyM') || inp.padButton(8) || !!th?.map;
     // the TAB map is a targeting UI (clicking a teammate beacon super jumps) — never fire or throw through it
     if (this.mapHeld) { it.fire = false; it.sub = false; }
@@ -146,27 +147,64 @@ export class PlayerController {
     this.computeAim();
   }
 
-  // Aimbot target: the visible enemy closest to the crosshair within 80° of it (range-limited so it never spins you
-  // toward someone across the map). Returns camera-relative yaw / pitch, or null.
-  _aimbotTarget() {
+  // Aimbot (cheat, src/game/aimbot.js): pick the enemy there is a fire solution for — the lead point, the arc and,
+  // behind cover, the lob or the splash — nearest the crosshair within the field set in the cheat menu; keep it while
+  // it stays hittable. Sets a.aimLock (weapons.js fires along the exact solution) and returns the camera direction and
+  // the auto-fire decision for this weapon, or null.
+  _aimbot(dt) {
     const a = this.a, cam = G.camera;
-    if (!cam || !a.alive) return null;
-    const fwd = cam.getWorldDirection(_fwd);
+    if (!cam || !a.alive) { a.aimLock = null; return null; }
     const w = a.weapon;
-    const range = w.kind === 'charger' ? w.rangeMax : w.kind === 'roller' ? 7 : (w.range || 12);
-    let best = null, bestAng = 80 * DEG;
-    for (const e of G.actors) {
-      if (e.team === a.team || !e.alive || e.anim.form === 'swim') continue;
-      _c.set(e.pos.x, e.pos.y + (e.smoothY || 0) + (e.form === 'squid' ? 0.3 : 0.9), e.pos.z);
-      const d = a.pos.distanceTo(e.pos);
-      if (d > Math.max(range * 1.6, 18)) continue;
-      _v.copy(_c).sub(cam.position).normalize();
-      const ang = Math.acos(clamp(_v.dot(fwd), -1, 1));
-      if (ang > bestAng || !G.physics.los(cam.position, _c)) continue;
-      bestAng = ang;
-      best = { yaw: Math.atan2(_v.x, _v.z), pitch: Math.asin(clamp(_v.y, -1, 1)), inRange: d <= range * 1.05 };
+    const muzzle = G.projectiles._muzzle(a, _mz);
+    const delay = w.kind === 'slosher' ? w.windup || 0.13 : w.kind === 'roller' ? w.flickWindup || 0.15 : 0.02;
+    const fwd = cam.getWorldDirection(_fwd);
+    const fov = (CHEATS.cheatAimFov || 90) * DEG / 2;
+    const reach = weaponReach(w);
+    const S = this._ab || (this._ab = { t: 0, enemy: null });
+    S.t -= dt;
+    // re-pick the target every 0.1 s (or when the current one can't be hit any more)
+    let sol = S.enemy && S.enemy.alive ? solveWeapon(a, S.enemy, muzzle, delay) : null;
+    if (!sol || S.t <= 0) {
+      S.t = 0.1;
+      let best = null, bestScore = Infinity, bestSol = null;
+      for (const e of G.actors) {
+        if (e.team === a.team || !e.alive) continue;
+        const d = a.pos.distanceTo(e.pos);
+        if (d > reach) continue;
+        bodyCenter(e, _c);
+        _v.copy(_c).sub(cam.position).normalize();
+        const ang = Math.acos(clamp(_v.dot(fwd), -1, 1));
+        if (ang > fov + 1e-3) continue;
+        const score = ang + d * 0.02 + (e === S.enemy ? -0.15 : 0);
+        if (score >= bestScore) continue;
+        const s = e === S.enemy && sol ? sol : solveWeapon(a, e, muzzle, delay);
+        if (!s) continue;
+        best = e; bestScore = score; bestSol = s;
+      }
+      S.enemy = best; sol = bestSol;
     }
-    return best;
+    if (!S.enemy || !sol) { a.aimLock = null; S.enemy = null; return null; }
+    a.aimLock = { enemy: S.enemy };
+    // camera: on the lead point (lobs and splashes still look at the target)
+    _v.copy(sol.point).sub(cam.position).normalize();
+    const out = { yaw: Math.atan2(_v.x, _v.z), pitch: Math.asin(clamp(_v.y, -1, 1)), fire: null };
+    // auto-fire, per weapon: hold / release the way each one needs
+    if (CHEATS.cheatAutoFire) {
+      const wr = a.weaponRunner, e = S.enemy, dist = a.pos.distanceTo(e.pos);
+      if (w.kind === 'charger') {
+        // charge while locked; release once this charge splats (or at full), inside its range
+        const c = wr.charge || 0;
+        const dmg = c >= 0.999 ? w.damageMax : c * (w.damageMax * 0.62 - w.damageMin) + w.damageMin;
+        const range = w.rangeMin + (w.rangeMax - w.rangeMin) * c;
+        out.fire = !(wr.charging && (c >= 0.999 || (dmg >= e.hp && c > 0.2)) && dist <= range);
+      } else if (w.kind === 'splatling') {
+        out.fire = wr.streaming ? false : (wr.charge || 0) < 1;
+      } else if (w.kind === 'roller') {
+        this._flickT = !this._flickT;   // a fresh press every other frame: flick, don't roll
+        out.fire = this._flickT;
+      } else out.fire = true;
+    }
+    return out;
   }
 
   // Best enemy near the crosshair for aim assist (angular cone scaled so it covers ~a body width at any range).

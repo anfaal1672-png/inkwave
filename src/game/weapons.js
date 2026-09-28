@@ -10,6 +10,7 @@ import { G, emit, clamp, lerp, smoothstep } from '../core/ctx.js';
 import { WEAPONS, SUB, SPECIALS, PLAYER } from '../config.js';
 import { Physics, Hit } from './physics.js';
 import { CHEATS, cheatMove } from './cheats.js';
+import { lockDir, aimLockFor } from './aimbot.js';
 
 // local-player gamepad rumble (subtle; no-op without a pad or with settings.rumble = 0)
 function rumble(a, strong, weak, ms) { if (a && a.isLocal && !a.isBot) G.input?.rumble?.(strong, weak, ms); }
@@ -668,9 +669,13 @@ export class Projectiles {
 
   fireShooter(a, w, spreadDeg) {
     const m = this._muzzle(a, _v.set(0, 0, 0));
-    const dir = this._aimFrom(a, m, _dir);
-    this._ballistic(m, dir, a.aimPoint, w.projSpeed, w.straightTime, 28, 0.8, w.range);
-    this._spread(dir, spreadDeg ?? (a.grounded ? w.spreadGround : w.spreadAir));
+    // aimbot: the exact arc (lead + ballistics, lob over cover) from this muzzle, no spread
+    const lk = lockDir(a, m);
+    const dir = lk ? _dir.copy(lk.dir) : this._aimFrom(a, m, _dir);
+    if (!lk) {
+      this._ballistic(m, dir, a.aimPoint, w.projSpeed, w.straightTime, 28, 0.8, w.range);
+      this._spread(dir, spreadDeg ?? (a.grounded ? w.spreadGround : w.spreadAir));
+    }
     const p = this._new();
     // trail starts ~2.5 m out so shots never drip on the shooter's own feet
     Object.assign(p, { type: 'shot', owner: a, team: a.team, age: 0, life: 1.2, straight: w.straightTime, radius: w.impactRadius, damage: w.damage, size: 0.15, trail: -(2.5 - w.trailEvery), trailEvery: w.trailEvery, trailRadius: w.trailRadius, grav: 28, drag: 0.8, seed: Math.random(),
@@ -708,9 +713,12 @@ export class Projectiles {
 
   // one stream round (shooter-family): ballistic correction onto the crosshair, spread cone, teardrop look
   _fireRound(a, w, spreadDeg, m, look, snd, sndVol, pitch) {
-    const dir = this._aimFrom(a, m, _dir);
-    this._ballistic(m, dir, a.aimPoint, w.projSpeed, w.straightTime, 28, 0.8, w.range);
-    this._spread(dir, spreadDeg ?? (a.grounded ? w.spreadGround : w.spreadAir));
+    const lk = lockDir(a, m);   // aimbot: exact arc from this hand's muzzle
+    const dir = lk ? _dir.copy(lk.dir) : this._aimFrom(a, m, _dir);
+    if (!lk) {
+      this._ballistic(m, dir, a.aimPoint, w.projSpeed, w.straightTime, 28, 0.8, w.range);
+      this._spread(dir, spreadDeg ?? (a.grounded ? w.spreadGround : w.spreadAir));
+    }
     const p = this._new();
     Object.assign(p, { type: 'shot', wid: w.id, owner: a, team: a.team, age: 0, life: 1.2, straight: w.straightTime, radius: w.impactRadius, damage: w.damage, size: 0.15, trail: -(2.5 - w.trailEvery), trailEvery: w.trailEvery, trailRadius: w.trailRadius, grav: 28, drag: 0.8, seed: Math.random() }, look);
     p.pos.copy(m); p.prev.copy(m); p.start.copy(m);
@@ -761,13 +769,17 @@ export class Projectiles {
       pitch = disc >= 0 ? Math.atan((v * v - Math.sqrt(disc)) / (g * hd)) : Math.PI / 4;
       pitch = clamp(pitch, T0, 1.2);
     }
+    // aimbot: full-speed arc flown through the level (the high lob when the flat one hits cover), on the lead point
+    const lk = lockDir(a, m);
+    let yawL = yaw, halfStep = g * SIM_DT * 0.5;
+    if (lk) { v = w.projSpeed; pitch = lk.pitch; yawL = lk.yaw; halfStep = 0; }
     const n = w.drops;
     const vol = this.vols[this.volI = (this.volI + 1) % this.vols.length];
     vol.hits.length = 0;
     for (let i = 0; i < n; i++) {
       const k = i / (n - 1);
       const sp = v * (1 - 0.18 * k), pt = pitch - 0.04 * k;
-      const yw = yaw + (i === 0 ? 0 : (i % 2 ? 1 : -1) * 0.028 * Math.min(1, i / 3));
+      const yw = yawL + (i === 0 ? 0 : (i % 2 ? 1 : -1) * 0.028 * Math.min(1, i / 3));
       const p = this._new();
       Object.assign(p, { type: 'slosh', wid: w.id, owner: a, team: a.team, age: 0, life: 2.4, straight: 0, delay: i * 0.012,
         radius: w.impactRadius * (i === 0 ? 1 : 0.78 - 0.22 * k), damage: i === 0 ? w.damageHead : w.damageTail, head: i === 0,
@@ -779,10 +791,10 @@ export class Projectiles {
       const cp = Math.cos(pt);
       // + g·dt/2 cancels the integrator's half-step drop (update() is semi-implicit Euler), so the head glob lands on
       // the analytic parabola — exactly on the crosshair point
-      p.vel.set(Math.sin(yw) * cp * sp, Math.sin(pt) * sp + g * SIM_DT * 0.5, Math.cos(yw) * cp * sp);
+      p.vel.set(Math.sin(yw) * cp * sp, Math.sin(pt) * sp + halfStep, Math.cos(yw) * cp * sp);
       this.list.push(p);
     }
-    _dir.set(Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+    _dir.set(Math.sin(yawL) * Math.cos(pitch), Math.sin(pitch), Math.cos(yawL) * Math.cos(pitch));
     if (a.isLocal || a._nearCamera()) G.fx?.muzzle(m, _dir, a.color, 'blaster');
     emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: _dir.clone() });
     rumble(a, 0.18, 0.3, 90);
@@ -808,8 +820,9 @@ export class Projectiles {
 
   fireBlaster(a, w, spreadDeg) {
     const m = this._muzzle(a, _v.set(0, 0, 0));
-    const dir = this._aimFrom(a, m, _dir);
-    this._spread(dir, spreadDeg ?? 1.2);
+    const lk = lockDir(a, m);   // aimbot: intercept, or a burst on the cover beside the target
+    const dir = lk ? _dir.copy(lk.dir) : this._aimFrom(a, m, _dir);
+    if (!lk) this._spread(dir, spreadDeg ?? 1.2);
     const p = this._new();
     Object.assign(p, { type: 'blast', owner: a, team: a.team, age: 0, life: w.range / w.projSpeed, straight: 99, radius: w.impactRadius, damage: w.directDamage, size: 0.26, trail: -1.5, trailEvery: 2.2, trailRadius: 0.45, grav: 0, drag: 0, seed: Math.random(),
       vis: 0.2, tail0: 0.5, tailK: 0.9, wob: 0.085, wobF: 17, nose: 0.15, sats: 4 });
@@ -829,11 +842,18 @@ export class Projectiles {
 
   fireFlick(a, w) {
     const m = _v.copy(a.pos); m.y += 1.0;
-    const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
-    const up = clamp(a.aimPitch, -0.2, 0.5) + 0.32;
+    let yaw0 = a.yaw, up = clamp(a.aimPitch, -0.2, 0.5) + 0.32;
+    // aimbot: the fan's centre drop on the lead point (origin as below, toward the target)
+    const L = aimLockFor(a);
+    if (L) {
+      const ty = Math.atan2(L.enemy.pos.x - a.pos.x, L.enemy.pos.z - a.pos.z);
+      const lk = lockDir(a, _v2.set(m.x + Math.sin(ty) * 0.6, m.y + 0.3, m.z + Math.cos(ty) * 0.6));
+      if (lk) { yaw0 = lk.yaw; up = lk.pitch; }
+    }
+    const fx = Math.sin(yaw0), fz = Math.cos(yaw0);
     for (let i = 0; i < w.flickDrops; i++) {
       const t = (i / (w.flickDrops - 1)) * 2 - 1;
-      const ang = a.yaw + t * w.flickSpreadDeg * DEG * 0.5 + (Math.random() - 0.5) * 0.05;
+      const ang = yaw0 + t * w.flickSpreadDeg * DEG * 0.5 + (Math.random() - 0.5) * 0.05;
       const sp = w.flickSpeed * (0.82 + 0.28 * (1 - Math.abs(t)) + Math.random() * 0.08);
       const p = this._new();
       // big globs in the middle of the sheet, smaller beads toward the edges (visual only: the hit size is unchanged)
@@ -852,7 +872,8 @@ export class Projectiles {
 
   fireCharger(a, w, charge) {
     const m = this._muzzle(a, _v.set(0, 0, 0)).clone();
-    const dir = this._aimFrom(a, m, _dir).clone();
+    const lk = lockDir(a, m);   // aimbot: straight at the body (the beam is instant)
+    const dir = (lk ? _dir.copy(lk.dir) : this._aimFrom(a, m, _dir)).clone();
     const range = lerp(w.rangeMin, w.rangeMax, charge);
     const dmg = charge >= 0.999 ? w.damageMax : lerp(w.damageMin, w.damageMax * 0.62, charge);
     const hit = G.physics.raycast(m, dir, range, _hit, true);
