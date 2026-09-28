@@ -5,6 +5,7 @@
 // and leaves them out of what it saves). The game code reads them where each rule lives:
 //   actor.js    invincible (you / your team), respawn time, move speed, jump height, gravity
 //   weapons.js  fire rate, damage, steady aim (no spread)
+//   player.js   aimbot (+ auto-fire)
 //   match.js    enemies frozen / passive, timer stopped
 //   paint.js    ink splat size (your team)
 //   main.js     slow motion, and tickCheats() once a frame for the "keep it full" ones (ink, special)
@@ -14,6 +15,7 @@ import { G } from '../core/ctx.js';
 export const CHEAT_DEFAULTS = {
   cheatGod: false, cheatTeamGod: false, cheatInk: false, cheatSpecial: false, cheatRespawn: false, cheatSteady: false,
   cheatSpeed: 1, cheatJump: 1, cheatGravity: 1, cheatFire: 1, cheatDamage: 1, cheatPaint: 1,
+  cheatAimbot: false, cheatAutoFire: false,
   cheatFreeze: false, cheatPassive: false, cheatTimer: false, cheatSlowmo: 1,
 };
 export const CHEATS = { ...CHEAT_DEFAULTS };
