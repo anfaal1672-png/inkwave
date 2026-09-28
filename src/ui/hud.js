@@ -1342,8 +1342,9 @@ export class HUD {
   }
   _restart(el, cls) {
     el.classList.remove(cls);
-    void el.offsetWidth; // eslint-disable-line no-void
-    el.classList.add(cls);
+    // re-adding on the next frame restarts the animation without a forced synchronous layout (offsetWidth)
+    if (el._rs) cancelAnimationFrame(el._rs);
+    el._rs = requestAnimationFrame(() => { el._rs = 0; el.classList.add(cls); });
   }
   _expireFeed(el, fast) {
     if (el._out) return;

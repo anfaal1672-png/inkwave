@@ -10,6 +10,7 @@ export function createLevelMaterial(paintTexture, atlasSize, muralTexture = null
     clearcoat: 1.0, clearcoatRoughness: 0.08,
     envMapIntensity: 0.9,
   });
+  mat.userData.keepCoat = true;   // the ink shader needs the clearcoat path (core/saver.js leaves it alone)
   const uniforms = {
     uPaint: { value: paintTexture },
     uTexel: { value: 1 / atlasSize },

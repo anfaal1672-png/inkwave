@@ -98,7 +98,7 @@ const SETTINGS_TABS = [
     { key: 'touchOpacity', label: N_('Button opacity'), type: 'slider', min: 0.3, max: 1, step: 0.05, fmt: pctFmt, help: N_('How solid the on-screen buttons look.') },
   ] },
   { id: 'video', label: N_('Video'), icon: 'monitor', rows: [
-    { key: 'quality', label: N_('Graphics quality'), type: 'seg', options: [['low', N_('Low')], ['medium', N_('Med')], ['high', N_('High')], ['ultra', N_('Ultra')]], help: N_('Resolution scale, shadow detail, anti-aliasing and particle counts.') },
+    { key: 'quality', label: N_('Graphics quality'), type: 'seg', options: [['saver', N_('Power saver')], ['low', N_('Low')], ['medium', N_('Med')], ['high', N_('High')], ['ultra', N_('Ultra')]], help: N_('Resolution scale, shadow detail, anti-aliasing and particle counts.') },
     { key: 'fpsCap', label: N_('Frame rate limit'), type: 'seg', options: [[30, '30'], [60, '60'], [0, N_('Max')]], help: N_('30 fps keeps a phone much cooler and the battery lasts longer; 60 is smoother. Max follows the screen.') },
     { key: 'fov', label: N_('Field of view'), type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: N_('Wider shows more of the turf around you.') },
     { key: 'shadows', label: N_('Shadows'), type: 'toggle', help: N_('Soft sun shadows. Turn off for extra speed on older machines.') },

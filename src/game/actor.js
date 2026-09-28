@@ -19,6 +19,7 @@ import { WeaponRunner } from './weapons.js';
 import { CHEATS, cheatInvincible, cheatMove } from './cheats.js';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _fwd = new THREE.Vector3();
+const _cullSph = new THREE.Sphere();
 const _ZERO_MOVE = Object.freeze(new THREE.Vector3());   // move input while planted after a dodge roll
 const DOWN = new THREE.Vector3(0, -1, 0);
 const TAU = Math.PI * 2;
@@ -864,6 +865,13 @@ export class Actor {
     ch.root.position.y += this.smoothY;
     ch.root.rotation.y = this.yaw;
     ch.setHurt(Math.max(this.hurtFlash, 1 - this.hp / PLAYER.hp) * (this.hp < PLAYER.hp ? 1 : 0), G.teamColors[this.enemyTeam]);
+    // visibility for the character's pose throttle (G.frustum is built once per frame in main.js): a 1.5 m sphere
+    // around the chest, and 30 m+ from the camera drops hair / jiggle / finger detail
+    if (G.frustum && !this.isLocal) {
+      _cullSph.center.set(this.pos.x, this.pos.y + 0.9, this.pos.z); _cullSph.radius = 1.5;
+      ch.offscreen = !G.frustum.intersectsSphere(_cullSph);
+      ch.far = G.camera.position.distanceToSquared(this.pos) > 900;
+    } else { ch.offscreen = false; ch.far = false; }
     ch.update(dt, a);
     this._events(a);
     // swim wake

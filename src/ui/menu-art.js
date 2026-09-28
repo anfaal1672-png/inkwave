@@ -581,8 +581,8 @@ function previewFov(ctx) {
 }
 
 function previewQuality(ctx) {
-  const tiers = [['low', tr('LOW')], ['medium', tr('MED')], ['high', tr('HIGH')], ['ultra', tr('ULTRA')]];
-  const ladder = h('div', { class: 'iw-pv-ladder' }, tiers.map(([id, lab], i) => h('span', { class: 'iw-pv-ladder__col', 'data-q': id, style: { '--h': (0.3 + i * 0.233).toFixed(3) } }, h('i'), h('b', null, lab))));
+  const tiers = [['saver', tr('SAVER')], ['low', tr('LOW')], ['medium', tr('MED')], ['high', tr('HIGH')], ['ultra', tr('ULTRA')]];
+  const ladder = h('div', { class: 'iw-pv-ladder' }, tiers.map(([id, lab], i) => h('span', { class: 'iw-pv-ladder__col', 'data-q': id, style: { '--h': (0.28 + i * 0.18).toFixed(3) }, title: id === 'saver' ? tr('Lowest heat and battery use: no post effects, simpler shading') : null }, h('i'), h('b', null, lab))));
   const chips = h('div', { class: 'iw-pv-chips' });
   const el = h('div', { class: 'iw-pv iw-pv--quality' }, ladder, chips);
   const Q = ctx.qualityTable || {};

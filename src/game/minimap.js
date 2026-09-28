@@ -10,6 +10,7 @@
 //                                      super-jump landing targets, respawn pulses, splat bursts
 import { G, on } from '../core/ctx.js';
 import { SPECIALS, SUB } from '../config.js';
+import { TOUCH_PRIMARY } from '../core/touch.js';
 
 const TAU = Math.PI * 2;
 let CURRENT = null;          // the live Minimap (a new one is built per stage layout)
@@ -324,7 +325,7 @@ export class Minimap {
       this._band = b + 1 >= BANDS ? 0 : b + 1;
       if (!this._band) this._quiet = false;
     } else if (force || (this.timer <= 0 && this.version !== this.paint.version)) {
-      this.timer = 0.15;
+      this.timer = TOUCH_PRIMARY ? 0.45 : 0.15;   // phones: the ink redraw is a per-pixel loop + putImageData, so do it less often
       const first = this.version === -1;
       this.version = this.paint.version;
       if (first || force) { this._quiet = first; this._drawInk(0, this.h); this._quiet = false; if (first) this.flashT = 9; }

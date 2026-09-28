@@ -222,7 +222,7 @@ export const DEFAULT_SETTINGS = {
   padSensitivity: 1.0,
   invertY: false,
   fov: 82,                  // horizontal FOV at 16:9, 65..100
-  quality: 'high',          // 'low' | 'medium' | 'high' | 'ultra'
+  quality: 'high',          // 'saver' | 'low' | 'medium' | 'high' | 'ultra'
   shadows: true,
   bloom: true,
   cameraShake: 1.0,         // 0..1
@@ -250,8 +250,11 @@ export const DEFAULT_SETTINGS = {
 // pixelRatioPhone: the cap on phones and tablets instead (3× screens: 0.75 CSS px per pixel was a quarter of the panel's
 // resolution — blurry — and phones run at 30 fps by default, which pays for the sharper image).
 // lite: the ink surface skips the swim-wake and ripple loops (per-pixel loops over every inked pixel; eye candy).
+// saver (power saver, the phone default): draws straight to the canvas (direct: no HDR target, grade or output pass),
+// plain: MeshPhysical extras off (core/saver.js), calm: looping CSS animations and backdrop blur off, reverb off.
 export const QUALITY = {
   // pixelRatio = cap on devicePixelRatio (Retina screens render at up to this density)
+  saver:  { pixelRatio: 0.75, pixelRatioPhone: 1.0, shadowSize: 512, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.25, bake: 0.5, lite: true, direct: true, plain: true, calm: true },
   low:    { pixelRatio: 0.75, pixelRatioPhone: 1.0, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4, bake: 0.5, lite: true },
   medium: { pixelRatio: 1.0,  pixelRatioPhone: 1.3, shadowSize: 2048, msaa: 2, bloom: true,  ao: false, paintAtlas: 2048, particles: 0.7 },
   high:   { pixelRatio: 1.5,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },

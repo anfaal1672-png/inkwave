@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { G, on, emit, clamp, damp, VIEW, refreshView, compileForTarget } from './core/ctx.js';
 import { Renderer } from './core/renderer.js';
+import { applyPlainMaterials } from './core/saver.js';
 import { Input } from './core/input.js';
 import { TouchControls, TOUCH_CAPABLE, TOUCH_PRIMARY } from './core/touch.js';
 import { mapTheme,
@@ -28,6 +29,9 @@ import { Showcase } from './game/showcase.js';
 import { tr, setLang, relabel, onLang } from './i18n/index.js';
 
 const params = new URLSearchParams(location.search);
+// presets that share the low preset's runtime shortcuts (half-rate shadows, near-only character shadows, no resolution
+// suggestion): 'saver' is 'low' with the post stack and shading extras removed
+const LOWQ = new Set(['low', 'saver']);
 const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
 
 // ------------------------------------------------------------------------------------------ persistence
@@ -59,7 +63,7 @@ class Game {
   get minimap() {
     if (this._minimap) return this._minimap;
     let ppm = 7;
-    if (this.settings.quality === 'low') {
+    if (LOWQ.has(this.settings.quality)) {
       const B = G.level.bounds, u = Math.min(VIEW.w, VIEW.h * 1.7778) / 100;
       const px = 14.5 * u * Math.min(window.devicePixelRatio || 1, 2);
       ppm = clamp(Math.ceil((px * 1.2) / Math.max(B.maxX - B.minX, B.maxZ - B.minZ)), 4, 7);
@@ -74,9 +78,12 @@ class Game {
     this.settings = G.settings = { ...loadJSON('inkwave.settings', DEFAULT_SETTINGS), ...CHEAT_DEFAULTS };
     // phones and tablets start on the low preset and 30 fps — each only while that setting has never been saved, so a
     // choice is never overridden (players from before the frame-rate limit existed get 30 fps once)
-    if (TOUCH_PRIMARY && (!stored.quality || !('fpsCap' in stored))) {
-      if (!stored.quality) this.settings.quality = 'low';
+    // (q2: phones that had the old default 'low' move to the power saver once; a later choice sticks)
+    if (TOUCH_PRIMARY && (!stored.quality || !('fpsCap' in stored) || stored.q2 !== 1)) {
+      if (!stored.quality) this.settings.quality = 'saver';
+      else if (stored.q2 !== 1 && stored.quality === 'low') this.settings.quality = 'saver';
       if (!('fpsCap' in stored)) this.settings.fpsCap = 30;
+      this.settings.q2 = 1;
       saveJSON('inkwave.settings', this.settings);
     }
     // v1.1: fov became horizontal — migrate old vertical values once
@@ -186,10 +193,11 @@ class Game {
     this._startAttract();
     // warm up: compile every shader now so the first shot/splat never hitches
     await progress(0.85, tr('Warming up…'));
+    this._applyQuality();   // before the shader warm-up, so the plain variants are the ones compiled
     this._warmup();
     // compile in parallel (KHR_parallel_shader_compile) so the loading screen keeps animating instead of freezing —
     // for the composer's HDR target the scene is drawn into (compileForTarget), not for the canvas
-    try { await compileForTarget(G.renderer, scene, camera, this.R.composer.renderTarget1); } catch { G.renderer.compile(scene, camera); }
+    try { if (this.R.composer) await compileForTarget(G.renderer, scene, camera, this.R.composer.renderTarget1); else G.renderer.compile(scene, camera); } catch { G.renderer.compile(scene, camera); }
     await progress(0.93, tr('Warming up…'));
     for (let i = 0; i < 3; i++) { this._frame(1 / 60); await nextFrame(); }
     await progress(1, tr('Ready!'));
@@ -200,6 +208,7 @@ class Game {
     G.mode = 'menu';
     this.menus?.show(params.has('skipTitle') ? 'main' : 'title');
     this._applyAudioVolumes();
+    this._applyQuality();
     requestAnimationFrame(() => this._loop());
     if (params.has('autostart')) this.api.startMatch({ mapId: map.id, difficulty: this.settings.difficulty, duration: +params.get('autostart') || this.settings.matchLength });
     this.bootMs = Math.round(performance.now() - t0);
@@ -273,6 +282,7 @@ class Game {
     if (G.env?.rebuildForArena) G.env.rebuildForArena(level.bounds, this._footprint(level));
     else if (G.env?.setFootprint) G.env.setFootprint(this._footprint(level));
     if (G.teamColors[0]) this._setPalette(this.palette || this._pickPalette());
+    this._applyQuality();
   }
 
   // Baked AO (tools/bake-ao.mjs). Applied only when the bake matches this exact layout.
@@ -381,10 +391,18 @@ class Game {
       for (const m of [this.levelMat, this.grateMat]) if (m) { if (lite) m.defines.IW_LITE = 1; else delete m.defines.IW_LITE; }
     }
     if ('quality' in partial || 'shadows' in partial || 'bloom' in partial) this.R?.applySettings(this.settings);
+    if ('quality' in partial) this._applyQuality();
     if ('master' in partial || 'music' in partial || 'sfx' in partial) this._applyAudioVolumes();
     if ('colorblind' in partial && G.mode !== 'match') this._setPalette(this._pickPalette());
     if ('lang' in partial) { setLang(this.settings.lang); relabel(document.body); document.title = `${GAME_TITLE} — ${tr(GAME_SUBTITLE)}`; this.touch?.relabel(); }
     if (this.touch && Object.keys(partial).some((k) => k.startsWith('touch'))) this.touch.applySettings(this.settings);
+  }
+  // everything a quality preset switches outside the renderer: plain materials, the CSS calm class, the reverb
+  _applyQuality() {
+    const q = QUALITY[this.settings.quality] || QUALITY.high;
+    if (G.scene) applyPlainMaterials(G.scene, !!q.plain);
+    document.documentElement.classList.toggle('iw-calm', !!q.calm);
+    G.audio?.setReverb?.(!q.calm);
   }
   _applyAudioVolumes() { G.audio?.setVolumes?.({ master: this.settings.master, music: this.settings.music, sfx: this.settings.sfx }); }
 
@@ -404,7 +422,7 @@ class Game {
   // first gesture (key, click or tap) unlocks audio
   _unlockAudio() {
     if (this._audioOn) return;
-    this._audioOn = true; G.audio?.init?.(); this._applyAudioVolumes(); this._playMusic(this.menus?.current === 'title' || !this.menus ? 'title' : 'menu');
+    this._audioOn = true; G.audio?.init?.(); this._applyAudioVolumes(); this._applyQuality(); this._playMusic(this.menus?.current === 'title' || !this.menus ? 'title' : 'menu');
   }
   _usingTouch() { return !!this.touch && this.input.lastDevice === 'touch'; }
   // pointer lock is a mouse thing: a phone has none to take (and the request would only fail)
@@ -557,6 +575,7 @@ class Game {
     G.projectiles.clear(); G.fx.clear?.(); G.paint.clear();
     const m = (this.match = G.match = new Match({ attract: true, duration: 99999, difficulty: 'normal', CharacterClass: this.CharacterClass, rig: this.rig, input: this.input }));
     m.setup(); m.start();
+    this._applyQuality();   // the attract round's characters carry the full materials
     for (const a of m.actors) { a.respawnTimer = 0; }
     this.attractT = 0; this.shotT = 0; this.shotIdx = 0;
     this._attractShot();
@@ -633,6 +652,7 @@ class Game {
       autopilot: params.has('autopilot'), style: this.profile.style || null,
     }));
     m.setup();
+    this._applyQuality();   // the new match's characters and props carry the full materials
     this.minimap.setViewerTeam(0);
     { const w = WEAPONS[this.profile.weapon] || WEAPONS.shooter; this.touch?.setLoadout(w.kind, w.special); this.touch?.setColor(G.teamHex[0]); }
     G.mode = 'match';
@@ -741,7 +761,12 @@ class Game {
     // frame-rate limit (settings.fpsCap): skip display refreshes until a frame is due. The margin absorbs rAF jitter
     // (a 60 Hz display at a 30 cap renders every second refresh, not every third); the clock is only read on frames
     // that run, so dt spans the skipped ones.
-    const cap = +this.settings.fpsCap || 0;
+    let cap = +this.settings.fpsCap || 0;
+    // power saver: behind a menu (title backdrop match, settings) nothing needs more than 20 fps
+    if (this.settings.quality === 'saver' && this.menus?.current) {
+      const m = this.match;
+      if (!(m && !m.attract && m.state === 'playing' && !m.paused)) cap = Math.min(cap || 60, 20);
+    }
     if (cap > 0) {
       const now = performance.now();
       if (this._lastRun && now - this._lastRun < 1000 / cap - 4) return;
@@ -788,7 +813,7 @@ class Game {
       d.fast = 0;
       d.slow = avg > 1 / 25 && s <= floor + 0.01 ? (d.slow || 0) + 1 : 0;
       const q = this.settings.quality;
-      if (d.slow >= 3 && !this._suggestedQ && q !== 'low') {
+      if (d.slow >= 3 && !this._suggestedQ && !LOWQ.has(q)) {
         this._suggestedQ = true;
         this.hud?.feed({ text: tr('Running slowly — a lower Graphics quality in Settings will help'), color: '#ffd166', kind: 'info' });
       }
@@ -798,6 +823,10 @@ class Game {
   _frame(dt) {
     const tA = performance.now();
     G.renderer.info.reset();
+    // view frustum once per frame (actors read it to throttle off-screen characters); scratch objects are reused
+    if (!G.frustum) { G.frustum = new THREE.Frustum(); this._pvm = new THREE.Matrix4(); }
+    this._pvm.multiplyMatrices(G.camera.projectionMatrix, G.camera.matrixWorldInverse);
+    G.frustum.setFromProjectionMatrix(this._pvm);
     G.time += dt; G.frameDt = dt;   // aimbot flies its test shots with the step the projectiles use
     this.input.pollPad();
     this._padMenus();
@@ -868,7 +897,7 @@ class Game {
     const sm = G.renderer.shadowMap;
     sm.autoUpdate = false;
     this._frameN = (this._frameN || 0) + 1;
-    if (this.settings.quality !== 'low' || (this._frameN & 1)) sm.needsUpdate = true;
+    if (!LOWQ.has(this.settings.quality) || (this._frameN & 1)) sm.needsUpdate = true;
     if (!this._skipRender) {
       this.R.render();
       if (this.showcase.mode) sm.needsUpdate = true;
@@ -887,11 +916,11 @@ class Game {
   // low preset: only characters near the camera (and your own) cast shadows. A squid kid is ~37k shadow triangles in
   // ~5 draws; 20 m away its shadow is a few texels of the 1024 map. Meshes keep their own flag (userData.cs0).
   _charShadows() {
-    const low = this.settings.quality === 'low', cam = G.camera.position;
+    const q = this.settings.quality, low = LOWQ.has(q), r2 = q === 'saver' ? 144 : 400, cam = G.camera.position;
     for (const a of G.actors) {
       const root = a.character?.root;
       if (!root) continue;
-      const on = !low || a.isLocal || a.pos.distanceToSquared(cam) < 400;
+      const on = !low || a.isLocal || a.pos.distanceToSquared(cam) < r2;
       if (a._shadowOn === on) continue;
       a._shadowOn = on;
       root.traverse((o) => { if (!o.isMesh) return; if (o.userData.cs0 === undefined) o.userData.cs0 = o.castShadow; o.castShadow = on && o.userData.cs0; });
