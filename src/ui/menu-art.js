@@ -728,7 +728,8 @@ function previewAimAssist(ctx) {
       <path d="M0 -21 V-15 M0 21 V15 M-21 0 H-15 M21 0 H15" stroke="#fff" stroke-width="3.2" stroke-linecap="round"/></g>`) + '<div class="iw-pv-cap"></div>' });
   const xEl = el.querySelector('.iw-pv-aim__x'), trail = el.querySelector('.iw-pv-aim__trail'), cap = el.querySelector('.iw-pv-cap');
   let v = clamp(+ctx.value || 0), t = 0;
-  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0.001 ? tr('Aim assist <b>OFF</b>') : tr('Pull strength <b>{n}%</b>', { n: Math.round(v * 100) }); };
+  // the caption shows the real value (up to 500 %); the animation tops out at full pull
+  const set = (nv) => { v = clamp(+nv || 0); cap.innerHTML = v <= 0.001 ? tr('Aim assist <b>OFF</b>') : tr('Pull strength <b>{n}%</b>', { n: Math.round(Math.max(0, +nv || 0) * 100) }); };
   set(v);
   return {
     el, set,
