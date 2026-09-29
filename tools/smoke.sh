@@ -7,7 +7,7 @@
 # preset to reach live play in time: there the run uses the low preset at 960×540 unless SMOKE_SETTINGS says otherwise.
 cd "$(dirname "$0")/.."
 PROFILE=${1:-desktop}
-PORT=8490
+PORT=${SMOKE_PORT:-8490}   # SMOKE_PORT: test a server that serves another checkout
 DIR=
 [ "$2" = dist ] && { PORT=8492; DIR="--dir dist"; [ -f dist/index.html ] || { echo "no dist/ — run npm run build"; exit 1; }; }
 SERVER_PID=

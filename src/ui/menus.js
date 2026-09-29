@@ -98,7 +98,7 @@ const SETTINGS_TABS = [
     { key: 'touchOpacity', label: N_('Button opacity'), type: 'slider', min: 0.3, max: 1, step: 0.05, fmt: pctFmt, help: N_('How solid the on-screen buttons look.') },
   ] },
   { id: 'video', label: N_('Video'), icon: 'monitor', rows: [
-    { key: 'quality', label: N_('Graphics quality'), type: 'seg', options: [['low', N_('Low')], ['medium', N_('Med')], ['high', N_('High')], ['ultra', N_('Ultra')]], help: N_('Resolution scale, shadow detail, anti-aliasing and particle counts.') },
+    { key: 'quality', label: N_('Graphics quality'), type: 'seg', options: [['saver', N_('Power saver')], ['low', N_('Low')], ['medium', N_('Med')], ['high', N_('High')], ['ultra', N_('Ultra')]], help: N_('Resolution scale, shadow detail, anti-aliasing and particle counts.') },
     { key: 'fpsCap', label: N_('Frame rate limit'), type: 'seg', options: [[30, '30'], [60, '60'], [0, N_('Max')]], help: N_('30 fps keeps a phone much cooler and the battery lasts longer; 60 is smoother. Max follows the screen.') },
     { key: 'fov', label: N_('Field of view'), type: 'slider', min: 65, max: 100, step: 1, fmt: (v) => Math.round(v) + '°', help: N_('Wider shows more of the turf around you.') },
     { key: 'shadows', label: N_('Shadows'), type: 'toggle', help: N_('Soft sun shadows. Turn off for extra speed on older machines.') },
@@ -126,6 +126,8 @@ const SETTINGS_TABS = [
     { key: 'cheatInk', label: N_('Infinite ink'), type: 'toggle', help: N_('Your ink tank never runs dry, bombs included.') },
     { key: 'cheatSpecial', label: N_('Special always ready'), type: 'toggle', help: N_('Your special gauge is full again as soon as you use it.') },
     { key: 'cheatRespawn', label: N_('Instant respawn'), type: 'toggle', help: N_('Back in the fight half a second after being splatted.') },
+    { key: 'cheatAutoplay', label: N_('Autoplay'), type: 'toggle', help: N_('A bot plays your character. Touch any control to take over for a moment.') },
+    { key: 'cheatAutoplayLevel', label: N_('Autoplay strength'), type: 'seg', options: [[1, N_('Beginner')], [2, N_('Regular')], [3, N_('Expert')], [4, N_('Master')], [5, N_('Legend')]], help: N_('1 to 3 play like the enemy bots of each skill; Master is sharper; Legend sees through walls, never misses and dodges incoming shots.') },
     { key: 'cheatAimbot', label: N_('Aimbot'), type: 'toggle', help: N_('Locks onto an enemy and fires exactly where they will be: leads moving targets, allows for each weapon\'s arc, and lobs over cover (sloshers, shooters) or bursts against it (blasters) to reach enemies behind walls.') },
     { key: 'cheatAutoFire', label: N_('Auto-fire'), type: 'toggle', help: N_('With the aimbot on, fires by itself whenever a shot can hit — chargers release once the charge splats, splatlings spin up fully, rollers flick.') },
     { key: 'cheatAimFov', label: N_('Aimbot field'), type: 'seg', options: [[90, '90°'], [180, '180°'], [360, '360°']], help: N_('How far from your crosshair the aimbot looks for targets. 360° turns you toward enemies behind you.') },

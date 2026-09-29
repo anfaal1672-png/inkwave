@@ -268,7 +268,7 @@ export function makeSkinMaterial(u, skinHex) {
         #endif`,
       fAO: 'reflectedLight.indirectDiffuse *= iwAO;',
     });
-    shader.fragmentShader = shader.fragmentShader.replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n clearcoatNormal = normal;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <clearcoat_normal_fragment_maps>', '#include <clearcoat_normal_fragment_maps>\n#ifdef USE_CLEARCOAT\n clearcoatNormal = normal;\n#endif');
   };
   m.customProgramCacheKey = () => 'iw-skin3';
   return m;

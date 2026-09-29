@@ -1,9 +1,10 @@
 // Match: turf-war rules, lifecycle (intro → countdown → play → time's up → judge → results), team setup.
 import * as THREE from 'three';
 import { G, emit, on, clamp } from '../core/ctx.js';
-import { MATCH, PLAYER, WEAPON_ORDER, BOT_NAMES, TEAM_NAMES } from '../config.js';
+import { MATCH, PLAYER, WEAPON_ORDER, BOT_NAMES, TEAM_NAMES, AUTOPLAY } from '../config.js';
 import { Actor } from './actor.js';
 import { BotBrain } from './bots.js';
+import { makeAutoBrain } from './autoplay.js';
 import { randomStyle } from './character-style.js';
 import { PlayerController } from './player.js';
 import { CHEATS, cheatEnemyFrozen, cheatEnemyPassive } from './cheats.js';
@@ -57,7 +58,9 @@ export class Match {
           style: isLocal && o.style ? { ...o.style } : randomStyle(), CharacterClass,
         });
         G.scene.add(a.character.root);
-        if (!isLocal || o.autopilot) a.bot = new BotBrain(a, o.difficulty);
+        // ?autopilot: your own character on a bot; ?autopilot=1..5 picks an autoplay strength (tools/autoplay-eval.mjs)
+        if (isLocal && o.autopilot && o.autopilotLevel > 0) a.bot = makeAutoBrain(a, AUTOPLAY[clamp(Math.round(o.autopilotLevel), 1, 5) - 1]);
+        else if (!isLocal || o.autopilot) a.bot = new BotBrain(a, o.difficulty);
         this.actors.push(a);
       }
     }

@@ -22,7 +22,9 @@ import {
   kick, snare, crash, tom, brass, bell, pad, bass,
 } from './music.js';
 
-const MAX_VOICES = 48;   // one-shots alive at once (oldest stolen beyond this)
+// phones/tablets (evaluated here, not imported from core/touch.js: tools/audio-test.mjs loads this file in Node)
+const COARSE = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+const MAX_VOICES = COARSE ? 24 : 48;   // one-shots alive at once (oldest stolen beyond this); fewer on phones to spare the audio thread
 const MAX_LOOPS = 24;
 const taper = (v) => Math.pow(Math.min(1, Math.max(0, +v || 0)), 1.5);
 const validPos = (p) => !!p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z);
@@ -89,7 +91,7 @@ export class AudioEngine {
   constructor(opts = {}) {
     this.opts = opts;
     this.ctx = null; this.ready = false; this.offline = false;
-    this.hrtf = opts.hrtf ?? true;
+    this.hrtf = opts.hrtf ?? !COARSE;   // HRTF convolves per voice; on a phone speaker it is barely audible
     this.vol = { master: DEFAULT_SETTINGS.master ?? 0.8, music: DEFAULT_SETTINGS.music ?? 0.6, sfx: DEFAULT_SETTINGS.sfx ?? 0.85 };
     this.byName = new Map(); this.voices = []; this.loops = new Set(); this.last = new Map();
     this.L = { x: 0, y: 0, z: 0 };
@@ -123,6 +125,7 @@ export class AudioEngine {
     this.conv.buffer = makeImpulse(ctx, 1.5, 3.4, { pre: 0.012, seed: 3 });
     this.revRet = g(0.6);
     this.revSend.connect(this.conv); this.conv.connect(this.revRet); this.revRet.connect(this.sfxBus);
+    this._revOn = true;
     // master dynamics: gentle glue then a safety limiter
     // sub-sonic / DC safety high-pass on everything
     const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 25; hp.Q.value = 0.707;
@@ -140,6 +143,16 @@ export class AudioEngine {
     if (this.opts.music !== false && this.music) this.music._init(ctx, this.musicBus, { offline: this.offline });
     if (!this.offline) { this._installUnlock(); this._warm(); this.resume(); }
     return this;
+  }
+
+  // Reverb on/off (power-saver quality). A ConvolverNode keeps convolving while its input is silent, so the send is
+  // cut from it rather than just muted; per-voice sends then feed a gain that goes nowhere.
+  setReverb(on) {
+    on = !!on;
+    if (!this.ctx || on === this._revOn) return;
+    this._revOn = on;
+    this.revSend.gain.value = on ? 1 : 0;
+    try { if (on) this.revSend.connect(this.conv); else this.revSend.disconnect(this.conv); } catch { /* not connected */ }
   }
 
   resume() {

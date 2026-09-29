@@ -93,11 +93,23 @@ export class Renderer {
   _buildComposer() {
     const r = this.renderer, q = this.q;
     if (this.composer) { this.composer.renderTarget1.dispose(); this.composer.renderTarget2.dispose(); }
+    this.composer = null; this.gtao = null;
     this.dynScale = this.dynScale || 1;
     const pr = this._pixelRatio();
     r.setPixelRatio(pr);
     const w = window.innerWidth, h = window.innerHeight;
     r.setSize(w, h);
+    r.shadowMap.enabled = this.settings.shadows !== false;
+    this._w = w; this._h = h;
+    if (q.direct) {
+      // power saver: the scene goes straight to the canvas (three.js tone-maps and converts to sRGB in the materials).
+      // No HDR target, no grade / output pass. main.js still writes the grade uniforms every frame, so keep a pass
+      // object for them that is never added to a composer.
+      this.bloom = null;
+      this.grade = new ShaderPass(GradeShader);
+      this._gradeSrc = null;
+      return;
+    }
     const rt = new THREE.WebGLRenderTarget(w * pr, h * pr, { type: THREE.HalfFloatType, samples: q.msaa || 0 });
     const comp = (this.composer = new EffectComposer(r, rt));
     comp.setPixelRatio(pr);
@@ -122,8 +134,6 @@ export class Renderer {
     // optional screen-FX pass (src/fx/screenfx.js) — runs in HDR linear space before tone mapping/output
     if (this.extraPass) comp.addPass(this.extraPass);
     comp.addPass(new OutputPass());
-    r.shadowMap.enabled = this.settings.shadows !== false;
-    this._w = w; this._h = h;
     this.grade.uniforms.uAspect.value = w / h;
   }
 
@@ -153,8 +163,8 @@ export class Renderer {
     this.dynScale = s;
     const pr = this._pixelRatio();
     this.renderer.setPixelRatio(pr);
-    this.composer.setPixelRatio(pr);
-    this.composer.setSize(this._w, this._h);
+    if (this.composer) { this.composer.setPixelRatio(pr); this.composer.setSize(this._w, this._h); }
+    else this.renderer.setSize(this._w, this._h);   // setPixelRatio alone does not resize the canvas
   }
 
   // device pixels per CSS px: the preset's cap (pixelRatioPhone on phones — main.js sets .phone) × dynamic scale
@@ -168,7 +178,7 @@ export class Renderer {
     if (w === this._w && h === this._h) return;
     this._w = w; this._h = h;
     this.renderer.setSize(w, h);
-    this.composer.setSize(w, h);
+    this.composer?.setSize(w, h);
     this.gtao?.setSize(w, h);
     this.grade.uniforms.uAspect.value = w / h;
     if (this.camera) { this.camera.aspect = w / h; this.camera.updateProjectionMatrix(); }
@@ -185,6 +195,6 @@ export class Renderer {
       if (gr.uShadowTint) u.uShadowTint.value.set(...gr.uShadowTint);
       if (gr.uHighTint) u.uHighTint.value.set(...gr.uHighTint);
     }
-    this.composer.render();
+    if (this.composer) this.composer.render(); else this.renderer.render(this.scene, this.camera);
   }
 }

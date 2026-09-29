@@ -38,7 +38,7 @@
 - **A map you can actually read.** Hold <kbd>Tab</kbd> and the camera cranes up into a tilt-shift diorama of the live stage, with pins for your team and one-click Super Jumps.
 - **Locker.** Choose your squidkid: tentacle style, headgear, face, outfit.
 - **Everything procedural.** Characters, animation, weapons, textures, props, sound effects and music are all generated in code. The only downloaded assets are the fonts, the stage-select renders and the baked lightmaps.
-- **Cheats.** Invincibility, infinite ink, special on tap, move speed / jump / gravity / fire rate / damage dials, frozen or peaceful enemies, a stopped clock, paint-the-whole-stage and more (20 in all): Pause → Cheats, or Settings → Cheats. They switch off again on reload.
+- **Cheats.** Autoplay (a bot plays your character in five strengths, the top one sees through walls and dodges shots; touch any control to take over for a moment), aimbot, invincibility, infinite ink, special on tap, move speed / jump / gravity / fire rate / damage dials, frozen or peaceful enemies, a stopped clock, paint-the-whole-stage and more (25 in all): Pause → Cheats, or Settings → Cheats. They switch off again on reload.
 - **Japanese and English.** The UI is Japanese by default (with the official Splatoon terms); switch under Settings → Gameplay → Language.
 - **Plays on phones.** Touch controls with a floating move stick, swipe to aim and on-screen buttons (left-handed layout, size and opacity in Settings → Touch). Phones and tablets start on the Low preset with a 30 fps limit (cooler, easier on the battery); the resolution adapts on top of that.
 
@@ -73,7 +73,7 @@ cd inkwave
 npm start        # http://localhost:8490
 ```
 
-Useful URL parameters: `?map=halyard&time=dusk` picks a stage, `&autostart=180` skips the menus into a 180 s match, `&autopilot` lets a bot drive you.
+Useful URL parameters: `?map=halyard&time=dusk` picks a stage, `&autostart=180` skips the menus into a 180 s match, `&autopilot` lets a bot drive you (`&autopilot=1` to `5` picks the autoplay strength; `tools/autoplay-eval.mjs` uses it).
 
 ```bash
 npm install      # once, for the headless tools

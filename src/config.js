@@ -194,6 +194,16 @@ export const DIFFICULTY = {
   hard:   { id: 'hard',   name: 'Fierce', reaction: 0.17, aimError: 0.03, fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14 },
 };
 
+// Autoplay (cheat menu): the bot that plays your own character. 1–3 mirror the enemy bot levels; 4–5 go past them.
+// apex: the level-5 brain (autoplay.js) — exact fire solutions from aimbot.js, projectile dodging, full enemy knowledge.
+export const AUTOPLAY = [
+  { id: 1, name: 'Beginner', reaction: 0.55, aimError: 0.11,  fireDiscipline: 0.55, awareness: 16, aimOmega: 9,  aimTurn: 7 },
+  { id: 2, name: 'Regular',  reaction: 0.32, aimError: 0.06,  fireDiscipline: 0.8,  awareness: 21, aimOmega: 13, aimTurn: 10 },
+  { id: 3, name: 'Expert',   reaction: 0.17, aimError: 0.03,  fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14 },
+  { id: 4, name: 'Master',   reaction: 0.08, aimError: 0.012, fireDiscipline: 1,    awareness: 34, aimOmega: 30, aimTurn: 24 },
+  { id: 5, name: 'Legend',   reaction: 0,    aimError: 0,     fireDiscipline: 1,    awareness: 99, aimOmega: 60, aimTurn: 60, apex: true },
+];
+
 // Every stage can be played by day or at dusk: `times` maps the time of day to an environment theme (`theme` is the
 // stage's day look, kept for older callers). Pick with mapTheme(map, time).
 export const TIMES = ['day', 'dusk'];
@@ -222,7 +232,7 @@ export const DEFAULT_SETTINGS = {
   padSensitivity: 1.0,
   invertY: false,
   fov: 82,                  // horizontal FOV at 16:9, 65..100
-  quality: 'high',          // 'low' | 'medium' | 'high' | 'ultra'
+  quality: 'high',          // 'saver' | 'low' | 'medium' | 'high' | 'ultra'
   shadows: true,
   bloom: true,
   cameraShake: 1.0,         // 0..1
@@ -250,8 +260,11 @@ export const DEFAULT_SETTINGS = {
 // pixelRatioPhone: the cap on phones and tablets instead (3× screens: 0.75 CSS px per pixel was a quarter of the panel's
 // resolution — blurry — and phones run at 30 fps by default, which pays for the sharper image).
 // lite: the ink surface skips the swim-wake and ripple loops (per-pixel loops over every inked pixel; eye candy).
+// saver (power saver, the phone default): draws straight to the canvas (direct: no HDR target, grade or output pass),
+// plain: MeshPhysical extras off (core/saver.js), calm: looping CSS animations and backdrop blur off, reverb off.
 export const QUALITY = {
   // pixelRatio = cap on devicePixelRatio (Retina screens render at up to this density)
+  saver:  { pixelRatio: 0.75, pixelRatioPhone: 1.0, shadowSize: 512, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.25, bake: 0.5, lite: true, direct: true, plain: true, calm: true },
   low:    { pixelRatio: 0.75, pixelRatioPhone: 1.0, shadowSize: 1024, msaa: 0, bloom: false, ao: false, paintAtlas: 2048, particles: 0.4, bake: 0.5, lite: true },
   medium: { pixelRatio: 1.0,  pixelRatioPhone: 1.3, shadowSize: 2048, msaa: 2, bloom: true,  ao: false, paintAtlas: 2048, particles: 0.7 },
   high:   { pixelRatio: 1.5,  shadowSize: 4096, msaa: 4, bloom: true,  ao: true,  paintAtlas: 4096, particles: 1.0 },

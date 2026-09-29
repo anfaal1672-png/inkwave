@@ -407,6 +407,7 @@ export class Character {
     // weapon kinds (arsenal): dual wield, dodge roll + lock stance, slosh, splatling spin
     this.jumpRun = 0; this.jumpLead = 0;
     this.kidSY = 1; this.kidSXZ = 1; this.sqSY = 1; this.sqSXZ = 1; this.kidLift = 0;
+    this.offscreen = false; this.far = false; this._poseDt = 0; this._poseN = 0;   // set by actor.js each frame
     this.tumble = 0; this.tumbleX = 1; this.tumbleZ = 0; this.tumbleDrop = 0; this._dt = 0;
     this.dual = false; this.armL = 0; this.rcP2 = 0; this.rcZ2 = 0; this.dodgeX = 0; this.dodgeZ = 1; this.dodgeDur = 0.3; this.lockW = 0; this.spinW = 0; this.streamW = 0; this.bombSwap = 0;
     this._wst = { t: 0, dt: 0, color: this.color, near: true, hand: 0, runner: null, sinceShoot: 99, sinceFlick: 99, sinceRelease: 99,
@@ -814,9 +815,17 @@ export class Character {
     this._updateFormScales(dt);
 
     if (this.kidScale > 0.001) {
-      this._updateFeet(dt, s);
-      this._buildPose(dt, s);
-      this._applyPose(dt, s);
+      // off-screen remote characters pose every 3rd frame with the dt they accumulated (their shadow still moves,
+      // just at a third of the rate); everything before this (root tracking, states, forms) ran at full rate
+      this._poseDt += dt;
+      if (!this.offscreen || this.isLocal || ++this._poseN >= 3) {
+        this._poseN = 0;
+        const pdt = Math.min(this._poseDt, 0.1);
+        this._poseDt = 0;
+        this._updateFeet(pdt, s);
+        this._buildPose(pdt, s);
+        this._applyPose(pdt, s);
+      }
     } else { this.feetValid = false; this.headInit = false; }
     this._updateSquid(dt, s);
     this._updateMaterials(dt, s);
@@ -2571,13 +2580,13 @@ export class Character {
     // ---- face
     this._applyFace(P, dt);
     // ---- hair secondary motion
-    this._updateHair(dt);
+    if (!this.far) this._updateHair(dt);
     // ---- tank slosh (ink level wobble + surface tilt within the glass)
     this._updateTank(dt);
     // ---- jiggle bones (docs/RIG.md): toes, tee hem flaps, backpack sway, ears
-    this._applyJiggle(P, dt);
+    if (!this.far) this._applyJiggle(P, dt);
     // ---- hands: grip weapons / the bomb, relax when free, fists and open palms from the pose layers
-    this._applyFingers(P, dt);
+    if (!this.far) this._applyFingers(P, dt);
     // ---- remember where the feet actually are (world) for seamless replanting after air / dances
     this.kid.updateMatrix();
     for (let i = 0; i < 2; i++) {

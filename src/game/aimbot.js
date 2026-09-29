@@ -146,6 +146,24 @@ export function weaponReach(w) {
 }
 
 /**
+ * Auto-fire decision for this weapon against a locked enemy at `dist` (the player's aimbot and the level-5 autoplay
+ * bot share it): chargers charge until this charge splats (or is full) inside its range, splatlings spin up fully and
+ * let the stream run, rollers flick (a fresh press every other call), everything else holds the trigger.
+ */
+export function autoFire(a, e, dist) {
+  const w = a.weapon, wr = a.weaponRunner;
+  if (w.kind === 'charger') {
+    const c = wr.charge || 0;
+    const dmg = c >= 0.999 ? w.damageMax : c * (w.damageMax * 0.62 - w.damageMin) + w.damageMin;
+    const range = w.rangeMin + (w.rangeMax - w.rangeMin) * c;
+    return !(wr.charging && (c >= 0.999 || (dmg >= e.hp && c > 0.2)) && dist <= range);
+  }
+  if (w.kind === 'splatling') return wr.streaming ? false : (wr.charge || 0) < 1;
+  if (w.kind === 'roller') { a._flickT = !a._flickT; return a._flickT; }
+  return true;
+}
+
+/**
  * Full solution for the actor's weapon against enemy e, fired from `from` (the muzzle): lead + arc, iterated so the
  * flight time and the predicted position agree. Returns { point, dir, t, lob, splash } or null (no way to hit now).
  */
