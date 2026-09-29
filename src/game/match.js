@@ -1,7 +1,7 @@
 // Match: turf-war rules, lifecycle (intro → countdown → play → time's up → judge → results), team setup.
 import * as THREE from 'three';
 import { G, emit, on, clamp } from '../core/ctx.js';
-import { MATCH, PLAYER, WEAPON_ORDER, BOT_NAMES, TEAM_NAMES, AUTOPLAY } from '../config.js';
+import { MATCH, PLAYER, WEAPONS, WEAPON_ORDER, BOT_NAMES, TEAM_NAMES, AUTOPLAY } from '../config.js';
 import { Actor } from './actor.js';
 import { BotBrain } from './bots.js';
 import { makeAutoBrain } from './autoplay.js';
@@ -36,12 +36,15 @@ export class Match {
     const CharacterClass = o.CharacterClass;
     // weapons: each team gets a balanced mix
     const pickTeam = (first) => {
-      const pool = [...WEAPON_ORDER];
+      // one weapon per kind on a team where possible (variants of a kind are alternatives, not extra picks)
       const out = [];
-      if (first) { out.push(first); pool.splice(pool.indexOf(first), 1); }
+      const kinds = new Set();
+      const take = (id) => { out.push(id); kinds.add(WEAPONS[id].kind); };
+      if (first) take(first);
       while (out.length < MATCH.teamSize) {
-        if (!pool.length) pool.push(...WEAPON_ORDER);
-        out.push(pool.splice((Math.random() * pool.length) | 0, 1)[0]);
+        let pool = WEAPON_ORDER.filter((id) => !kinds.has(WEAPONS[id].kind));
+        if (!pool.length) pool = WEAPON_ORDER;
+        take(pool[(Math.random() * pool.length) | 0]);
       }
       return out;
     };

@@ -843,9 +843,18 @@ function finishParts(d) {
   return d;
 }
 
-export function getWeaponDef(kind) {
-  if (!_cache.has(kind)) {
-    const d = finishParts((BUILDERS[kind] || buildShooter)());
+// A skin recolours the builder's shell colours ('body' = the cream/white/bone panels, 'trim' = the grey accents).
+// C is a module-level palette the builders read while they run, so it is swapped for the build and always restored.
+export function getWeaponDef(kind, skin = null) {
+  const key = kind + (skin ? ':' + skin.body + skin.trim : '');
+  if (!_cache.has(key)) {
+    const saved = skin ? { cream: C.cream, white: C.white, bone: C.bone, gray: C.gray } : null;
+    let parts;
+    try {
+      if (skin) { C.cream = C.white = C.bone = skin.body; C.gray = skin.trim; }
+      parts = (BUILDERS[kind] || buildShooter)();
+    } finally { if (saved) Object.assign(C, saved); }
+    const d = finishParts(parts);
     d.handR = handInWeapon(d.gripR, GRIP_HOLE_R);
     d.handL = handInWeapon(d.gripL, GRIP_HOLE_L);
     // weapon relative to right hand bone
@@ -859,7 +868,7 @@ export function getWeaponDef(kind) {
       d.inHandL = { pos: new V3(), quat: new THREE.Quaternion() };
       invL.decompose(d.inHandL.pos, d.inHandL.quat, new V3());
     }
-    _cache.set(kind, d);
+    _cache.set(key, d);
   }
-  return _cache.get(kind);
+  return _cache.get(key);
 }

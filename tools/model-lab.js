@@ -11,7 +11,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import * as GEO from '../src/game/character-geo.js';
 import * as MATS from '../src/game/character-mats.js';
 import * as WPN from '../src/game/character-weapons.js';
-import { TEAM_PALETTES, WEAPON_ORDER } from '../src/config.js';
+import { TEAM_PALETTES, WEAPONS, WEAPON_ORDER } from '../src/config.js';
 import * as CAT from '../src/game/character-style.js';
 
 let CharMod = null;
@@ -129,7 +129,7 @@ class Rig {
   setInk(v) { this.tank.fill.scale.set(1, Math.max(0.004, v) * this.tank.h, 1); this.tank.fill.visible = v > 0.005; }
   setWeapon(kind) {
     if (this.weapon) this.weapon.pivot.parent.remove(this.weapon.pivot);
-    const d = WPN.getWeaponDef(kind);
+    const d = defOf(kind);
     const pivot = new THREE.Group(); pivot.position.copy(WPN.FIST_OFFSET);
     const off = new THREE.Group(); off.position.copy(d.inHand.pos).sub(WPN.FIST_OFFSET); off.quaternion.copy(d.inHand.quat);
     pivot.add(off);
@@ -236,8 +236,10 @@ function makeSquid(o) {
   u.uTime.value = 0.7;
   return { obj: g, u };
 }
+// weapon ids (variants) resolve to their kind + skin
+function defOf(id) { const W = WEAPONS[id]; return WPN.getWeaponDef(W ? W.kind : id, W?.skin || null); }
 function makeWeapon(o) {
-  const d = WPN.getWeaponDef(o.weapon);
+  const d = defOf(o.weapon);
   const g = new THREE.Group();
   const inner = new THREE.Group(); g.add(inner);
   const col = new THREE.Color(o.color);

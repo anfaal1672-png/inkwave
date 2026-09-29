@@ -15,7 +15,7 @@
 //   application   → kid squash/stretch → pelvis reach solve → torso FK → stabilised head look → two-bone IK legs/arms
 //                   → face → hair spring chains → tank slosh → weapon extras
 import * as THREE from 'three';
-import { PLAYER } from '../config.js';
+import { PLAYER, WEAPONS } from '../config.js';
 import { G } from '../core/ctx.js';
 import {
   BONE_NAMES, BONE_PARENT, BONE_INDEX, HAIR_MAX, HAIR_SEGS, REST,
@@ -356,6 +356,7 @@ export class Character {
     this._buildSquid();
     this.weapons = {};
     this.weaponKind = null;
+    this.weaponId = null;   // WEAPONS id (or bare kind) of the held model; weaponKind is what animation branches on
 
     // ---- animation state ----
     this.P = new Float32Array(PN); this.PD = new Float32Array(PN); this.PX = new Float32Array(PN); this.PY = new Float32Array(PN);
@@ -544,13 +545,13 @@ export class Character {
     this.squidRoot.visible = false;
   }
 
-  _getWeapon(kind) {
-    if (this.weapons[kind]) return this.weapons[kind];
-    const d = getWeaponDef(kind);
+  _getWeapon(id, kind, skin) {
+    if (this.weapons[id]) return this.weapons[id];
+    const d = getWeaponDef(kind, skin);
     const w = this._weaponInstance(d, false);
     // dual wield: a second instance of the same weapon in the LEFT fist (docs: character-weapons.js getWeaponDef)
     if (d.dual && d.inHandL) w.left = this._weaponInstance(d, true);
-    this.weapons[kind] = w;
+    this.weapons[id] = w;
     return w;
   }
 
@@ -612,15 +613,20 @@ export class Character {
     }
   }
 
-  setWeapon(kind) {
+  // idOrKind: a WEAPONS id (variants share a kind but carry their own skin) or a bare kind
+  setWeapon(idOrKind) {
+    const W = WEAPONS[idOrKind];
+    let kind = W ? W.kind : idOrKind;
+    const skin = W?.skin || null;
     if (!HOLD[kind]) kind = 'shooter';
-    if (kind === this.weaponKind) return;
-    const old = this.weaponKind && this.weapons[this.weaponKind];
+    const id = W ? idOrKind : kind;
+    if (id === this.weaponId) return;
+    const old = this.weaponId && this.weapons[this.weaponId];
     if (old) { this.bones.handR.remove(old.pivot); if (old.left) this.bones.handL.remove(old.left.pivot); }
-    const w = this._getWeapon(kind);
+    const w = this._getWeapon(id, kind, skin);
     this.bones.handR.add(w.pivot);
     if (w.left) this.bones.handL.add(w.left.pivot);
-    this.weaponKind = kind; this.weapon = w; this.hold = HOLD[kind];
+    this.weaponId = id; this.weaponKind = kind; this.weapon = w; this.hold = HOLD[kind];
     this.dual = !!w.left;
   }
 
