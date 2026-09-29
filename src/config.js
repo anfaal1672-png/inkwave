@@ -194,6 +194,16 @@ export const DIFFICULTY = {
   hard:   { id: 'hard',   name: 'Fierce', reaction: 0.17, aimError: 0.03, fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14 },
 };
 
+// Autoplay (cheat menu): the bot that plays your own character. 1–3 mirror the enemy bot levels; 4–5 go past them.
+// apex: the level-5 brain (autoplay.js) — exact fire solutions from aimbot.js, projectile dodging, full enemy knowledge.
+export const AUTOPLAY = [
+  { id: 1, name: 'Beginner', reaction: 0.55, aimError: 0.11,  fireDiscipline: 0.55, awareness: 16, aimOmega: 9,  aimTurn: 7 },
+  { id: 2, name: 'Regular',  reaction: 0.32, aimError: 0.06,  fireDiscipline: 0.8,  awareness: 21, aimOmega: 13, aimTurn: 10 },
+  { id: 3, name: 'Expert',   reaction: 0.17, aimError: 0.03,  fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14 },
+  { id: 4, name: 'Master',   reaction: 0.08, aimError: 0.012, fireDiscipline: 1,    awareness: 34, aimOmega: 30, aimTurn: 24 },
+  { id: 5, name: 'Legend',   reaction: 0,    aimError: 0,     fireDiscipline: 1,    awareness: 99, aimOmega: 60, aimTurn: 60, apex: true },
+];
+
 // Every stage can be played by day or at dusk: `times` maps the time of day to an environment theme (`theme` is the
 // stage's day look, kept for older callers). Pick with mapTheme(map, time).
 export const TIMES = ['day', 'dusk'];

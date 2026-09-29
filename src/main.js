@@ -649,7 +649,7 @@ class Game {
     const m = (this.match = G.match = new Match({
       attract: false, duration: opts.duration, difficulty: opts.difficulty, weapon: this.profile.weapon || 'shooter',
       playerName: this.profile.name || 'Player', CharacterClass: this.CharacterClass, rig: this.rig, input: this.input,
-      autopilot: params.has('autopilot'), style: this.profile.style || null,
+      autopilot: params.has('autopilot'), autopilotLevel: +params.get('autopilot') || 0, style: this.profile.style || null,
     }));
     m.setup();
     this._applyQuality();   // the new match's characters and props carry the full materials
