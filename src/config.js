@@ -261,19 +261,21 @@ export const MATCH = {
 
 export const DIFFICULTY = {
   // aimOmega / aimTurn: bot aim spring stiffness (rad/s) and turn-rate cap (rad/s) — see bots.js
-  easy:   { id: 'easy',   name: 'Chill',  reaction: 0.55, aimError: 0.11, fireDiscipline: 0.55, awareness: 16, aimOmega: 9,  aimTurn: 7 },
-  normal: { id: 'normal', name: 'Fresh',  reaction: 0.32, aimError: 0.06, fireDiscipline: 0.8,  awareness: 21, aimOmega: 13, aimTurn: 10 },
-  hard:   { id: 'hard',   name: 'Fierce', reaction: 0.17, aimError: 0.03, fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14 },
+  // fov: half-angle (rad) of what the bot sees around its aim · look: how often it glances around · memory: seconds it
+  // keeps a lost enemy in mind · team: how readily it calls out enemies to nearby allies and piles onto their targets
+  easy:   { id: 'easy',   name: 'Chill',  reaction: 0.55, aimError: 0.11, fireDiscipline: 0.55, awareness: 16, aimOmega: 9,  aimTurn: 7,  fov: 1.05, look: 0.6, memory: 2,   team: 0.3 },
+  normal: { id: 'normal', name: 'Fresh',  reaction: 0.32, aimError: 0.06, fireDiscipline: 0.8,  awareness: 21, aimOmega: 13, aimTurn: 10, fov: 1.31, look: 1,   memory: 2.5, team: 0.65 },
+  hard:   { id: 'hard',   name: 'Fierce', reaction: 0.17, aimError: 0.03, fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14, fov: 1.48, look: 1.2, memory: 3.5, team: 1 },
 };
 
 // Autoplay (cheat menu): the bot that plays your own character. 1–3 mirror the enemy bot levels; 4–5 go past them.
 // apex: the level-5 brain (autoplay.js) — exact fire solutions from aimbot.js, projectile dodging, full enemy knowledge.
 export const AUTOPLAY = [
-  { id: 1, name: 'Beginner', reaction: 0.55, aimError: 0.11,  fireDiscipline: 0.55, awareness: 16, aimOmega: 9,  aimTurn: 7 },
-  { id: 2, name: 'Regular',  reaction: 0.32, aimError: 0.06,  fireDiscipline: 0.8,  awareness: 21, aimOmega: 13, aimTurn: 10 },
-  { id: 3, name: 'Expert',   reaction: 0.17, aimError: 0.03,  fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14 },
-  { id: 4, name: 'Master',   reaction: 0.08, aimError: 0.012, fireDiscipline: 1,    awareness: 34, aimOmega: 30, aimTurn: 24 },
-  { id: 5, name: 'Legend',   reaction: 0,    aimError: 0,     fireDiscipline: 1,    awareness: 99, aimOmega: 60, aimTurn: 60, apex: true },
+  { id: 1, name: 'Beginner', reaction: 0.55, aimError: 0.11,  fireDiscipline: 0.55, awareness: 16, aimOmega: 9,  aimTurn: 7,  fov: 1.05, look: 0.6, memory: 2,   team: 0.3 },
+  { id: 2, name: 'Regular',  reaction: 0.32, aimError: 0.06,  fireDiscipline: 0.8,  awareness: 21, aimOmega: 13, aimTurn: 10, fov: 1.31, look: 1,   memory: 2.5, team: 0.65 },
+  { id: 3, name: 'Expert',   reaction: 0.17, aimError: 0.03,  fireDiscipline: 0.95, awareness: 26, aimOmega: 18, aimTurn: 14, fov: 1.48, look: 1.2, memory: 3.5, team: 1 },
+  { id: 4, name: 'Master',   reaction: 0.08, aimError: 0.012, fireDiscipline: 1,    awareness: 34, aimOmega: 30, aimTurn: 24, fov: 1.66, look: 1.3, memory: 4,   team: 1 },
+  { id: 5, name: 'Legend',   reaction: 0,    aimError: 0,     fireDiscipline: 1,    awareness: 99, aimOmega: 60, aimTurn: 60, fov: Math.PI, look: 0, memory: 9, team: 1, apex: true },
 ];
 
 // Every stage can be played by day or at dusk: `times` maps the time of day to an environment theme (`theme` is the
