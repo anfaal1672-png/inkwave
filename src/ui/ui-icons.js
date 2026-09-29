@@ -130,6 +130,41 @@ export const SPECIAL_ICONS = {
       <path d="M33 21 L27 31 L33 31 L29 40" fill="none" stroke="#fff" stroke-width="3"/>
     </g>
     <path d="M14 26 Q15 22.5 19 23" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>`),
+  // shield with an ink drop
+  armor: svg(`<g ${O}>
+      <path d="M32 5 L54 12 Q55 33 46 46 Q40 54 32 59 Q24 54 18 46 Q9 33 10 12 Z" fill="currentColor"/>
+      <path d="M32 21 C36 27 40 31 40 36 C40 40.5 36.5 43.5 32 43.5 C27.5 43.5 24 40.5 24 36 C24 31 28 27 32 21 Z" fill="#fff"/>
+    </g>
+    <path d="M17 15 Q16.5 26 21 36" stroke="#fff" stroke-opacity=".55" stroke-width="3" fill="none" stroke-linecap="round"/>`),
+  // three missiles dropping nose-down from above
+  missiles: svg(`<g ${O}>
+      <path d="M13 3 L13 9 M32 3 L32 6 M51 3 L51 9" fill="none" stroke-width="2.4" stroke-opacity=".6"/>
+      <path d="M8 16 L18 16 L18 34 L13 42 L8 34 Z" fill="currentColor"/>
+      <path d="M8 16 L4.5 12 M18 16 L21.5 12" fill="none" stroke-width="2.6"/>
+      <path d="M27 12 L37 12 L37 40 L32 50 L27 40 Z" fill="currentColor"/>
+      <path d="M27 12 L23.5 8 M37 12 L40.5 8" fill="none" stroke-width="2.6"/>
+      <path d="M46 20 L56 20 L56 38 L51 46 L46 38 Z" fill="currentColor"/>
+      <path d="M46 20 L42.5 16 M56 20 L59.5 16" fill="none" stroke-width="2.6"/>
+      <path d="M6 58 L58 58" fill="none" stroke="currentColor" stroke-width="4.4"/>
+    </g>
+    <path d="M29.5 18 L29.5 34" stroke="#fff" stroke-opacity=".6" stroke-width="2.6" stroke-linecap="round"/>`),
+  // two bombs
+  bombrush: svg(`<g ${O}>
+      <rect x="13" y="6" width="9" height="8" rx="2.5" fill="${DK}"/>
+      <path d="M17.5 12 C23 12 33 30 33 36 C33 43 27 46 17.5 46 C8 46 2 43 2 36 C2 30 12 12 17.5 12 Z" fill="currentColor"/>
+      <rect x="42" y="16" width="9" height="8" rx="2.5" fill="${DK}"/>
+      <path d="M46.5 22 C52 22 62 40 62 46 C62 53 56 56 46.5 56 C37 56 31 53 31 46 C31 40 41 22 46.5 22 Z" fill="currentColor"/>
+    </g>
+    <path d="M12 26 Q9 31 8 37" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M41 36 Q38 41 37 47" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>`),
+  // a dome over the ground
+  barrier: svg(`<g ${O}>
+      <path d="M7 50 Q7 12 32 12 Q57 12 57 50 Z" fill="currentColor" fill-opacity=".55"/>
+      <path d="M7 50 Q7 12 32 12 Q57 12 57 50" fill="none" stroke="currentColor" stroke-width="4"/>
+      <path d="M3 50 L61 50" fill="none" stroke-width="4.4"/>
+      <circle cx="32" cy="38" r="5" fill="#fff"/>
+    </g>
+    <path d="M14 34 Q16 22 25 18" stroke="#fff" stroke-opacity=".7" stroke-width="3.4" fill="none" stroke-linecap="round"/>`),
 };
 
 // ------------------------------------------------------------------ squid (team icons, avatar)

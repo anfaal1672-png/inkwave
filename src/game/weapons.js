@@ -531,6 +531,7 @@ export class Projectiles {
     this.bombs = [];
     this.clouds = [];
     this.beams = [];
+    this.barriers = [];          // Bubble Barrier domes
     // glossy ink teardrops (+ satellite droplets), one instanced draw
     const geo = new THREE.SphereGeometry(1, 14, 12).rotateX(Math.PI / 2);
     this.blobShape = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BLOBS * 4), 4);
@@ -548,6 +549,10 @@ export class Projectiles {
     this.bombGeo = new THREE.SphereGeometry(0.2, 20, 14);
     this.bombCapGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.12, 12);
     this.bombMatCache = new Map();
+    // missiles + barrier domes: shared geometry, per-team shared materials
+    this.missileGeo = new THREE.CylinderGeometry(0.06, 0.1, 0.8, 10);
+    this.domeGeo = new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
+    this.domeMats = [null, null];
     // charger beams + laser sights: camera-facing ribbons, pooled (no per-shot geometry/material allocation)
     this.ribbonGeo = ribbonGeometry(16);
     this.beamPool = [];
@@ -578,6 +583,8 @@ export class Projectiles {
     this.bombs.length = 0;
     for (const c of this.clouds) this.scene.remove(c.group);
     this.clouds.length = 0;
+    for (const br of this.barriers) this.scene.remove(br.mesh);
+    this.barriers.length = 0;
     for (const b of this.beams) { b.mesh.visible = false; this.beamPool.push(b.mesh); }
     this.beams.length = 0;
     for (const [, s] of this.sights) { this.scene.remove(s); s.material.dispose(); }
@@ -878,6 +885,22 @@ export class Projectiles {
     const dmg = charge >= 0.999 ? w.damageMax : lerp(w.damageMin, w.damageMax * 0.62, charge);
     const hit = G.physics.raycast(m, dir, range, _hit, true);
     let len = hit.hit ? hit.dist : range;
+    // a Bubble Barrier stops the line at its shell
+    let blocked = null;
+    if (this.barriers.length) {
+      for (const br of this.barriers) {
+        if (br.team === a.team || br.dead) continue;
+        _v2.copy(m).sub(br.pos);
+        const bq = _v2.dot(dir), cq = _v2.lengthSq() - br.r * br.r;
+        if (cq <= 0) continue;
+        const disc = bq * bq - cq;
+        if (disc < 0) continue;
+        const t = -bq - Math.sqrt(disc);
+        if (t > 0 && t < len && m.y + dir.y * t >= br.pos.y - 0.2) { len = t; blocked = br; }
+      }
+      if (blocked) this._barrierDamage(blocked, dmg, _v2.copy(m).addScaledVector(dir, len));
+    }
+    const wall = hit.hit && !blocked;
     // first enemy along the beam
     let victim = null;
     for (const e of G.actors) {
@@ -898,7 +921,7 @@ export class Projectiles {
       const g = G.physics.raycast(_v2, DOWN, 3.5, _hit2, true);
       if (g.hit) area += G.paint.splat(_v3.copy(g.point).addScaledVector(g.normal, 0.1), w.lineRadius * (0.8 + charge * 0.4), a.team, { seed: Math.random(), stretch: dir, stretchAmt: 1.2 });
     }
-    if (hit.hit && !victim) {
+    if (wall && !victim) {
       _v2.copy(hit.point).addScaledVector(hit.normal, 0.12);
       area += G.paint.splat(_v2, w.impactRadius * (0.6 + 0.4 * charge), a.team, { seed: Math.random(), stretch: dir, stretchAmt: 0.6 });
       G.fx?.burst(hit.point, hit.normal, a.color, { count: 10, speed: 4, size: 0.09, paint: false });
@@ -907,7 +930,7 @@ export class Projectiles {
     {
       const end = new THREE.Vector3().copy(m).addScaledVector(dir, len);
       emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: dir.clone(), charge });
-      emit('weapon:impact', { pos: end, normal: hit.hit && !victim ? hit.normal.clone() : dir.clone().negate(), team: a.team, kind: 'charger', radius: w.impactRadius * (0.6 + 0.4 * charge) });
+      emit('weapon:impact', { pos: end, normal: wall && !victim ? hit.normal.clone() : dir.clone().negate(), team: a.team, kind: 'charger', radius: w.impactRadius * (0.6 + 0.4 * charge) });
     }
     a.addTurf(area);
     // beam visual: tracer front races out, white-hot core snaps off, the ink sheath thins and breaks into dashes
@@ -940,6 +963,7 @@ export class Projectiles {
   }
   refreshColors() {
     for (const [team, m] of this.bombMatCache) { m.color.copy(G.teamColors[team]); m.emissive.copy(G.teamColors[team]); }
+    for (let t = 0; t < 2; t++) if (this.domeMats[t]) this.domeMats[t].color.copy(G.teamColors[t]);
   }
 
   throwVelocity(a, speed, out) {
@@ -978,8 +1002,142 @@ export class Projectiles {
     this.bombs.push({ kind: 'storm', owner: a, team: a.team, mesh: group, body, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(4, 6, 0), beepT: 0, dir: new THREE.Vector3(vel.x, 0, vel.z).normalize() });
   }
 
-  _explodeBomb(b) {
-    const s = SUB.bomb;
+  // ---- Missile Salvo: up to `count` enemies in range, one missile each on a fixed lobbed arc (walls don't stop them)
+  fireMissiles(a) {
+    const sp = SPECIALS.missiles;
+    const foes = [];
+    for (const e of G.actors) {
+      if (e.team === a.team || !e.alive) continue;
+      const d = e.pos.distanceTo(a.pos);
+      if (d <= sp.range) foes.push({ e, d });
+    }
+    foes.sort((p, q) => p.d - q.d);
+    const n = Math.min(sp.count, foes.length);
+    for (let i = 0; i < n; i++) this._missile(a, foes[i].e, null, i * sp.gap);
+    if (!n) {
+      // nobody in range: salvo the spot under the crosshair instead of wasting the special
+      const m = this._muzzle(a, _v.set(0, 0, 0));
+      const dir = this._aimFrom(a, m, _dir);
+      const h = G.physics.raycast(m, dir, 24, _hit);
+      const at = h.hit ? h.point.clone() : m.clone().addScaledVector(dir, 18);
+      for (let i = 0; i < 3; i++) this._missile(a, null, at.clone().add(new THREE.Vector3((i - 1) * 2.2, 0, 0)), i * sp.gap);
+    }
+  }
+
+  _missile(a, target, at, delay) {
+    const mesh = new THREE.Mesh(this.missileGeo, this._bombMat(a.team));
+    mesh.visible = false;
+    mesh.castShadow = true;
+    this.scene.add(mesh);
+    this.bombs.push({ kind: 'missile', owner: a, team: a.team, mesh, body: mesh, pos: new THREE.Vector3(), prev: new THREE.Vector3(), start: new THREE.Vector3(), land: at || new THREE.Vector3(), target, delay, launched: false, vel: new THREE.Vector3(), fuse: -1, age: 0, spin: new THREE.Vector3(), beepT: 0 });
+  }
+
+  // returns true when the missile is finished (exploded)
+  _updateMissile(b, dt) {
+    const sp = SPECIALS.missiles;
+    if (!b.launched) {
+      b.delay -= dt;
+      if (b.delay > 0) return false;
+      b.launched = true;
+      b.start.copy(b.owner.pos); b.start.y += 1.6;
+      const t = b.target;
+      if (t) {
+        // lead the target, then drop onto the floor under that point
+        b.land.set(t.pos.x + t.vel.x * sp.lead, t.pos.y, t.pos.z + t.vel.z * sp.lead);
+        const g = G.physics.raycast(_v.set(b.land.x, t.pos.y + 4, b.land.z), DOWN, 16, _hit);
+        b.land.y = g.hit ? g.point.y : t.pos.y;
+        emit('missile:lock', { actor: t, owner: b.owner, pos: b.land.clone() });
+      }
+      b.pos.copy(b.start); b.prev.copy(b.start);
+      b.mesh.visible = true;
+      G.audio?.play('bomb_throw', { pos: b.owner.isLocal ? undefined : b.start, volume: 0.55, pitch: 0.7 });
+      return false;
+    }
+    b.age += dt;
+    b.prev.copy(b.pos);
+    const k = Math.min(1, b.age / sp.flight);
+    b.pos.lerpVectors(b.start, b.land, k);
+    b.pos.y += sp.apex * 4 * k * (1 - k);
+    _v.copy(b.pos).sub(b.prev);
+    if (_v.lengthSq() > 1e-8) b.mesh.quaternion.setFromUnitVectors(UP, _v.normalize());
+    b.mesh.position.copy(b.pos);
+    if (G.fx && (Math.floor(b.age * 30) !== Math.floor((b.age - dt) * 30))) G.fx.burst(b.pos, DOWN, G.teamColors[b.team], { count: 1, speed: 0.6, size: 0.06, paint: false });
+    if (k >= 1) {
+      b.pos.copy(b.land); b.pos.y += 0.3;
+      this._explodeBomb(b, sp, 'missiles');
+      return true;
+    }
+    return false;
+  }
+
+  // ---- Bubble Barrier
+  raiseBarrier(a) {
+    const sp = SPECIALS.barrier;
+    for (let i = this.barriers.length - 1; i >= 0; i--) {
+      if (this.barriers[i].owner === a) { this.scene.remove(this.barriers[i].mesh); this.barriers.splice(i, 1); }
+    }
+    const g = G.physics.raycast(_v.copy(a.pos).setY(a.pos.y + 0.6), DOWN, 3, _hit);
+    const pos = new THREE.Vector3(a.pos.x, g.hit ? g.point.y : a.pos.y, a.pos.z);
+    if (!this.domeMats[a.team]) this.domeMats[a.team] = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide });
+    this.domeMats[a.team].color.copy(G.teamColors[a.team]);
+    const mesh = new THREE.Mesh(this.domeGeo, this.domeMats[a.team]);
+    mesh.position.copy(pos); mesh.scale.setScalar(0.01); mesh.renderOrder = 3;
+    this.scene.add(mesh);
+    this.barriers.push({ owner: a, team: a.team, pos, r: sp.radius, hp: sp.hp, t: sp.duration, age: 0, dead: false, mesh });
+    G.audio?.play('special_activate', { pos: a.isLocal ? undefined : pos, volume: 0.5, pitch: 1.25 });
+    emit('barrier:raise', { actor: a, pos: pos.clone(), radius: sp.radius });
+  }
+
+  // first live enemy barrier the segment prev→pos crosses from outside (null if none)
+  _barrierCross(prev, pos, team) {
+    for (const br of this.barriers) {
+      if (br.team === team || br.dead) continue;
+      const r2 = br.r * br.r;
+      if (prev.distanceToSquared(br.pos) <= r2) continue;
+      _v3.copy(pos).sub(prev);
+      const l2 = _v3.lengthSq();
+      const u = l2 > 1e-9 ? clamp(_v2.copy(br.pos).sub(prev).dot(_v3) / l2, 0, 1) : 0;
+      _v3.multiplyScalar(u).add(prev);
+      if (_v3.y >= br.pos.y - 0.3 && _v3.distanceToSquared(br.pos) < r2) return br;
+    }
+    return null;
+  }
+
+  // an explosion at c does not reach a victim at v if a barrier of the victim's team has c outside and v inside
+  _shielded(c, v, bombTeam) {
+    for (const br of this.barriers) {
+      if (br.team === bombTeam || br.dead) continue;
+      const r2 = br.r * br.r;
+      if (c.distanceToSquared(br.pos) > r2 && v.distanceToSquared(br.pos) <= r2) return true;
+    }
+    return false;
+  }
+
+  _barrierDamage(br, dmg, at) {
+    br.hp -= dmg;
+    if (G.camera.position.distanceToSquared(at) < 30 * 30) {
+      G.fx?.burst(at, DOWN, G.teamColors[br.team], { count: 4, speed: 2.5, size: 0.07, paint: false });
+      G.audio?.play('ink_hit_wall', { pos: at, volume: 0.4, pitch: 1.5 });
+    }
+    if (br.hp <= 0 && !br.dead) {
+      br.dead = true; br.t = Math.min(br.t, 0.3);
+      G.fx?.burst(_v3.copy(br.pos).setY(br.pos.y + 1), UP, G.teamColors[br.team], { count: 20, speed: 5, size: 0.1, paint: false });
+      G.audio?.play('splat_big', { pos: br.pos, volume: 0.6, pitch: 1.3 });
+      emit('barrier:break', { actor: br.owner, pos: br.pos.clone() });
+    }
+  }
+
+  _updateBarriers(dt) {
+    for (let i = this.barriers.length - 1; i >= 0; i--) {
+      const br = this.barriers[i];
+      br.age += dt; br.t -= dt;
+      if (br.t <= 0) { this.scene.remove(br.mesh); this.barriers.splice(i, 1); continue; }
+      const grow = 1 - Math.pow(1 - Math.min(1, br.age / 0.35), 3);
+      br.mesh.scale.setScalar(Math.max(0.01, br.r * grow * Math.min(1, br.t / 0.3)));
+    }
+  }
+
+  _explodeBomb(b, s = SUB.bomb, cause = 'bomb') {
     const c = b.pos;
     let area = G.paint.splat(_v.copy(c).setY(c.y + 0.2), s.paintRadius, b.team, { seed: Math.random() });
     for (let i = 0; i < 5; i++) {
@@ -999,8 +1157,9 @@ export class Projectiles {
       const d = _v.distanceTo(c);
       if (d > s.radius) continue;
       if (!G.physics.los(_v2.copy(c).setY(c.y + 0.3), _v)) continue;
+      if (this.barriers.length && this._shielded(c, _v, b.team)) continue;
       const k = 1 - clamp((d - 0.8) / (s.radius - 0.8), 0, 1);
-      this.applyHit(b.owner, e, lerp(s.damageMin, s.damageMax, k * k), 'bomb');
+      this.applyHit(b.owner, e, lerp(s.damageMin, s.damageMax, k * k), cause);
     }
   }
 
@@ -1065,6 +1224,14 @@ export class Projectiles {
       if (p.drag) p.vel.multiplyScalar(1 - p.drag * dt * (p.age > p.straight ? 1 : 0));
       p.pos.addScaledVector(p.vel, dt);
       let dead = false;
+      if (this.barriers.length) {
+        const br = this._barrierCross(p.prev, p.pos, p.team);
+        if (br) {
+          this._barrierDamage(br, p.damage || 30, p.pos);
+          list[i] = list[list.length - 1]; list.pop(); this.pool.push(p);
+          continue;
+        }
+      }
       // actors
       for (const e of G.actors) {
         if (e.team === p.team || !e.alive) continue;
@@ -1110,6 +1277,7 @@ export class Projectiles {
       if (dead) { list[i] = list[list.length - 1]; list.pop(); this.pool.push(p); }
     }
     this._updateBombs(dt);
+    this._updateBarriers(dt);
     this._updateClouds(dt);
     this._updateBeams(dt);
     this._draw();
@@ -1158,10 +1326,27 @@ export class Projectiles {
   _updateBombs(dt) {
     for (let i = this.bombs.length - 1; i >= 0; i--) {
       const b = this.bombs[i];
+      if (b.kind === 'missile') {
+        if (this.barriers.length && b.launched) {
+          const br = this._barrierCross(b.prev, b.pos, b.team);
+          if (br) { this._barrierDamage(br, SPECIALS.missiles.damageMax, b.prev); b.pos.copy(b.prev); this._explodeBomb(b, SPECIALS.missiles, 'missiles'); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+        }
+        if (this._updateMissile(b, dt)) { this.scene.remove(b.mesh); this.bombs.splice(i, 1); }
+        continue;
+      }
       b.age += dt;
       b.vel.y -= 24 * dt;
       _v.copy(b.pos);
       b.pos.addScaledVector(b.vel, dt);
+      if (this.barriers.length) {
+        const br = this._barrierCross(_v, b.pos, b.team);
+        if (br) {
+          // stopped at the shell: detonate outside (a storm just fizzles)
+          this._barrierDamage(br, b.kind === 'storm' ? 40 : SUB.bomb.damageMax * 0.5, _v);
+          if (b.kind !== 'storm') { b.pos.copy(_v); this._explodeBomb(b); }
+          this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue;
+        }
+      }
       const hit = G.physics.segment(_v, b.pos, _hit);
       if (hit.hit) {
         if (b.kind === 'storm') { this._spawnCloud(b); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }

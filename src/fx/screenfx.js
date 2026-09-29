@@ -621,7 +621,7 @@ export class ScreenFX {
       if (!isLocal(actor)) return;
       this.s.auraPulse = 1;
       this.s.chroma = Math.min(1, this.s.chroma + 0.25);
-      if (id === 'storm') this.s.aura = Math.max(this.s.aura, 0.9);
+      if (id === 'storm' || id === 'bombrush') this.s.aura = Math.max(this.s.aura, 0.9);
     });
     // explosions: typed events when the weapons emit them, otherwise the positional 'shake' requests (bombs, slams)
     const blast = (pos, amount, color) => {
@@ -963,7 +963,7 @@ export class ScreenFX {
     } else s.heart = damp(s.heart, 0, 6, dt);
 
     // --- special aura (active special) + super-jump charge build-up
-    const special = alive && !!a.specialActive;
+    const special = alive && !!(a.specialActive || a.specialBuff);
     s.auraPulse = Math.max(0, s.auraPulse - dt * 1.4);
     const auraT = Math.max(special ? 0.75 : 0, s.jumpCharge * 0.9, s.auraPulse * 0.9);
     s.aura = damp(s.aura, auraT, auraT > s.aura ? 10 : 2.5, dt);
