@@ -164,7 +164,75 @@ export const WEAPONS = {
     special: 'storm', specialCost: 195,
   },
 };
-export const WEAPON_ORDER = ['shooter', 'dualies', 'splatling', 'roller', 'slosher', 'charger', 'blaster'];
+// A variant keeps every field of its base weapon (the runner for that kind reads them) and overrides a few.
+// skin recolours the shared model of that kind (character-weapons.js getWeaponDef).
+const variant = (base, o) => ({ ...WEAPONS[base], ...o, stats: { ...WEAPONS[base].stats, ...(o.stats || {}) } });
+Object.assign(WEAPONS, {
+  shooter_pro: variant('shooter', {
+    id: 'shooter_pro', name: 'Tidal Pro', skin: { body: '#3a3f4a', trim: '#c9a45c' },
+    blurb: 'Slower, harder-hitting shooter. Two hits splat, at a longer reach.',
+    fireInterval: 0.15, damage: 52, range: 13.5, spreadGround: 7, spreadAir: 12, inkPerShot: 1.3, impactRadius: 0.95,
+    stats: { range: 0.6, damage: 0.75, rate: 0.55, mobility: 0.65, paint: 0.55 },
+    special: 'storm', specialCost: 200,
+  }),
+  shooter_jr: variant('shooter', {
+    id: 'shooter_jr', name: 'Sprinkle Jr.', skin: { body: '#bfe8d8', trim: '#7fb8a8' },
+    blurb: 'A light, thrifty sprayer. Weak shots, but it paints fast and moves easily.',
+    fireInterval: 0.085, damage: 28, range: 10.5, spreadGround: 11, spreadAir: 14, inkPerShot: 0.55,
+    impactRadius: 0.95, trailRadius: 0.5, moveSpeedFiring: 5.0,
+    stats: { range: 0.35, damage: 0.35, rate: 0.9, mobility: 0.85, paint: 0.8 },
+    special: 'storm', specialCost: 170,
+  }),
+  roller_brisk: variant('roller', {
+    id: 'roller_brisk', name: 'Brisk Roller', skin: { body: '#2f3a4f', trim: '#9fb4d0' },
+    blurb: 'A narrow, quick roller. Sprints across the turf and flicks fast.',
+    rollSpeed: 5.4, rollWidth: 1.4, rollInkPerMeter: 0.8, rollDamage: 125,
+    flickInterval: 0.45, flickWindup: 0.14, flickDamageNear: 100, flickDamageFar: 25, flickSpeed: 15, flickDrops: 7,
+    moveSpeedFiring: 5.0,
+    stats: { range: 0.3, damage: 0.75, rate: 0.5, mobility: 0.85, paint: 0.8 },
+    special: 'storm', specialCost: 170,
+  }),
+  charger_snap: variant('charger', {
+    id: 'charger_snap', name: 'Snap Charger', skin: { body: '#e8d9f0', trim: '#8a78a8' },
+    blurb: 'Charges fast for a shorter line. Quick to aim, easy on the ink.',
+    chargeTime: 0.6, rangeMin: 9, rangeMax: 20, damageMin: 40, damageMax: 140, inkFull: 12, moveSpeedFiring: 2.6,
+    stats: { range: 0.75, damage: 0.9, rate: 0.45, mobility: 0.55, paint: 0.4 },
+    special: 'slam', specialCost: 180,
+  }),
+  blaster_rapid: variant('blaster', {
+    id: 'blaster_rapid', name: 'Rapid Blaster', skin: { body: '#f0d7b0', trim: '#a8784c' },
+    blurb: 'Fires bursts twice as often, with smaller blasts and a longer reach.',
+    fireInterval: 0.5, directDamage: 85, splashDamageMax: 50, splashDamageMin: 25, splashRadius: 2.1,
+    inkPerShot: 7, projSpeed: 27, range: 13, burstRadius: 1.6,
+    stats: { range: 0.72, damage: 0.65, rate: 0.5, mobility: 0.6, paint: 0.45 },
+    special: 'slam', specialCost: 180,
+  }),
+  dualies_glide: variant('dualies', {
+    id: 'dualies_glide', name: 'Glide Dualies', skin: { body: '#d8e6f2', trim: '#5c7896' },
+    blurb: 'Faster pistols with a short, nimble dodge-roll. Four rolls before you run dry.',
+    fireInterval: 0.075, damage: 28, range: 10, rolls: 4, rollTime: 0.25, rollDist: 2.4, rollInk: 5, lockTime: 0.35,
+    stats: { range: 0.38, damage: 0.38, rate: 1.0, mobility: 1.0, paint: 0.5 },
+    special: 'storm', specialCost: 180,
+  }),
+  slosher_tri: variant('slosher', {
+    id: 'slosher_tri', name: 'Tri-Slosher', skin: { body: '#e6e0c8', trim: '#7a8a5c' },
+    blurb: 'Lobs quicker, shorter waves that leave a thick trail of ink.',
+    fireInterval: 0.42, inkPerShot: 6, projSpeed: 13, range: 7.5, damageHead: 62, damageTail: 30, drops: 10, splashRadius: 1.25,
+    stats: { range: 0.4, damage: 0.75, rate: 0.6, mobility: 0.7, paint: 0.85 },
+    special: 'storm', specialCost: 170,
+  }),
+  splatling_mini: variant('splatling', {
+    id: 'splatling_mini', name: 'Mini Splatling', skin: { body: '#f2c9c9', trim: '#a86060' },
+    blurb: 'Spins up fast and moves lightly, but its bursts are short.',
+    chargeTime: 0.45, burstMin: 0.25, burstMax: 1.0, range: 12.5, moveSpeedCharging: 3.4, moveSpeedFiring: 4.2,
+    stats: { range: 0.6, damage: 0.5, rate: 0.95, mobility: 0.62, paint: 0.6 },
+    special: 'slam', specialCost: 185,
+  }),
+});
+export const WEAPON_ORDER = [
+  'shooter', 'shooter_pro', 'shooter_jr', 'dualies', 'dualies_glide', 'splatling', 'splatling_mini', 'roller',
+  'roller_brisk', 'slosher', 'slosher_tri', 'charger', 'charger_snap', 'blaster', 'blaster_rapid',
+];
 
 export const SUB = {
   bomb: {
