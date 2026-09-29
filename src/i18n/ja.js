@@ -151,6 +151,15 @@ export const JA = {
   'Leap up and slam down in a huge ink shockwave.': '高く跳び上がり、巨大なインクの衝撃波とともに叩きつける。',
   'Ink Tempest': 'インクテンペスト',
   'Hurl a rain cloud that soaks the turf below.': '雨雲を投げて、真下のナワバリをインクでぬらす。',
+  'Ink Armor': 'インクアーマー',
+  'Wrap the whole team in a shell that soaks up damage for a few seconds.': 'チーム全員を、数秒間ダメージを吸収するよろいで包む。',
+  'Missile Salvo': 'マルチミサイル',
+  'Lock onto up to four enemies and rain missiles on them, even behind walls.': '最大4体の敵をロックして、壁ごしでもミサイルを降らせる。',
+  'Bomb Rush': 'ボムラッシュ',
+  'Throw splat bombs nonstop for a few seconds, free of ink.': '数秒間、インクを使わずにスプラッシュボムを投げ続ける。',
+  'Bubble Barrier': 'バブルバリア',
+  'Raise a dome that stops enemy shots, bombs and charger beams.': '敵の弾・ボム・チャージャーの線を止めるドームを張る。',
+  'Missiles incoming!': 'ミサイルが来る！',
 
   // ---------------------------------------------------------------- locker
   'Choose your squidkid, then make it yours': 'インクリングをえらんで、自分好みにしよう',

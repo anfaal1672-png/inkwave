@@ -6,7 +6,7 @@
 // distance and retreat through own ink to heal when they're losing a duel.
 import * as THREE from 'three';
 import { G, clamp, angleDiff } from '../core/ctx.js';
-import { PLAYER, DIFFICULTY, SUB } from '../config.js';
+import { PLAYER, DIFFICULTY, SUB, SPECIALS } from '../config.js';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
 const _stats = { own: 0, enemy: 0, empty: 0, n: 0 };
@@ -189,8 +189,18 @@ export class BotBrain {
         } else if (a.lastDamage < 0.25 && this.dodgeCd <= 0 && a.grounded && w.kind !== 'charger' && Math.random() < 0.3 && !this._nearWater(a, 1.6)) { it.jump = true; this.dodgeCd = 2 + Math.random() * 2.5; }
         // special
         if (a.specialReady()) {
-          if (w.special === 'slam' && dist < 4.5) it.special = true;
-          if (w.special === 'storm' && dist < 16) it.special = true;
+          const sp = w.special;
+          if (sp === 'slam' && dist < 4.5) it.special = true;
+          else if (sp === 'storm' && dist < 16) it.special = true;
+          else if (sp === 'armor') it.special = true;
+          else if (sp === 'missiles') it.special = this._foesWithin(SPECIALS.missiles.range) >= 1;
+          else if (sp === 'bombrush') it.special = dist > 5 && dist < 12;
+          else if (sp === 'barrier') it.special = hpFrac <= 0.6 || this._foesWithin(10) >= 2;
+        }
+        // Bomb Rush: keep lobbing bombs at the target (the launch pitch that lands a 13.5 m/s bomb at this distance)
+        if (a.specialBuff && a.specialBuff.id === 'bombrush' && enemyVisible && dist < 14) {
+          it.fire = true;
+          wantPitch = clamp(0.2 + 0.06 * dist - 0.28, -0.3, 0.9);
         }
       } else {
         // retreat: swim away through own ink, keep eyes on the threat
@@ -223,10 +233,13 @@ export class BotBrain {
       }
       // travel as a squid through own ink when not painting
       if (!it.fire && this._pathRemaining() > 5 && a.groundTeam === 1) it.squid = true;
-      if (a.specialReady() && Math.random() < 0.01) {
+      if (a.specialReady() && Math.random() < 0.01 && (w.special === 'slam' || w.special === 'storm' || w.special === 'bombrush')) {
         const r = G.paint.regionStats(a.pos.x, a.pos.y, a.pos.z, 5, a.team, _stats);
         if (r.own < 0.5) it.special = true;
       }
+      if (a.specialReady() && w.special === 'missiles' && this._foesWithin(SPECIALS.missiles.range) >= 1) it.special = true;
+      // Bomb Rush while painting: bombs spread over the ground ahead
+      if (a.specialBuff && a.specialBuff.id === 'bombrush') { it.fire = true; it.squid = false; wantPitch = -0.1; }
     } else if (this.mode === 'refill') {
       it.squid = a.groundTeam === 1 || this._pathRemaining() > 2;
       if (a.groundTeam !== 1 && this._pathRemaining() < 1.5 && inkFrac > 0.03) {
@@ -318,6 +331,14 @@ export class BotBrain {
       if (dx * dx + dy * dy + dz * dz < r2) return true;
     }
     return false;
+  }
+
+  // living enemies within r metres (special decisions)
+  _foesWithin(r) {
+    const a = this.a;
+    let n = 0;
+    for (const e of G.actors) if (e.team !== a.team && e.alive && e.pos.distanceTo(a.pos) <= r) n++;
+    return n;
   }
 
   _range() {

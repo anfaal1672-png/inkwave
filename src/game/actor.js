@@ -24,6 +24,18 @@ const _ZERO_MOVE = Object.freeze(new THREE.Vector3());   // move input while pla
 const DOWN = new THREE.Vector3(0, -1, 0);
 const TAU = Math.PI * 2;
 
+// Ink Armor shell: one geometry + one material per team, shared by every armoured actor (nothing is built per frame).
+let _armorGeo = null;
+const _armorMats = [null, null];
+function armorShell(team) {
+  if (!_armorGeo) _armorGeo = new THREE.SphereGeometry(1, 20, 14);
+  if (!_armorMats[team]) _armorMats[team] = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false, blending: THREE.AdditiveBlending });
+  _armorMats[team].color.copy(G.teamColors[team]);
+  const m = new THREE.Mesh(_armorGeo, _armorMats[team]);
+  m.renderOrder = 3; m.frustumCulled = false; m.castShadow = false;
+  return m;
+}
+
 // Local-player gamepad rumble (subtle, scaled by settings.rumble, no-op without a pad).
 export function rumble(actor, strong, weak, ms) {
   if (!actor || !actor.isLocal || actor.isBot) return;
@@ -73,6 +85,9 @@ export class Actor {
     this.ink = PLAYER.inkMax;
     this.special = 0;            // points toward special
     this.specialActive = null;   // { id, t, phase }
+    this.specialBuff = null;     // { id, t, dur } — a timed effect you keep playing through (Bomb Rush)
+    this._clearArmor();          // Ink Armor received from a teammate's special: { hp, t }
+    this._rushCd = 0;
     this.form = 'kid';           // desired form
     this.submerged = false;
     this.climbing = false;
@@ -112,13 +127,13 @@ export class Actor {
 
   specialCost() { return this.weapon.specialCost; }
   specialFrac() { return clamp(this.special / this.specialCost(), 0, 1); }
-  specialReady() { return this.special >= this.specialCost() && !this.specialActive; }
+  specialReady() { return this.special >= this.specialCost() && !this.specialActive && !this.specialBuff; }
 
   addTurf(area) {
     if (area <= 0) return;
     this.stats.turf += area;
     emit('turf', { actor: this, area });
-    if (!this.specialActive) {
+    if (!this.specialActive && !this.specialBuff) {
       const was = this.specialReady();
       this.special = Math.min(this.specialCost(), this.special + area);
       if (!was && this.specialReady()) emit('special:ready', { actor: this });
@@ -160,6 +175,18 @@ export class Actor {
   damage(amount, attacker, source = 'weapon') {
     if (!this.alive || amount <= 0) return false;
     if (this.invuln > 0 || cheatInvincible(this)) return false;
+    if (this.inkArmor) {
+      const ar = this.inkArmor;
+      const soak = Math.min(ar.hp, amount);
+      ar.hp -= soak; amount -= soak;
+      if (ar.hp <= 0) {
+        G.fx?.burst(_v.copy(this.pos).setY(this.pos.y + 0.9), _v2.set(0, 1, 0), this.color, { count: 12, speed: 4, size: 0.09, paint: false });
+        if (this.isLocal || this._nearCamera()) G.audio?.play('splat_small', { pos: this.isLocal ? undefined : this.pos, volume: 0.7, pitch: 1.4 });
+        emit('armor:break', { actor: this });
+        this._clearArmor();
+      }
+      if (amount <= 0) return false;
+    }
     if (this.specialActive && this.specialActive.armor) amount *= 0.25;
     this.hp -= amount;
     this.lastDamage = 0;
@@ -194,6 +221,8 @@ export class Actor {
     this.stats.deaths++;
     this.special *= 0.5;
     this.specialActive = null;
+    this.specialBuff = null;
+    this._clearArmor();
     this.climbing = false;
     this.weaponRunner.onDeath();
     const col = attacker ? attacker.color : G.teamColors[this.enemyTeam];
@@ -216,7 +245,7 @@ export class Actor {
     // safety net: a non-finite position/velocity must never poison the camera or physics
     if (!Number.isFinite(this.pos.x + this.pos.y + this.pos.z + this.vel.x + this.vel.y + this.vel.z + this.yaw + this.smoothY)) {
       console.warn('[inkwave] non-finite actor state recovered', this.name);
-      this.superJumpState = null; this.specialActive = null; this.yaw = 0; this.yawVel = 0; this.smoothY = 0; this.smoothYV = 0;
+      this.superJumpState = null; this.specialActive = null; this.specialBuff = null; this.yaw = 0; this.yawVel = 0; this.smoothY = 0; this.smoothYV = 0;
       if (this.alive) this.respawn(); else { this.pos.copy(G.level.spawnPads[this.team]); this.vel.set(0, 0, 0); }
     }
     if (!this.alive) {
@@ -235,6 +264,9 @@ export class Actor {
     if (firePressed) this._firePressT = G.time;
     prev.fire = intent.fire; prev.jump = intent.jump; prev.sub = intent.sub; prev.special = intent.special; prev.squid = intent.squid;
 
+    this._updateArmor(dt);
+    if (this.specialBuff && (this.specialBuff.t -= dt) <= 0) this.specialBuff = null;
+    this._rushCd -= dt;
     this.invuln = Math.max(0, this.invuln - dt);
     this.lastDamage += dt; this.lastFire += dt; this.landT += dt; this.kidT += dt;
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 0.6);
@@ -328,7 +360,18 @@ export class Actor {
       pressed = firePressed || buffered;
       this.fireBuffer = 0;
     }
-    this.weaponRunner.update(dt, { fire, firePressed: pressed, sub: intent.sub && !isSquid, subReleased: subReleased && !isSquid });
+    if (this.specialBuff && this.specialBuff.id === 'bombrush') {
+      // Bomb Rush: fire or sub throws a free splat bomb every interval; the main weapon and the bomb aim stay quiet
+      if (!isSquid && (intent.fire || intent.sub) && this._rushCd <= 0) {
+        this._rushCd = SPECIALS.bombrush.interval;
+        this.lastFire = 0;
+        this.character.trigger('throw');
+        G.projectiles.throwBomb(this);
+        if (this.isLocal) rumble(this, 0.08, 0.22, 70);
+      }
+      if (intent.fire || intent.sub) this.fireFacing = 0.3;
+      this.weaponRunner.update(dt, { fire: false, firePressed: false, sub: false, subReleased: false });
+    } else this.weaponRunner.update(dt, { fire, firePressed: pressed, sub: intent.sub && !isSquid, subReleased: subReleased && !isSquid });
 
     // ---- fall into the sea
     // the sea: below the waterline with no deck underneath (dry-dock trenches sit below sea level and are safe)
@@ -716,14 +759,56 @@ export class Actor {
       this.specialActive = { id, t: 0, phase: 'throw', armor: false };
       this.character.trigger('throw');
       G.projectiles.throwStorm(this);
+    } else if (id === 'bombrush') {
+      this.specialBuff = { id, t: SPECIALS.bombrush.duration, dur: SPECIALS.bombrush.duration };
+      this._rushCd = 0;
+    } else {
+      // armor / missiles / barrier: the same brief throw pose as the storm, then control returns
+      this.specialActive = { id, t: 0, phase: 'throw', armor: false };
+      this.character.trigger('throw');
+      if (id === 'armor') {
+        for (const m of G.actors) if (m.team === this.team && m.alive) m._giveArmor();
+      } else if (id === 'missiles') G.projectiles.fireMissiles(this);
+      else if (id === 'barrier') G.projectiles.raiseBarrier(this);
     }
+  }
+
+  // ---- Ink Armor (received from a teammate's special; the shell is one shared mesh per team)
+  _giveArmor() {
+    const sp = SPECIALS.armor;
+    const fresh = !this.inkArmor;
+    this.inkArmor = { hp: sp.absorb, t: sp.duration };
+    if (fresh) {
+      if (!this._armorMesh) { this._armorMesh = armorShell(this.team); this._armorMesh.visible = false; this.character.root.add(this._armorMesh); }
+      else this._armorMesh.material.color.copy(G.teamColors[this.team]);
+      if (this.isLocal || this._nearCamera()) G.audio?.play('special_activate', { pos: this.isLocal ? undefined : this.pos, volume: 0.3, pitch: 1.5 });
+    }
+    this._armorMesh.visible = true;
+    emit('armor:on', { actor: this });
+  }
+  _clearArmor() {
+    this.inkArmor = null;
+    if (this._armorMesh) this._armorMesh.visible = false;
+  }
+  _updateArmor(dt) {
+    const ar = this.inkArmor;
+    if (!ar) return;
+    ar.t -= dt;
+    if (ar.t <= 0) { this._clearArmor(); return; }
+    const m = this._armorMesh;
+    const squid = this.form === 'squid';
+    const k = squid ? 0.55 : 1;
+    // the last second flickers
+    m.visible = !this.submerged && (ar.t > 1 || Math.sin(ar.t * 30) > -0.2);
+    m.scale.set(0.75 * k, 0.95 * k, 0.75 * k);
+    m.position.y = (squid ? 0.35 : 0.85);
   }
 
   _updateSpecial(dt) {
     const s = this.specialActive;
     s.t += dt;
     const sp = SPECIALS[s.id];
-    if (s.id === 'storm') {
+    if (s.id !== 'slam') {
       // brief throw animation, then control returns
       if (s.t > 0.35) this.specialActive = null;
       this.vel.x *= Math.exp(-6 * dt); this.vel.z *= Math.exp(-6 * dt);

@@ -8,7 +8,7 @@
 // player.js swaps it in for the human while cheatAutoplay is on, and hands control back for a moment on any input.
 import * as THREE from 'three';
 import { G, clamp, angleDiff } from '../core/ctx.js';
-import { PLAYER, AUTOPLAY, SUB } from '../config.js';
+import { PLAYER, AUTOPLAY, SUB, SPECIALS } from '../config.js';
 import { CHEATS } from './cheats.js';
 import { BotBrain } from './bots.js';
 import { solveWeapon, weaponReach, autoFire } from './aimbot.js';
@@ -243,17 +243,29 @@ export class ApexBrain extends BotBrain {
   _special(t, dist, it) {
     const a = this.a, w = a.weapon;
     it.special = false;
+    // Bomb Rush running: every throw is aimed with the bomb solver (free ink, so nothing else to weigh)
+    if (a.specialBuff && a.specialBuff.id === 'bombrush') {
+      const p = t && dist < 14 ? this._bombSolve(t) : null;
+      if (p !== null) { it.fire = true; it.sub = false; a.aimLock = null; this._setAim(Math.atan2(t.pos.x - a.pos.x, t.pos.z - a.pos.z), p - 0.28); }
+      return;
+    }
     if (!a.specialReady()) return;
-    let near = 0, close = 0;
+    let near = 0, close = 0, far = 0, weak = 0, allies = 0, hurt = a.hp < PLAYER.hp * 0.6;
     for (const e of G.actors) {
-      if (e.team === a.team || !e.alive) continue;
+      if (!e.alive) continue;
       const d = e.pos.distanceTo(a.pos);
+      if (e.team === a.team) { if (e !== a && d < 12) allies++; continue; }
       if (d < 12) near++;
       if (d < 4) close++;
+      if (d < SPECIALS.missiles.range) { far++; if (e.hp < 70) weak++; }
     }
     if (w.special === 'slam') it.special = close > 0 && !!t && dist < 4;
     else if (w.special === 'storm') it.special = near >= 2 || (near >= 1 && this.needPaint);
-    // spend it on the turf when nothing else needs it and the ground around is not ours
-    if (!it.special && this.needPaint && !this.target) it.special = true;
+    else if (w.special === 'armor') it.special = near >= 1 && (allies >= 1 || hurt);
+    else if (w.special === 'missiles') it.special = weak >= 1 || far >= 2;
+    else if (w.special === 'bombrush') it.special = !!t && dist > 4.5 && dist < 12 && this.los;
+    else if (w.special === 'barrier') it.special = near >= 1 && (hurt || near >= 2);
+    // spend it on the turf when nothing else needs it and the ground around is not ours (armor / barrier need a fight)
+    if (!it.special && this.needPaint && !this.target && w.special !== 'armor' && w.special !== 'barrier') it.special = true;
   }
 }

@@ -539,6 +539,14 @@ class Game {
     on('special:use', ({ actor, id }) => {
       if (actor.isLocal && !this.match?.attract) this.hud?.banner('special', tr('{name}!', { name: tr(SPECIALS[id].name).toUpperCase() }));
     });
+    // enemy missiles locked onto you: one warning per salvo (the minimap ring comes from minimap.js)
+    let lastMissileWarn = -9;
+    on('missile:lock', ({ actor }) => {
+      if (!actor.isLocal || !this.match || this.match.attract || G.time - lastMissileWarn < 1.5) return;
+      lastMissileWarn = G.time;
+      this.hud?.feed({ text: tr('Missiles incoming!'), color: '#ff5a5a', kind: 'info' });
+      G.audio?.play('low_ink', { volume: 0.6 });
+    });
     on('shake', ({ amount, pos }) => { if (!this.match?.attract) this.rig.addShake(amount, pos); });
     on('recoil', ({ amount }) => { if (!this.match?.attract) this.rig.recoil(amount); });
     on('lowink', ({ actor }) => { if (actor.isLocal) this._lowInkFlash = 1.2; });
@@ -1062,7 +1070,7 @@ class Game {
       time: m.time,
       teams: m.teamSummary(),
       ink: a.ink / PLAYER.inkMax, inkLow: a.ink < 18 || (this._lowInkFlash > 0), subCost: SUB.bomb.inkCost / PLAYER.inkMax,
-      special: a.specialFrac(), specialReady: a.specialReady(), specialActive: !!a.specialActive,
+      special: a.specialBuff ? clamp(a.specialBuff.t / a.specialBuff.dur, 0, 1) : a.specialFrac(), specialReady: a.specialReady(), specialActive: !!(a.specialActive || a.specialBuff),
       hp: a.hp / PLAYER.hp,
       weapon: a.weaponId, charge: a.weaponRunner.charge,
       crosshair: { spread, onTarget: m.controller?.onTarget ? 'enemy' : null, inRange: m.controller ? m.controller.inRange !== false : true },

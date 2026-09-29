@@ -18,6 +18,7 @@ const fxList = [];           // transient map effects (shared; cleared when the 
 const live = () => { const m = G.match; return !!(m && !m.attract); };
 function pushFx(fx) { if (!CURRENT || !live()) return; if (fxList.length > 40) fxList.shift(); fxList.push(fx); }
 on('special:slam', ({ actor, pos, radius }) => pushFx({ kind: 'slam', x: pos.x, z: pos.z, team: actor ? actor.team : 0, r: radius || SPECIALS.slam.radius, t: 0, life: 0.9 }));
+on('missile:lock', ({ actor, pos }) => pushFx({ kind: 'boom', x: pos.x, z: pos.z, team: actor ? 1 - actor.team : 0, r: SPECIALS.missiles.radius, t: 0, life: SPECIALS.missiles.flight }));
 on('bomb:explode', ({ pos, team, radius }) => pushFx({ kind: 'boom', x: pos.x, z: pos.z, team: team | 0, r: radius || SUB.bomb.radius, t: 0, life: 0.7 }));
 on('superjump', ({ actor, phase, to }) => { if (phase === 'flight' && to) pushFx({ kind: 'jump', x: to.x, z: to.z, team: actor.team, actor, t: 0, life: 3 }); });
 on('superjump:land', ({ actor }) => { for (const f of fxList) if (f.kind === 'jump' && f.actor === actor) f.life = Math.min(f.life, f.t + 0.35); });
