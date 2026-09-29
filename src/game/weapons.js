@@ -23,6 +23,7 @@ const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vecto
 const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _c = new THREE.Color();
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const _hit = new Hit(), _hit2 = new Hit();
+const _foot = new THREE.Vector3();
 const _res = { t: 0, dist: 0 };
 const DEG = Math.PI / 180;
 const HAND_R = Object.freeze({ hand: 0, valueOf() { return 1; } }), HAND_L = Object.freeze({ hand: 1, valueOf() { return 1; } });
@@ -43,6 +44,7 @@ export class WeaponRunner {
     // dualies: alternating hand, per-hand shot clocks, dodge roll + locked turret afterwards
     this.hand = 0; this.sinceHand = this.sinceHand || [99, 99]; this.sinceHand[0] = this.sinceHand[1] = 99;
     this.dodge = null; this.lockT = 0; this.rollsLeft = 2; this.rollPaint = 0;
+    this._footN = 0;
     this._dodgeDir = this._dodgeDir || new THREE.Vector3();
     // slosher windup · splatling stream
     this.slosh = -1; this.streaming = false; this.burstT = 0; this.burstDur = 0; this.burstFrac = 0;
@@ -116,6 +118,21 @@ export class WeaponRunner {
     if (!inp.sub && !inp.subReleased) this.aimingSub = false;
   }
 
+  // A splat at the shooter's own feet. Projectile trails start metres out, so shooting while walking forward never inked
+  // the ground you stand on and you could not swim in your own ink. `every` > 1 = only every Nth call (counter shared
+  // across hands / stream rounds). Skipped as a squid, on a wall, or when the ground is > 1.5 m below.
+  _footSplat(every, radius) {
+    const a = this.a;
+    if (every > 1 && ++this._footN % every !== 0) return;
+    if (a.form === 'squid' || a.climbing) return;
+    const fx = Math.sin(a.yaw), fz = Math.cos(a.yaw);
+    const ahead = 0.25 + Math.random() * 0.5, side = (Math.random() - 0.5) * 0.5;
+    _foot.set(a.pos.x + fx * ahead + fz * side, a.pos.y + 0.6, a.pos.z + fz * ahead - fx * side);
+    const g = G.physics.raycast(_foot, DOWN, 2.1, _hit2, true);
+    if (!g.hit) return;
+    a.addTurf(G.paint.splat(_foot.copy(g.point).addScaledVector(g.normal, 0.1), radius, a.team, { seed: Math.random() }));
+  }
+
   _empty() {
     const a = this.a;
     if (this.emptyCd > 0) return;
@@ -136,6 +153,7 @@ export class WeaponRunner {
       this.spread = this._spreadDeg(w);
       if (w.kind === 'shooter') G.projectiles.fireShooter(a, w, this.spread);
       else G.projectiles.fireBlaster(a, w, this.spread);
+      this._footSplat(w.footEvery, w.footRadius);
       this.bloom = Math.min(1, this.bloom + (w.bloomPerShot ?? 0.3));
       a.character.trigger('shoot');
       this.cooldown += w.fireInterval;
@@ -169,6 +187,7 @@ export class WeaponRunner {
       a.ink = Math.max(0, a.ink - w.inkFull * c);
       a.lastFire = 0;
       G.projectiles.fireCharger(a, w, c);
+      this._footSplat(1, w.footRadius + 0.35 * c);
       a.character.trigger('charge_release');
       this.charge = 0; this.chargeT = 0;
       this.firingT = 0.35;
@@ -185,6 +204,7 @@ export class WeaponRunner {
       if (this.flick >= w.flickWindup) {
         this.flick = -1;
         G.projectiles.fireFlick(a, w);
+        this._footSplat(1, w.footRadius);
         this.cooldown = w.flickInterval - w.flickWindup;
         this.firingT = 0.25;
         this.flickRecover = 0.18;
@@ -274,6 +294,7 @@ export class WeaponRunner {
       this.spread = this._spreadDeg(w);
       this.hand ^= 1;
       G.projectiles.fireDualies(a, w, this.spread, this.hand);
+      this._footSplat(w.footEvery, w.footRadius);
       this.sinceHand[this.hand] = 0;
       this.bloom = Math.min(1, this.bloom + (w.bloomPerShot ?? 0.25));
       a.character.trigger('shoot', this.hand ? HAND_L : HAND_R);
@@ -316,7 +337,7 @@ export class WeaponRunner {
     const a = this.a;
     if (this.slosh >= 0) {
       this.slosh += dt; a.fireFacing = 0.5; this.firingT = 0.35;
-      if (this.slosh >= w.windup) { this.slosh = -1; G.projectiles.fireSlosh(a, w); this.cooldown = w.fireInterval - w.windup; }
+      if (this.slosh >= w.windup) { this.slosh = -1; G.projectiles.fireSlosh(a, w); this._footSplat(1, w.footRadius); this.cooldown = w.fireInterval - w.windup; }
       return;
     }
     if (inp.fire && this.cooldown <= 0) {
@@ -345,6 +366,7 @@ export class WeaponRunner {
         a.ink -= w.inkPerShot; a.lastFire = 0;
         this.spread = this._spreadDeg(w);
         G.projectiles.fireSplatling(a, w, this.spread);
+        this._footSplat(w.footEvery, w.footRadius);
         this.bloom = Math.min(1, this.bloom + (w.bloomPerShot ?? 0.05));
         a.character.trigger('shoot');
         this.cooldown += w.fireInterval;

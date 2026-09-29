@@ -137,6 +137,40 @@ await step('jump button', async () => {
   await up(4);
   return 'airborne';
 });
+await step('squid + jump buttons: hold and drag to look', async () => {
+  const out = [];
+  for (const [sel, id] of [['.iw-tbtn--squid', 12], ['.iw-tbtn--jump', 13]]) {
+    await until(`${A}.grounded`, 30000);
+    const y0 = await ev(() => __inkwave.rig.yaw);
+    const c = await center(sel);
+    await down(id, c.x, c.y); await wait(60);
+    for (let i = 1; i <= 8; i++) { await move(id, c.x - i * 10, c.y); await wait(40); }
+    await up(id);
+    const y1 = await ev(() => __inkwave.rig.yaw);
+    if (Math.abs(y1 - y0) < 0.1) throw new Error(`${sel}: yaw changed ${(y1 - y0).toFixed(3)} rad`);
+    out.push(`${sel.slice(10)} ${(y1 - y0).toFixed(2)} rad`);
+  }
+  // a small wobble stays inside the dead zone: no camera motion
+  const c = await center('.iw-tbtn--jump');
+  const y2 = await ev(() => __inkwave.rig.yaw);
+  await down(14, c.x, c.y); await move(14, c.x + 4, c.y + 2); await wait(80); await up(14);
+  const y3 = await ev(() => __inkwave.rig.yaw);
+  if (Math.abs(y3 - y2) > 0.01) throw new Error(`a 4 px wobble turned the camera ${(y3 - y2).toFixed(3)} rad`);
+  return out.join(', ') + '; wobble ignored';
+});
+await step('dualies: slide button starts a dodge roll', async () => {
+  const shown = await ev(() => !!document.querySelector('.iw-tbtn--slide') && getComputedStyle(document.querySelector('.iw-tbtn--slide')).display !== 'none');
+  if (shown) throw new Error('slide button visible without dualies');
+  await ev(async () => { const { WEAPONS } = await import('/src/config.js'); const a = __inkwave.match.local; a.weapon = WEAPONS.dualies; a.weaponRunner.reset(); a.ink = 100; __inkwave.touch.setLoadout('dualies', 'slam'); });
+  await until(`${A}.grounded`, 30000);
+  const c = await center('.iw-tbtn--slide');
+  if (!c) throw new Error('slide button not on screen');
+  await down(15, c.x, c.y);
+  await until(`!!${A}.weaponRunner.dodge || ${A}.weaponRunner.lockT > 0`, 30000);
+  await wait(200); await up(15);
+  await ev(async () => { const { WEAPONS } = await import('/src/config.js'); const a = __inkwave.match.local; a.weapon = WEAPONS.shooter; a.weaponRunner.reset(); __inkwave.touch.setLoadout('shooter', 'slam'); });
+  return 'dodge started';
+});
 await step('bomb button (hold + release)', async () => {
   await until(`${A}.grounded`, 30000);
   await ev(new Function(`${A}.ink = 100;`));

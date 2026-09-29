@@ -629,6 +629,7 @@ export const JA = {
   'Shoot': '撃つ',
   'Bomb': 'ボム',
   'Squid': 'イカ',
+  'Slide': 'スライド',
   'TAP TO START': 'タップしてスタート',
   'Turn your device sideways to play': '端末を横向きにして遊んでね',
   'Low ink! Hold the squid button in your ink to refill': 'インク不足！ 自分のインクでイカボタンを長押しして補充',

@@ -40,11 +40,13 @@ export class PlayerController {
     this.auto = null;        // autoplay brain (cheat) while it is driving
     this.autoLvl = null;
     this.autoHold = 0;       // seconds of manual control left after the player touched something
+    this._dodgeV = new THREE.Vector3();
   }
 
   update(dt) {
     const a = this.a, rig = this.rig, inp = this.input, s = G.settings;
     const it = a.intent;
+    it.dodge = null;     // a touch slide request lives for one frame (set below)
     if (!this.enabled) {
       it.move.set(0, 0, 0); it.fire = it.jump = it.squid = it.sub = it.special = false;
       this.assist.has = false; a.aimLock = null;
@@ -147,10 +149,13 @@ export class PlayerController {
     const th = tc ? tc.held : null;
     it.jump = inp.down('Space') || inp.padButton(0) || !!th?.jump;
     it.squid = inp.down('ShiftLeft') || inp.down('ShiftRight') || inp.padValue(6) > 0.3 || !!th?.squid;
-    it.fire = inp.mouse.left || inp.padValue(7) > 0.3 || !!th?.fire;
+    it.fire = inp.mouse.left || inp.padValue(7) > 0.3 || !!th?.fire || !!th?.slide;
     it.sub = inp.mouse.right || inp.down('KeyE') || inp.padButton(5) || !!th?.sub;
     it.special = inp.down('KeyF') || inp.down('KeyQ') || inp.padButton(3) || inp.padButton(11) || !!th?.special;
     if (bot && bot.fire !== null) it.fire = bot.fire;
+    // touch slide button (dualies): one dodge roll toward the stick / swipe direction (stick space → camera-relative world xz)
+    const sl = tc ? tc.takeSlide() : null;
+    if (sl) it.dodge = this._dodgeV.set(sy * sl.y - cy * sl.x, 0, cy * sl.y + sy * sl.x);
     this.mapHeld = inp.down('Tab') || inp.down('KeyM') || inp.padButton(8) || !!th?.map;
     // the TAB map is a targeting UI (clicking a teammate beacon super jumps) — never fire or throw through it
     if (this.mapHeld) { it.fire = false; it.sub = false; }
@@ -193,7 +198,7 @@ export class PlayerController {
     if (tc) {
       if (Math.hypot(tc.move.x, tc.move.y) > 0.12 || tc.lookDx || tc.lookDy) return true;
       const h = tc.held;
-      if (h && (h.fire || h.jump || h.squid || h.sub || h.special || h.map)) return true;
+      if (h && (h.fire || h.slide || h.jump || h.squid || h.sub || h.special || h.map)) return true;
     }
     return false;
   }

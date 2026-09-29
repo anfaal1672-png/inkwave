@@ -97,6 +97,7 @@ export const WEAPONS = {
     spreadGround: 5.5, spreadAir: 11,   // degrees
     impactRadius: 0.85, trailRadius: 0.44, trailEvery: 1.05,
     moveSpeedFiring: 4.6,
+    footEvery: 2, footRadius: 0.7,   // a splat at the shooter's own feet every N shots (WeaponRunner._footSplat)
     special: 'slam', specialCost: 190,
   },
   roller: {
@@ -108,6 +109,7 @@ export const WEAPONS = {
     flickDamageNear: 125, flickDamageFar: 30, flickSpeed: 17, flickSpreadDeg: 34,
     impactRadius: 1.0,
     moveSpeedFiring: 4.4,
+    footEvery: 1, footRadius: 0.8,
     special: 'slam', specialCost: 170,
   },
   charger: {
@@ -117,6 +119,7 @@ export const WEAPONS = {
     chargeTime: 1.0, rangeMin: 11, rangeMax: 27, damageMin: 40, damageMax: 160,
     inkFull: 18, lineSplatEvery: 1.2, lineRadius: 0.55, impactRadius: 1.2,
     moveSpeedFiring: 1.8,
+    footEvery: 1, footRadius: 0.45,   // + 0.35 × charge
     special: 'storm', specialCost: 180,
   },
   blaster: {
@@ -127,6 +130,7 @@ export const WEAPONS = {
     splashRadius: 2.6, inkPerShot: 9, projSpeed: 23, range: 10.5,
     impactRadius: 1.5, burstRadius: 1.9,
     moveSpeedFiring: 4.0,
+    footEvery: 1, footRadius: 0.75,
     special: 'storm', specialCost: 180,
   },
   dualies: {
@@ -138,6 +142,7 @@ export const WEAPONS = {
     spreadGround: 6.5, spreadAir: 12, spreadFirst: 0.5, bloomPerShot: 0.25, spreadLock: 2.2,
     impactRadius: 0.75, trailRadius: 0.38, trailEvery: 1.15,
     moveSpeedFiring: 5.0,
+    footEvery: 2, footRadius: 0.6,
     rollInk: 7, rollTime: 0.3, rollDist: 2.8, rolls: 2, lockTime: 0.5, lockInterval: 0.07,   // dodge roll → locked turret
     special: 'slam', specialCost: 180,
   },
@@ -150,6 +155,7 @@ export const WEAPONS = {
     damageHead: 70, damageTail: 34, splashRadius: 1.1, splashDamage: 26,
     impactRadius: 1.05, trailRadius: 0.5, trailEvery: 1.4,
     moveSpeedFiring: 4.2,
+    footEvery: 1, footRadius: 0.8,
     special: 'slam', specialCost: 175,
   },
   splatling: {
@@ -161,6 +167,7 @@ export const WEAPONS = {
     spreadGround: 3.2, spreadAir: 7, spreadFirst: 0.6, bloomPerShot: 0.05,
     impactRadius: 0.8, trailRadius: 0.42, trailEvery: 1.2,
     moveSpeedCharging: 2.4, moveSpeedFiring: 3.4,
+    footEvery: 2, footRadius: 0.6,
     special: 'storm', specialCost: 195,
   },
 };
@@ -173,6 +180,7 @@ Object.assign(WEAPONS, {
     blurb: 'Slower, harder-hitting shooter. Two hits splat, at a longer reach.',
     fireInterval: 0.15, damage: 52, range: 13.5, spreadGround: 7, spreadAir: 12, inkPerShot: 1.3, impactRadius: 0.95,
     stats: { range: 0.6, damage: 0.75, rate: 0.55, mobility: 0.65, paint: 0.55 },
+    footRadius: 0.8,   // fires slower (every 0.15 s), so each foot splat is bigger
     special: 'missiles', specialCost: 200,
   }),
   shooter_jr: variant('shooter', {
