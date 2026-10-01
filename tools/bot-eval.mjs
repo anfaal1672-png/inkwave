@@ -7,9 +7,14 @@
 //   ms/bot     mean CPU time of one bot's update() (performance.now around it)
 // usage: node tools/bot-eval.mjs [--runs 3] [--maps tidewater,kelpline] [--difficulty hard] [--duration 90]
 //                                [--fps 30] [--port 8490] [--url http://localhost:8493/] [--parallel 2] [--json]
+//                                [--weapons random] [--out per-weapon.json] [--chunk 3]
 //   --url points at another checkout (python3 tools/serve.py 8493 in a git worktree) for a before / after comparison.
+//   --weapons random prints a per-weapon table (kills, deaths, K/D, turf/min, win%, modes) instead of the per-map one,
+//   for weapon balance; --chunk N restarts the browser every N matches of a map so --parallel can split one map.
 import puppeteer from 'puppeteer-core';
+import fs from 'node:fs';
 import { launchOptions } from './browser.mjs';
+import { WEAPONS, WEAPON_ORDER } from '../src/config.js';
 
 const args = process.argv.slice(2);
 const opt = (k, d) => { const i = args.indexOf('--' + k); return i >= 0 ? args[i + 1] : d; };
@@ -21,8 +26,26 @@ const fps = +opt('fps', 30);
 const parallel = Math.max(1, +opt('parallel', 1));
 const base = opt('url', `http://localhost:${opt('port', 8490)}/`);
 const asJson = args.includes('--json');
+// --weapons random: all 8 bots get random weapons (distinct kinds within a team, least-used first so every weapon appears
+// about equally often) and the run prints a per-weapon table; --out <file> also writes it as JSON.
+const randomWeapons = opt('weapons', '') === 'random';
+const outFile = opt('out', '');
+const chunk = Math.max(1, +opt('chunk', runs));
+const used = Object.fromEntries(WEAPON_ORDER.map((id) => [id, 0]));
+const pickWeapons = () => {
+  const teams = [];
+  for (let t = 0; t < 2; t++) {
+    const kinds = new Set(), out = [];
+    while (out.length < 4) {
+      const pool = WEAPON_ORDER.filter((id) => !kinds.has(WEAPONS[id].kind)).sort((a, b) => used[a] - used[b] + (Math.random() - 0.5) * 0.9);
+      const id = pool[0]; out.push(id); kinds.add(WEAPONS[id].kind); used[id]++;
+    }
+    teams.push(out);
+  }
+  return teams;
+};
 
-async function evalMap(map) {
+async function evalMap(map, runs) {
   const browser = await puppeteer.launch({ ...launchOptions({ width: 960, height: 540 }), protocolTimeout: 3600000 });
   const page = await browser.newPage();
   const errors = [];
@@ -38,10 +61,17 @@ async function evalMap(map) {
     const t0 = Date.now();
     await page.evaluate((o) => window.__inkwave.api.startMatch({ mapId: o.map, difficulty: o.difficulty, duration: o.duration }), { map, difficulty, duration });
     await page.waitForFunction('__inkwave.match && !__inkwave.match.attract && __inkwave.match.state !== "init"', { timeout: 600000, polling: 100 });
+    if (randomWeapons) {
+      const teams = pickWeapons();
+      await page.evaluate((teams) => {
+        const cnt = [0, 0];
+        for (const a of window.__inkwave.match.actors) a.setWeapon(teams[a.team][cnt[a.team]++]);
+      }, teams);
+    }
     // instrument: time each bot's update, remember the ink of every actor, count modes
     await page.evaluate(() => {
       const g = window.__inkwave;
-      const S = window.__bs = { modes: {}, frames: 0, stuck: 0, botFrames: 0, ink: 0, upMs: 0, upN: 0, prev: new Map() };
+      const S = window.__bs = { wm: {}, modes: {}, frames: 0, stuck: 0, botFrames: 0, ink: 0, upMs: 0, upN: 0, prev: new Map() };
       for (const a of g.match.actors) {
         if (!a.bot) continue;
         const b = a.bot, orig = b.update;
@@ -61,6 +91,7 @@ async function evalMap(map) {
               const b = a.bot; if (!b || !a.alive) continue;
               S.botFrames++;
               S.modes[b.mode] = (S.modes[b.mode] || 0) + 1;
+              const wm = S.wm[a.weaponId] || (S.wm[a.weaponId] = {}); wm[b.mode] = (wm[b.mode] || 0) + 1;
               if (b.noProg > 1.5) S.stuck++;
               const p = S.prev.get(a); if (p > a.ink) S.ink += p - a.ink;
               S.prev.set(a, a.ink);
@@ -79,7 +110,8 @@ async function evalMap(map) {
       const bots = m.actors.filter((o) => o.bot);
       const turf = bots.reduce((x, o) => x + o.stats.turf, 0);
       const kills = bots.reduce((x, o) => x + o.stats.splats, 0);
-      return { state: m.state, cov0: cov[0], cov1: cov[1], turf, kills, nBots: bots.length, S: { modes: S.modes, botFrames: S.botFrames, stuck: S.stuck, ink: S.ink, upMs: S.upMs, upN: S.upN } };
+      const players = m.actors.map((o) => ({ id: o.weaponId, team: o.team, kills: o.stats.splats, deaths: o.stats.deaths, turf: o.stats.turf, specials: o.stats.specials }));
+      return { players, winner: m.result ? m.result.winner : -1, wm: S.wm, state: m.state, cov0: cov[0], cov1: cov[1], turf, kills, nBots: bots.length, S: { modes: S.modes, botFrames: S.botFrames, stuck: S.stuck, ink: S.ink, upMs: S.upMs, upN: S.upN } };
     });
     if (res.state !== 'judge' && res.state !== 'results') console.error(`${map} #${r}: match did not finish (state ${res.state})`);
     rows.push({ ...res, map });
@@ -91,9 +123,10 @@ async function evalMap(map) {
 }
 
 const results = new Map();
-const queue = [...maps];
-await Promise.all(Array.from({ length: Math.min(parallel, maps.length) }, async () => {
-  while (queue.length) { const m = queue.shift(); results.set(m, await evalMap(m)); }
+const queue = [];
+for (const m of maps) { results.set(m, []); for (let left = runs; left > 0; left -= chunk) queue.push([m, Math.min(chunk, left)]); }
+await Promise.all(Array.from({ length: Math.min(parallel, queue.length) }, async () => {
+  while (queue.length) { const [m, n] = queue.shift(); results.get(m).push(...await evalMap(m, n)); }
 }));
 
 const summarize = (rows) => {
@@ -112,6 +145,30 @@ const summarize = (rows) => {
     modes: Object.fromEntries(Object.entries(modes).map(([k, v]) => [k, v / bf * 100])),
   };
 };
+if (randomWeapons) {
+  const W = {};
+  const wmAll = {};
+  for (const r of [...results.values()].flat()) {
+    for (const p of r.players) {
+      const w = W[p.id] || (W[p.id] = { n: 0, kills: 0, deaths: 0, turf: 0, specials: 0, wins: 0 });
+      w.n++; w.kills += p.kills; w.deaths += p.deaths; w.turf += p.turf; w.specials += p.specials; if (p.team === r.winner) w.wins++;
+    }
+    for (const [id, m] of Object.entries(r.wm)) for (const [k, v] of Object.entries(m)) { const o = wmAll[id] || (wmAll[id] = {}); o[k] = (o[k] || 0) + v; }
+  }
+  const min = duration / 60;
+  const rows = WEAPON_ORDER.filter((id) => W[id]).map((id) => {
+    const w = W[id], tot = Object.values(wmAll[id] || {}).reduce((x, y) => x + y, 0) || 1;
+    const md = Object.fromEntries(['paint', 'fight', 'retreat', 'refill', 'hunt', 'ambush'].map((k) => [k, ((wmAll[id] || {})[k] || 0) / tot * 100]));
+    return { id, n: w.n, kpm: w.kills / w.n / min, dpm: w.deaths / w.n / min, kd: w.kills / Math.max(1, w.deaths), tpm: w.turf / w.n / min, sp: w.specials / w.n, win: w.wins / w.n * 100, modes: md };
+  });
+  const med = [...rows].map((r) => r.tpm).sort((a, b) => a - b)[rows.length >> 1];
+  if (outFile) fs.writeFileSync(outFile, JSON.stringify({ duration, median_tpm: med, rows }, null, 1));
+  console.log(`\nper weapon · ${difficulty} · ${duration} s · ${[...results.values()].flat().length} matches · median turf/min ${med.toFixed(0)}`);
+  console.log('| weapon | n | kills/min | deaths/min | K/D | turf/min | vs median | specials | win% | paint/fight/retreat/refill/hunt/ambush % |');
+  console.log('|---|---|---|---|---|---|---|---|---|---|');
+  for (const r of rows) console.log(`| ${r.id} | ${r.n} | ${r.kpm.toFixed(2)} | ${r.dpm.toFixed(2)} | ${r.kd.toFixed(2)} | ${r.tpm.toFixed(0)} | ${((r.tpm / med - 1) * 100).toFixed(0)}% | ${r.sp.toFixed(1)} | ${r.win.toFixed(0)} | ${Object.values(r.modes).map((v) => v.toFixed(0)).join('/')} |`);
+  process.exit(0);
+}
 const perMap = maps.map((m) => [m, summarize(results.get(m))]);
 const all = summarize([...results.values()].flat());
 if (asJson) { console.log(JSON.stringify({ perMap: Object.fromEntries(perMap), all }, null, 1)); process.exit(0); }

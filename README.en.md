@@ -53,9 +53,9 @@
 |---|---|---|---|
 | Move | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> | Left stick | Drag on the left side |
 | Aim | Mouse | Right stick | Drag on the right side |
-| Fire | Left click | RT | Shoot button (drag it to keep aiming) |
+| Fire | Left click | RT | Shoot button (any button can aim while held: keep your finger down and drag) |
 | Squid form | <kbd>Shift</kbd> | LT | Squid button (hold, or tap to toggle) |
-| Jump / dodge roll | <kbd>Space</kbd> | A | Jump button |
+| Jump / dodge roll | <kbd>Space</kbd> | A | Jump button (Dualies: press it while firing, or use the Slide button; tilt the stick or swipe sideways on the button to pick the direction) |
 | Sub weapon (bomb) | Right click / <kbd>E</kbd> | RB | Bomb button (hold to aim, release to throw) |
 | Special | <kbd>F</kbd> / <kbd>Q</kbd> | Y | Special button |
 | Map + Super Jump | Hold <kbd>Tab</kbd> or <kbd>M</kbd>, then <kbd>1</kbd>–<kbd>4</kbd> or click a pin | View | Map button, then tap a pin |

@@ -58,6 +58,10 @@ html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callou
 .iw-tbtn--jump { --s: .92; right: calc(var(--sr) + 3vw); bottom: calc(var(--sb) + 4vh); }
 .iw-tbtn--special { --s: .95; right: calc(var(--sr) + 3vw); top: 25vh; }
 .iw-tbtn--special.is-ready { opacity: 1; background: rgba(var(--a-rgb, 255, 138, 20), .7); animation: iw-tbtn-glow 1s ease-in-out infinite; }
+/* slide (dualies only): in the gap left of the fire button, between the squid button below and the bomb button above */
+.iw-tbtn--slide { --s: .8; right: calc(var(--sr) + 5.6vw + var(--tb) * 1.36); bottom: calc(var(--sb) + 24.5vh); }
+.iw-tbtn--slide.is-down { background: rgba(var(--a-rgb, 255, 138, 20), .6); }
+.iw-tbtn.is-hidden { display: none; }
 .iw-tbtn--map { --s: .7; left: calc(var(--sl) + var(--u) * 15.8); top: calc(var(--u) * 9.5); }
 .iw-tbtn--pause { --s: .56; left: calc(var(--sl) + var(--u) * 2.2); top: calc(var(--u) * 1.4); background: rgba(21, 18, 28, .7); }
 .iw-tbtn--pause .iw-tbtn__icon { width: 42%; height: 42%; }
@@ -67,6 +71,7 @@ html, body { touch-action: none; overscroll-behavior: none; -webkit-touch-callou
 .iw-touch.is-left .iw-tbtn--fire { right: auto; left: calc(var(--sl) + 5vw); }
 .iw-touch.is-left .iw-tbtn--sub { right: auto; left: calc(var(--sl) + 6vw + var(--tb) * 1.38); }
 .iw-touch.is-left .iw-tbtn--squid { right: auto; left: calc(var(--sl) + 7vw + var(--tb) * 1.3); }
+.iw-touch.is-left .iw-tbtn--slide { right: auto; left: calc(var(--sl) + 5.6vw + var(--tb) * 1.36); }
 .iw-touch.is-left .iw-tbtn--jump { right: auto; left: calc(var(--sl) + 3vw); }
 .iw-touch.is-left .iw-tbtn--special { right: auto; left: calc(var(--sl) + 3vw); top: 34vh; }
 

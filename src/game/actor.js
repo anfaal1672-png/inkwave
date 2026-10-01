@@ -52,7 +52,7 @@ export class Actor {
     this.yaw = 0; this.aimYaw = 0; this.aimPitch = 0;
     this.aimDir = new THREE.Vector3(0, 0, 1);
     this.aimPoint = new THREE.Vector3();
-    this.intent = { move: new THREE.Vector3(), jump: false, squid: false, fire: false, sub: false, special: false };
+    this.intent = { move: new THREE.Vector3(), dodge: null, jump: false, squid: false, fire: false, sub: false, special: false };
     this._prevIntent = { fire: false, sub: false, jump: false, special: false, squid: false };
     this._squidPressT = -1; this._firePressT = -1;
     this.contacts = makeContacts();
@@ -311,6 +311,8 @@ export class Actor {
     // ---- dualies: a jump press while firing with a move direction rolls instead of jumping (weapons.js owns the roll:
     // it spends the ink, emits weapon:dodge and triggers the character's roll; its velocity profile drives _horizontal)
     if (this.jumpBuffer > 0 && !isSquid && this.grounded && this.weaponRunner.tryDodge?.(this.intent.move)) this.jumpBuffer = 0;
+    // ... or the touch slide button, which carries its own world-xz direction (intent.dodge, one frame)
+    else if (this.intent.dodge && !isSquid && this.grounded) this.weaponRunner.tryDodge?.(this.intent.dodge);
 
     // ---- jump (buffered, with coyote time)
     this.coyote = this.grounded ? P.coyoteTime : this.coyote - dt;

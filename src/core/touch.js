@@ -1,8 +1,11 @@
 // Touch controls (phones / tablets, landscape). Pointer Events with any number of fingers:
 //   · left side  — floating move stick: wherever the thumb lands becomes the stick's centre
 //   · right side — drag to look (raw deltas, scaled by settings.touchSensitivity)
-//   · buttons    — fire (drag while holding it to keep aiming), squid form (hold, or toggle via settings), jump,
-//                  bomb (hold to aim, release to throw), special, map (hold; tap a pin to Super Jump), pause
+//   · buttons    — fire, squid form (hold, or toggle via settings), jump, bomb (hold to aim, release to throw), special,
+//                  map (hold; tap a pin to Super Jump), pause. Every button but map / pause also aims: drag while holding
+//                  it (jump / squid / special / slide only after a small dead zone, so a shaky thumb does not turn the camera)
+//                  · slide (dualies only): fire + dodge-roll in one press; direction = stick, else a quick sideways swipe
+//                  on the button, else camera-right
 // Mirrored for left-handed play (settings.touchLeftHanded); size / opacity from settings.touchScale / touchOpacity.
 // State is read by PlayerController each frame (move, lookDx/lookDy, held.*) and cleared by Input.endFrame().
 import { G, VIEW } from './ctx.js';
@@ -23,8 +26,14 @@ const BUTTONS = [
   { id: 'squid', label: N_('Squid') },
   { id: 'jump', label: N_('Jump') },
   { id: 'special', label: N_('Special') },
+  { id: 'slide', label: N_('Slide') },
   { id: 'map', label: N_('Map') },
 ];
+const SLIDE_ICON = '<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M6 32 L24 16 V26 H40 V16 L58 32 L40 48 V38 H24 V48 Z" fill="currentColor" stroke="#15121c" stroke-width="4" stroke-linejoin="round"/></svg>';
+// buttons whose drag only aims after the finger has travelled this far (px): a press is not a swipe
+const LOOK_DEADZONE = { jump: 8, squid: 8, special: 8, slide: 14 };
+const SLIDE_WAIT = 0.12;        // s a slide press waits for a sideways swipe when the stick is neutral
+const SLIDE_SWIPE = 12;         // px of sideways travel that picks the slide direction
 const STICK_R = 0.075;          // stick travel radius as a fraction of the viewport height (≈ 29 px on a 390 px phone)
 
 export class TouchControls {
@@ -32,7 +41,9 @@ export class TouchControls {
     this.input = input;
     this.move = { x: 0, y: 0 };
     this.lookDx = 0; this.lookDy = 0;
-    this.held = { fire: false, sub: false, squid: false, jump: false, special: false, map: false };
+    this.held = { fire: false, sub: false, squid: false, jump: false, special: false, map: false, slide: false };
+    this.slideReq = null;        // { x, y } stick-space direction for one dodge roll; taken by PlayerController.takeSlide()
+    this._slidePend = null;      // { t, dx } a slide press still waiting for a swipe direction
     this.squidLatched = false;
     this.active = false;
     this.onPause = null;
@@ -65,6 +76,8 @@ export class TouchControls {
     }
     this.btns.squid.querySelector('.iw-tbtn__icon').innerHTML = SQUID;
     this.btns.jump.querySelector('.iw-tbtn__icon').innerHTML = JUMP_ICON;
+    this.btns.slide.querySelector('.iw-tbtn__icon').innerHTML = SLIDE_ICON;
+    this.btns.slide.classList.add('is-hidden');
     this.btns.sub.querySelector('.iw-tbtn__icon').innerHTML = SUB_ICONS.bomb;
     this.btns.map.querySelector('.iw-tbtn__icon').innerHTML = GLYPHS.map;
     this.pauseBtn = document.createElement('div');
@@ -100,6 +113,9 @@ export class TouchControls {
   setLoadout(weaponKind, specialId) {
     this.btns.fire.querySelector('.iw-tbtn__icon').innerHTML = weaponIcon(weaponKind);
     this.btns.special.querySelector('.iw-tbtn__icon').innerHTML = specialIcon(specialId);
+    const dual = weaponKind === 'dualies';
+    this.btns.slide.classList.toggle('is-hidden', !dual);
+    if (!dual) { this.held.slide = false; this._slidePend = null; this.btns.slide.classList.remove('is-down'); }
   }
 
   /** The player's team ink tints the fire / squid buttons. */
@@ -133,6 +149,7 @@ export class TouchControls {
     this._ptr.clear();
     this.move.x = this.move.y = 0;
     this.lookDx = this.lookDy = 0;
+    this.slideReq = null; this._slidePend = null;
     for (const k in this.held) this.held[k] = false;
     this.squidLatched = false;
     for (const n of Object.values(this.btns)) n.classList.remove('is-down');
@@ -160,6 +177,7 @@ export class TouchControls {
     }
     // capture on the touched zone / button (the layer itself is pointer-events: none); moves and the release still
     // bubble up to this.el even when the finger slides off
+    if (p.id === 'slide') this._slideDown();
     p.cap = bEl || e.target;
     try { p.cap.setPointerCapture(e.pointerId); } catch { /* synthetic */ }
     this._ptr.set(e.pointerId, p);
@@ -179,8 +197,19 @@ export class TouchControls {
       if (m > 1) { p.ox += (sx / m) * (m - 1) * r; p.oy += (sy / m) * (m - 1) * r; sx /= m; sy /= m; this.stick.style.transform = `translate3d(${p.ox}px,${p.oy}px,0)`; }
       this.move.x = sx; this.move.y = -sy;
       this.knob.style.transform = `translate(${(sx * r).toFixed(1)}px,${(sy * r).toFixed(1)}px)`;
-    } else if (p.role === 'look' || (p.role === 'btn' && p.id === 'fire')) {
+    } else if (p.role === 'look') {
       this.lookDx += dx; this.lookDy += dy;
+    } else if (p.role === 'btn' && p.id !== 'map') {
+      // fire / bomb aim at once; the others wait until the finger has really moved (LOOK_DEADZONE), and the travel
+      // before that point is not turned into camera motion
+      const dz = LOOK_DEADZONE[p.id];
+      let aim = true;
+      if (dz && !p.far) { aim = false; if (Math.hypot(p.x - p.ox, p.y - p.oy) >= dz) p.far = true; }
+      if (aim) { this.lookDx += dx; this.lookDy += dy; }
+      if (p.id === 'slide' && this._slidePend) {
+        this._slidePend.dx += dx;
+        if (Math.abs(this._slidePend.dx) >= SLIDE_SWIPE) this._slideResolve(this._slidePend.dx > 0 ? 1 : -1, 0);
+      }
     }
   }
 
@@ -192,6 +221,24 @@ export class TouchControls {
     else if (p.role === 'btn') this._press(p.id, false);
   }
 
+  // slide press: a tilted stick decides the direction now; a neutral stick waits SLIDE_WAIT s for a sideways swipe
+  // on the button, then falls back to camera-right (takeSlide() resolves the timeout on the next frame)
+  _slideDown() {
+    if (Math.hypot(this.move.x, this.move.y) >= 0.3) this._slideResolve(this.move.x, this.move.y);
+    else this._slidePend = { t: performance.now(), dx: 0 };
+  }
+  _slideResolve(x, y) {
+    this._slidePend = null;
+    this.slideReq = { x, y };
+  }
+  /** PlayerController, once per frame: the pending slide direction ({ x, y } in stick space) or null. */
+  takeSlide() {
+    if (this._slidePend && performance.now() - this._slidePend.t >= SLIDE_WAIT * 1000) this._slideResolve(1, 0);
+    const r = this.slideReq;
+    this.slideReq = null;
+    return r;
+  }
+
   _press(id, down) {
     const n = this.btns[id];
     if (n) n.classList.toggle('is-down', down);
@@ -200,7 +247,7 @@ export class TouchControls {
       this.held.squid = this.squidLatched;
       return;
     }
-    if (id === 'fire' && down && this.squidLatched) { this.squidLatched = false; this.held.squid = false; }
+    if ((id === 'fire' || id === 'slide') && down && this.squidLatched) { this.squidLatched = false; this.held.squid = false; }
     if (id in this.held) this.held[id] = down;
   }
 }
