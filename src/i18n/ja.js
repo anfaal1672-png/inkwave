@@ -139,7 +139,7 @@ export const JA = {
   'Snap Charger': 'スナップチャージャー',
   'Charges fast for a shorter line. Quick to aim, easy on the ink.': 'チャージが速く、射程は短めのチャージャー。すばやく狙えて、インクも少なくてすむ。',
   'Rapid Blaster': 'ラピッドブラスター',
-  'Fires bursts twice as often, with smaller blasts and a longer reach.': '爆発は小さいが、速い間隔で撃てて射程も長いブラスター。',
+  'Fires bursts faster, with smaller blasts and a longer reach.': '爆発は小さいが、速い間隔で撃てて射程も長いブラスター。',
   'Glide Dualies': 'グライドマニューバー',
   'Faster pistols with a short, nimble dodge-roll. Four rolls before you run dry.': '連射が速く、短いスライドで身軽に動けるマニューバー。スライドは4回まで。',
   'Tri-Slosher': 'トライスロッシャー',
