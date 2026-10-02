@@ -109,6 +109,31 @@ export const SUB_ICONS = {
     </g>
     <circle cx="32" cy="43" r="4.6" fill="#fff" stroke="${K}" stroke-width="2.5"/>
     <path d="M25 29 Q21.5 35 19.5 42" stroke="#fff" stroke-opacity=".6" stroke-width="3.4" fill="none" stroke-linecap="round"/>`),
+  // suction bomb: knob, tapered body, suction cup
+  suction: svg(`<g ${O}>
+      <rect x="27" y="5" width="10" height="9" rx="3" fill="${DK}"/>
+      <path d="M27 14 L37 14 L45 47 L19 47 Z" fill="currentColor"/>
+      <path d="M13 56 C13 50 18 47 22 47 L42 47 C46 47 51 50 51 56 Z" fill="${DK}"/>
+    </g>
+    <path d="M28.5 21 L24.5 40" stroke="#fff" stroke-opacity=".6" stroke-width="3.2" fill="none" stroke-linecap="round"/>`),
+  // burst bomb: small ball with a band, motion ticks
+  burst: svg(`<g ${O}>
+      <rect x="27.5" y="11" width="9" height="8" rx="2.5" fill="${DK}"/>
+      <circle cx="32" cy="36" r="17" fill="currentColor"/>
+      <path d="M15.5 36 L48.5 36" fill="none"/>
+    </g>
+    <path d="M24 26 Q21 29 20 33" stroke="#fff" stroke-opacity=".6" stroke-width="3.2" fill="none" stroke-linecap="round"/>
+    <path d="M6 22 L11 25 M5 32 L10 32 M6 42 L11 39" stroke="${K}" stroke-width="3" stroke-linecap="round"/>`),
+  // sprinkler: clamp base, column, spinning nozzle bar with spray
+  sprinkler: svg(`<g ${O}>
+      <path d="M17 57 C17 50 22 48 26 48 L38 48 C42 48 47 50 47 57 Z" fill="${DK}"/>
+      <rect x="27" y="22" width="10" height="27" rx="4" fill="currentColor"/>
+      <rect x="12" y="17" width="40" height="7" rx="3.5" fill="${DK}"/>
+    </g>
+    <circle cx="8" cy="12" r="3.2" fill="currentColor" stroke="${K}" stroke-width="2"/>
+    <circle cx="56" cy="12" r="3.2" fill="currentColor" stroke="${K}" stroke-width="2"/>
+    <circle cx="14" cy="6" r="2.4" fill="currentColor" stroke="${K}" stroke-width="2"/>
+    <circle cx="50" cy="6" r="2.4" fill="currentColor" stroke="${K}" stroke-width="2"/>`),
 };
 
 export const SPECIAL_ICONS = {

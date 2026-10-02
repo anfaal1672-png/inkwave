@@ -53,7 +53,7 @@ const cfg = await import(pathToFileURL(join(SRC, 'config.js')).href);
 const look = await import(pathToFileURL(join(SRC, 'game', 'character-style.js')).href);
 add(cfg.GAME_SUBTITLE, 'config GAME_SUBTITLE');
 for (const w of Object.values(cfg.WEAPONS)) { add(w.name, 'WEAPONS'); add(w.class, 'WEAPONS'); add(w.blurb, 'WEAPONS'); }
-for (const s of Object.values(cfg.SUB)) add(s.name, 'SUB');
+for (const s of Object.values(cfg.SUB)) { add(s.name, 'SUB'); add(s.blurb, 'SUB'); }
 for (const s of Object.values(cfg.SPECIALS)) { add(s.name, 'SPECIALS'); add(s.blurb, 'SPECIALS'); }
 for (const m of cfg.MAPS) { add(m.name, 'MAPS'); add(m.blurb, 'MAPS'); }
 for (const d of Object.values(cfg.DIFFICULTY)) add(d.name, 'DIFFICULTY');

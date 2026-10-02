@@ -541,9 +541,10 @@ class FxHooks {
     const bombs = P.bombs;
     if (!bombs) return;
     const fx = this.fx, st = this.stamp;
-    const R = SUB.bomb.radius, fuse0 = SUB.bomb.fuse;
     for (let i = 0; i < bombs.length; i++) {
       const b = bombs[i];
+      if (b.kind === 'sprinkler' && b.stuck) continue;   // a planted sprinkler has no fuse ring
+      const S = b.s || SUB.bomb, R = S.radius, fuse0 = S.fuse;
       const col = this.G.teamColors[b.team];
       let r = this.bombs.get(b);
       if (!r) { r = { gp: new THREE.Vector3(), gn: new THREE.Vector3(0, 1, 0), ground: false, beepT: b.beepT || 0, vy: b.vel.y, stamp: st, armed: false }; this.bombs.set(b, r); }
@@ -552,12 +553,13 @@ class FxHooks {
       if (b.fuse < 0) {
         if (near) fx.bombTrail?.(b.pos, b.vel, col);
         if (r.vy < -1.5 && b.vel.y > 0.3 && near) { _n.set(0, 1, 0); fx.bounceSplash?.(_v.copy(b.pos).setY(b.pos.y - 0.2), _n, col); this._bump('bombBounce'); }
-      } else if (b.kind === 'bomb') {
+      } else if (b.kind === 'bomb' || b.kind === 'suction') {
         if (!r.armed) {
           r.armed = true;
           _v.copy(b.pos); _v.y += 0.3;
-          const h = this.G.physics?.raycast(_v, DOWN, 2.5, this.hit, true);
-          if (h && h.hit) { r.gp.copy(h.point); r.gn.copy(h.normal); r.ground = true; } else { r.gp.copy(b.pos); r.gp.y -= 0.2; }
+          const h = b.normal ? null : this.G.physics?.raycast(_v, DOWN, 2.5, this.hit, true);
+          if (b.normal) { r.gp.copy(b.pos); r.gn.copy(b.normal); r.ground = true; }   // a suction bomb's ring lies on its wall
+          else if (h && h.hit) { r.gp.copy(h.point); r.gn.copy(h.normal); r.ground = true; } else { r.gp.copy(b.pos); r.gp.y -= 0.2; }
           fx.bounceSplash?.(r.gp, r.gn, col);
           this._bump('bombArm');
         }

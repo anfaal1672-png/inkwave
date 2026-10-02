@@ -809,12 +809,44 @@ function buildBomb() {
   const sq = decal(squidShape(0.026)); placeXY(sq, new V3(1, 0, 0), new V3(0, 1, 0), new V3(0, -0.075, 0.0548)); P.add(sq, C.decal, M.print);
   return { kind: 'bomb', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
 }
+// Suction bomb: a knurled knob on top (the grip), a tapered ink body, a rubber suction cup at the bottom
+function buildSuction() {
+  const P = new Parts(), I = new Parts();
+  P.add(lathe(smoothProfile([[0, -0.012], [0.0105, -0.012], [0.0115, -0.006], [0.0115, 0.008], [0.009, 0.013], [0, 0.014]], 8), 14), C.rubber, M.rubber);
+  P.add(lathe(smoothProfile([[0, -0.02], [0.017, -0.019], [0.017, -0.013], [0, -0.012]], 4), 14), C.dark, M.gloss);
+  I.add(lathe(smoothProfile([[0, -0.098], [0.036, -0.096], [0.034, -0.07], [0.026, -0.04], [0.018, -0.022], [0, -0.019]], 12), 18));
+  P.add(lathe(smoothProfile([[0, -0.112], [0.047, -0.111], [0.044, -0.104], [0.03, -0.097], [0, -0.096]], 6), 18), C.rubber, M.rubber);
+  P.add(at(torus(0.0335, 0.0035, 5, 18), 0, 0, 0).rotateX(Math.PI / 2).translate(0, -0.074, 0), C.cream, M.gloss);
+  const led = superEllipsoid(0.0026, 0.0026, 0.0026, 1, 1, 8, 5); P.add(at(led, 0, -0.017, 0.016), C.red, M.led);
+  return { kind: 'suction', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
+}
+// Burst bomb: a small ink ball under a short cap, banded so it reads at a glance
+function buildBurst() {
+  const P = new Parts(), I = new Parts();
+  P.add(lathe(smoothProfile([[0, -0.012], [0.0095, -0.012], [0.0102, -0.006], [0.0102, 0.007], [0.008, 0.011], [0, 0.012]], 8), 14), C.rubber, M.rubber);
+  P.add(lathe(smoothProfile([[0, -0.021], [0.016, -0.02], [0.0155, -0.013], [0, -0.012]], 4), 14), C.dark, M.gloss);
+  I.add(at(superEllipsoid(0.034, 0.033, 0.034, 1, 1, 18, 12), 0, -0.052, 0));
+  P.add(at(torus(0.0345, 0.0038, 5, 20), 0, 0, 0).rotateX(Math.PI / 2).translate(0, -0.052, 0), C.cream, M.gloss);
+  for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2; P.add(at(superEllipsoid(0.004, 0.004, 0.004, 1, 1, 6, 4), Math.sin(a) * 0.026, -0.08, Math.cos(a) * 0.026), C.cream, M.gloss); }
+  return { kind: 'burst', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
+}
+// Sprinkler: held by its spinning head (an ink column with a nozzle bar); the dark clamp base hangs below
+function buildSprinkler() {
+  const P = new Parts(), I = new Parts();
+  I.add(lathe(smoothProfile([[0, -0.08], [0.017, -0.079], [0.016, -0.01], [0.012, 0.004], [0, 0.006]], 8), 14));
+  P.add(at(rbox(0.074, 0.011, 0.011, 0.5, 10, 6), 0, -0.012, 0), C.metal, M.metal);
+  for (const sx of [-1, 1]) P.add(at(rbox(0.008, 0.014, 0.008, 0.5, 6, 6), sx * 0.037, -0.006, 0), C.dark, M.gloss);
+  P.add(lathe(smoothProfile([[0, -0.106], [0.042, -0.105], [0.04, -0.088], [0.024, -0.08], [0, -0.079]], 6), 18), C.dark, M.gloss);
+  P.add(at(torus(0.033, 0.003, 5, 18), 0, 0, 0).rotateX(Math.PI / 2).translate(0, -0.097, 0), C.hazard, M.gloss);
+  return { kind: 'sprinkler', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
+}
+const SUB_BUILDERS = { bomb: buildBomb, suction: buildSuction, burst: buildBurst, sprinkler: buildSprinkler };
 const _subCache = new Map();
 /** Sub-weapon prop for the LEFT hand: { body, ink, handL:{pos,quat} (hand in prop space), inHandL:{pos,quat} (prop in hand space) }.
  *  Attach like a weapon: prop group under handL at inHandL (plastic body + team ink material). */
 export function getSubDef(kind = 'bomb') {
   if (!_subCache.has(kind)) {
-    const d = buildBomb();
+    const d = (SUB_BUILDERS[kind] || buildBomb)();
     d.handL = handInWeapon(d.grip, GRIP_HOLE_L);
     const inv = new THREE.Matrix4().compose(d.handL.pos, d.handL.quat, new V3(1, 1, 1)).invert();
     d.inHandL = { pos: new V3(), quat: new THREE.Quaternion() };

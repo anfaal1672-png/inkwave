@@ -123,7 +123,7 @@
   | Ink tank | インクタンク |
   | Splat (敵を倒す) / Splatted (倒される) | たおした / やられた |
   | Special / Special gauge | スペシャル / スペシャルゲージ |
-  | Sub weapon / Splat Bomb | サブウェポン / スプラッシュボム |
+  | Sub weapon / Splat Bomb / Suction Bomb / Burst Bomb / Sprinkler | サブウェポン / スプラッシュボム / キューバンボム / クイックボム / スプリンクラー |
   | Super Jump | スーパージャンプ |
   | Dodge roll (Dualies) | スライド |
   | Locker | ロッカー |

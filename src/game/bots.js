@@ -249,7 +249,9 @@ export class BotBrain {
           }
           this._firing = it.fire;
           // bombs are thrown with a reason (bunched-up or running enemies), never on a dice roll
-          if (!apex && this._bombOk && this.bombCd <= 0 && this.bombPrep <= 0 && a.ink > SUB.bomb.inkCost + 8 && dist > 5 && dist < 13) {
+          // (a burst bomb is cheap and pops on contact: thrown closer and more often; a sprinkler is for painting only)
+          const sub = this._subDef(), burst = sub.id === 'burst';
+          if (!apex && this._bombOk && sub.id !== 'sprinkler' && this.bombCd <= 0 && this.bombPrep <= 0 && a.ink > sub.inkCost + 8 && dist > (burst ? 3 : 5) && dist < (burst ? 11 : 13)) {
             this._bombOk = false; this._startBomb(t.pos.x, t.pos.y, t.pos.z);
           }
         } else if ((w.kind === 'charger' || w.kind === 'splatling') && a.weaponRunner.charging && !enemyVisible) {
@@ -313,7 +315,7 @@ export class BotBrain {
       wantYaw = Math.atan2(ls.x - a.pos.x, ls.z - a.pos.z) + Math.sin(this.t * 2.2 + this.ph1) * 0.7; wantPitch = -0.1;
       if ((w.kind === 'charger' || w.kind === 'splatling') && a.weaponRunner.charging) it.fire = true;   // let a held charge go
       else if (a.groundTeam === 1 && this._pathRemaining() > 4) it.squid = true;
-      if (!apex && !this._huntBomb && this.bombCd <= 0 && a.ink > SUB.bomb.inkCost + 8 && this.tailT <= 0) {
+      if (!apex && !this._huntBomb && this._subDef().id !== 'sprinkler' && this.bombCd <= 0 && a.ink > this._subDef().inkCost + 8 && this.tailT <= 0) {
         // smoke it out: it ducked behind a wall 5–12 m away
         this._huntBomb = true;
         const hd = Math.hypot(ls.x - a.pos.x, ls.z - a.pos.z);
@@ -671,17 +673,20 @@ export class BotBrain {
   }
 
   // Bomb throw at a world point: hold the aim until it is on line (see update), then release.
+  _subDef() { return SUB[this.a.weapon.sub] || SUB.bomb; }
+
   _startBomb(x, y, z) {
     const a = this.a;
     const hd = Math.hypot(x - a.pos.x, z - a.pos.z);
     const p = this._bombPitchFor(hd, y - a.pos.y);
-    this.bombCd = 5 + Math.random() * 6;
+    const id = this._subDef().id;
+    this.bombCd = id === 'burst' ? 2 + Math.random() * 2.5 : id === 'sprinkler' ? 12 + Math.random() * 8 : 5 + Math.random() * 6;
     if (p === null) return;
     this.bombYaw = Math.atan2(x - a.pos.x, z - a.pos.z); this.bombPitch = clamp(p - 0.28, -1.1, 1.0); this.bombPrep = 0.7;
   }
   // launch pitch that lands a thrown bomb hd metres away (dy above my feet) — the game's own integrator (throwSpeed + 1.5 m/s lift, 24 m/s² gravity)
   _bombPitchFor(hd, dy) {
-    const y0 = 1.35, ty = dy + 0.2, v = SUB.bomb.throwSpeed;
+    const y0 = 1.35, ty = dy + 0.2, v = this._subDef().throwSpeed;
     let best = null, bestErr = 0.8;
     for (let p = -0.3; p <= 1.1; p += 0.05) {
       let x = 0, y = y0, vh = Math.cos(p) * v, vy = Math.sin(p) * v + 1.5;
@@ -721,8 +726,10 @@ export class BotBrain {
     this.pPitch = clamp(Math.atan2(dy, ds), -1.0, 0.3);   // the weapon lobs onto aimPoint itself, so aim straight at the spot
     this.pDist = Math.max(1.5, Math.hypot(ds, dy));
     // a splat bomb for turf: a wide bare patch 8 m ahead, ink to spare, now and then
-    if (!this.diff.apex && this.bombCd <= 0 && this.bombPrep <= 0 && a.ink >= 80 && this.tailT <= 0 && Math.random() < 0.12) {
-      const bx = a.pos.x + Math.sin(heading) * 8, bz = a.pos.z + Math.cos(heading) * 8;
+    // painting with the sub: a bomb or a sprinkler onto unclaimed ground ahead (a burst bomb paints too little to bother)
+    if (!this.diff.apex && this._subDef().id !== 'burst' && this.bombCd <= 0 && this.bombPrep <= 0 && a.ink >= 80 && this.tailT <= 0 && Math.random() < 0.12) {
+      const far = this._subDef().id === 'sprinkler' ? 6 : 8;
+      const bx = a.pos.x + Math.sin(heading) * far, bz = a.pos.z + Math.cos(heading) * far;
       const st = G.paint.regionStats(bx, a.pos.y, bz, 3, a.team, _stats);
       if (st.n > 4 && st.own < 0.3) this._startBomb(bx, a.pos.y, bz);
     }

@@ -513,14 +513,24 @@ export class Character {
     for (let s = 0; s < HAIR_MAX; s++) this.hairTips.push(this.bones[`hairTip${s}`] || null);
   }
 
-  _buildBomb() {
-    const d = getSubDef('bomb');
-    const g = new THREE.Group(); g.position.copy(d.inHandL.pos); g.quaternion.copy(d.inHandL.quat);
-    const body = new THREE.Mesh(d.body, getPlasticMaterial()); body.castShadow = true;
-    const ink = new THREE.Mesh(d.ink, getInkMaterial(this.color)); ink.castShadow = true;
-    g.add(body, ink); g.visible = false;
-    this.bones.handL.add(g);
-    this.bomb = { group: g, ink };
+  // the sub-weapon prop in the left hand (config SUB kind: splat / suction / burst bomb, sprinkler); one per kind
+  // this character has held, swapped by setWeapon
+  _buildBomb(kind = 'bomb') {
+    const props = this.subProps || (this.subProps = {});
+    if (this.bomb && this.bomb.kind === kind) return;
+    if (this.bomb) { this.bomb.group.visible = false; this.bones.handL.remove(this.bomb.group); }
+    let pr = props[kind];
+    if (!pr) {
+      const d = getSubDef(kind);
+      const g = new THREE.Group(); g.position.copy(d.inHandL.pos); g.quaternion.copy(d.inHandL.quat);
+      const body = new THREE.Mesh(d.body, getPlasticMaterial()); body.castShadow = true;
+      const ink = new THREE.Mesh(d.ink, getInkMaterial(this.color)); ink.castShadow = true;
+      g.add(body, ink); g.visible = false;
+      pr = props[kind] = { group: g, ink, kind };
+    }
+    pr.ink.material = getInkMaterial(this.color);
+    this.bones.handL.add(pr.group);
+    this.bomb = pr;
   }
 
   _buildTank() {
@@ -628,6 +638,7 @@ export class Character {
     this.bones.handR.add(w.pivot);
     if (w.left) this.bones.handL.add(w.left.pivot);
     this.weaponId = id; this.weaponKind = kind; this.weapon = w; this.hold = HOLD[kind];
+    this._buildBomb((W && W.sub) || 'bomb');
     this.dual = !!w.left;
   }
 

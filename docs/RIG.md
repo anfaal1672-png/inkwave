@@ -58,7 +58,7 @@ lists them. Mirror rule for L/R pairs: rotations about local X keep their sign, 
   handle. `inHand` / `handR` / `handL` keep their meaning.
 
 ### Props
-- `getSubDef('bomb')` (character-weapons.js): hand-held splat bomb (`body` → plastic material, `ink` → team ink material),
+- `getSubDef(kind)` (character-weapons.js; kind = config `SUB` id: bomb · suction · burst · sprinkler): hand-held sub prop (`body` → plastic material, `ink` → team ink material),
   held by its knurled cap in the LEFT fist: parent a group to `handL` at `inHandL.pos/quat` (same maths as weapons).
 
 ## Added bones (log)

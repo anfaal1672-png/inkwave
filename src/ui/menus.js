@@ -802,7 +802,7 @@ export class Menus {
     const lo = this._loadout();
     const W = this._weapons()[lo.weapon];
     const sp = this._specials()[W.special] || Object.values(this._specials())[0];
-    const sub = this._sub();
+    const sub = (W.sub && (this.api.subs || SUB)[W.sub]) || this._sub();
     const items = [
       { id: 'play', label: 'PLAY', sub: 'Turf War · 4 v 4', icon: GLYPHS.play, cls: 'iw-btn--menu iw-btn--xl iw-btn--primary', accept: () => this._go('setup'), sound: 'ui_confirm' },
       { id: 'loadout', label: 'LOADOUT', icon: weaponIcon(W.kind || lo.weapon), cls: 'iw-btn--menu', accept: () => this._go('loadout') },
@@ -841,7 +841,7 @@ export class Menus {
         h('span', { class: 'iw-kitcard__icon', html: weaponIcon(W.kind || lo.weapon) }),
         h('div', null, h('div', { class: 'iw-kitcard__name' }, tr(W.name)), h('div', { class: 'iw-kitcard__kind' }, tr(W.class || KIND_LABEL[W.kind] || '')))),
       h('div', { class: 'iw-kitcard__chips' },
-        h('span', { class: 'iw-chip' }, h('i', { html: SUB_ICONS.bomb }), tr(sub.name)),
+        h('span', { class: 'iw-chip' }, h('i', { html: SUB_ICONS[sub.id] || SUB_ICONS.bomb }), tr(sub.name)),
         h('span', { class: 'iw-chip' }, h('i', { html: specialIcon(sp.id) }), tr(sp.name))));
     const el = h('div', { class: 'iw-screen iw-main' },
       h('div', { class: 'iw-scrim-left' }),
@@ -1636,7 +1636,7 @@ export class Menus {
       const sub = subOf(w);
       subIcon.innerHTML = SUB_ICONS[sub.id] || SUB_ICONS.bomb;
       subName.textContent = tr(sub.name);
-      subText.textContent = tr('Costs {n}% of your ink tank. Hold to aim, release to throw.', { n: Math.round(sub.inkCost || 70) });
+      subText.textContent = (sub.blurb ? tr(sub.blurb) + ' ' : '') + tr('Costs {n}% of your ink tank. Hold to aim, release to throw.', { n: Math.round(sub.inkCost || 70) });
       const sp = specials[w.special] || Object.values(specials)[0];
       spIcon.innerHTML = specialIcon(sp.id);
       spName.textContent = tr(sp.name);

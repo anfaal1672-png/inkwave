@@ -24,6 +24,7 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vect
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const _hit = new Hit(), _hit2 = new Hit();
 const _foot = new THREE.Vector3();
+const _UP = new THREE.Vector3(0, 1, 0), _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3();
 const _res = { t: 0, dist: 0 };
 const DEG = Math.PI / 180;
 const HAND_R = Object.freeze({ hand: 0, valueOf() { return 1; } }), HAND_L = Object.freeze({ hand: 1, valueOf() { return 1; } });
@@ -98,8 +99,8 @@ export class WeaponRunner {
       case 'slosher': this._slosher(dt, inp, w); break;
       case 'splatling': this._splatling(dt, inp, w); break;
     }
-    // ---- sub weapon (splat bomb)
-    const bomb = SUB.bomb;
+    // ---- sub weapon (config SUB: splat / suction / burst bomb, sprinkler)
+    const bomb = SUB[w.sub] || SUB.bomb;
     if (inp.sub && !this.aimingSub) {
       this.aimingSub = true;
       if (a.ink < bomb.inkCost && a.isLocal) { G.audio?.play('low_ink'); emit('lowink', { actor: a, need: bomb.inkCost }); }
@@ -111,7 +112,7 @@ export class WeaponRunner {
         a.ink -= bomb.inkCost;
         a.lastFire = 0;
         a.character.trigger('throw');
-        G.projectiles.throwBomb(a);
+        G.projectiles.throwBomb(a, bomb);
         rumble(a, 0.08, 0.22, 70);
       }
     }
@@ -554,6 +555,7 @@ export class Projectiles {
     this.clouds = [];
     this.beams = [];
     this.barriers = [];          // Bubble Barrier domes
+    this.sprinklers = [];        // stuck, spraying sprinklers (also in bombs): what enemy shots test against
     // glossy ink teardrops (+ satellite droplets), one instanced draw
     const geo = new THREE.SphereGeometry(1, 14, 12).rotateX(Math.PI / 2);
     this.blobShape = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BLOBS * 4), 4);
@@ -571,6 +573,14 @@ export class Projectiles {
     this.bombGeo = new THREE.SphereGeometry(0.2, 20, 14);
     this.bombCapGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.12, 12);
     this.bombMatCache = new Map();
+    this.capMat = new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.4, metalness: 0.6 });   // shared dark fittings
+    // sub shapes (built once; origin = where the cup / base meets the surface once it sticks)
+    this.suctionGeo = new THREE.CylinderGeometry(0.075, 0.14, 0.34, 14).translate(0, 0.22, 0);
+    this.cupGeo = new THREE.CylinderGeometry(0.15, 0.12, 0.05, 16).translate(0, 0.025, 0);
+    this.burstGeo = new THREE.SphereGeometry(0.14, 16, 12);
+    this.sprBaseGeo = new THREE.CylinderGeometry(0.15, 0.19, 0.12, 14).translate(0, 0.06, 0);
+    this.sprColGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.2, 10).translate(0, 0.1, 0);
+    this.sprArmGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.36, 8).rotateZ(Math.PI / 2).translate(0, 0.17, 0);
     // missiles + barrier domes: shared geometry, per-team shared materials
     this.missileGeo = new THREE.CylinderGeometry(0.06, 0.1, 0.8, 10);
     this.domeGeo = new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -601,8 +611,9 @@ export class Projectiles {
   clear() {
     for (const p of this.list) this.pool.push(p);
     this.list.length = 0;
-    for (const b of this.bombs) this.scene.remove(b.mesh);
+    for (const b of this.bombs) { this.scene.remove(b.mesh); if (b.mat) b.mat.dispose(); }
     this.bombs.length = 0;
+    this.sprinklers.length = 0;
     for (const c of this.clouds) this.scene.remove(c.group);
     this.clouds.length = 0;
     for (const br of this.barriers) this.scene.remove(br.mesh);
@@ -994,21 +1005,146 @@ export class Projectiles {
     return out.set(Math.sin(a.aimYaw) * cp * speed + a.vel.x * 0.4, Math.sin(pitch) * speed + 1.5, Math.cos(a.aimYaw) * cp * speed + a.vel.z * 0.4);
   }
 
-  throwBomb(a) {
-    const b = SUB.bomb;
+  // Sub weapons (config SUB) and Bomb Rush's splat bombs: one record in this.bombs per throw. The body material is a
+  // per-bomb clone (its fuse flash is its own) and is disposed with the bomb (_removeBomb).
+  throwBomb(a, s = SUB.bomb) {
+    const kind = s.id;
     const group = new THREE.Group();
-    const body = new THREE.Mesh(this.bombGeo, this._bombMat(a.team).clone());
+    const mat = this._bombMat(a.team).clone();
+    let body, head = null;
+    if (kind === 'suction') {
+      body = new THREE.Mesh(this.suctionGeo, mat);
+      const cup = new THREE.Mesh(this.cupGeo, this.capMat);
+      const knob = new THREE.Mesh(this.bombCapGeo, this.capMat); knob.position.y = 0.42; knob.scale.setScalar(0.7);
+      group.add(body, cup, knob);
+    } else if (kind === 'burst') {
+      body = new THREE.Mesh(this.burstGeo, mat);
+      const cap = new THREE.Mesh(this.bombCapGeo, this.capMat); cap.position.y = 0.14; cap.scale.setScalar(0.6);
+      group.add(body, cap);
+    } else if (kind === 'sprinkler') {
+      const base = new THREE.Mesh(this.sprBaseGeo, this.capMat);
+      head = new THREE.Group(); head.position.y = 0.1;
+      body = new THREE.Mesh(this.sprColGeo, mat);
+      head.add(body, new THREE.Mesh(this.sprArmGeo, mat));
+      group.add(base, head);
+    } else {
+      body = new THREE.Mesh(this.bombGeo, mat);
+      const cap = new THREE.Mesh(this.bombCapGeo, this.capMat); cap.position.y = 0.2;
+      group.add(body, cap);
+    }
     body.castShadow = true;
-    const cap = new THREE.Mesh(this.bombCapGeo, new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.4, metalness: 0.6 }));
-    cap.position.y = 0.2;
-    group.add(body, cap);
     const pos = _v.copy(a.pos); pos.y += 1.35;
     group.position.copy(pos);
     this.scene.add(group);
-    const vel = this.throwVelocity(a, b.throwSpeed, new THREE.Vector3());
-    this.bombs.push({ kind: 'bomb', owner: a, team: a.team, mesh: group, body, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(Math.random() * 8, Math.random() * 8, 0), beepT: 0 });
-    if (a.isLocal || a._nearCamera()) G.audio?.play('bomb_throw', { pos: a.isLocal ? undefined : a.pos, volume: 0.7 });
-    emit('bomb:throw', { actor: a, pos: pos.clone(), team: a.team, radius: SUB.bomb.radius });
+    const vel = this.throwVelocity(a, s.throwSpeed, new THREE.Vector3());
+    this.bombs.push({ kind, s, owner: a, team: a.team, mesh: group, body, head, mat, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(Math.random() * 8, Math.random() * 8, 0), beepT: 0,
+      stuck: false, normal: null, hp: s.hp || 0, life: 0, sprT: 0, sprA: Math.random() * 6 });
+    if (a.isLocal || a._nearCamera()) G.audio?.play('bomb_throw', { pos: a.isLocal ? undefined : a.pos, volume: 0.7, pitch: kind === 'burst' ? 1.25 : kind === 'sprinkler' ? 0.85 : 1 });
+    emit('bomb:throw', { actor: a, pos: pos.clone(), team: a.team, radius: s.radius || 0, kind });
+  }
+
+  _removeBomb(i) {
+    const b = this.bombs[i];
+    this.scene.remove(b.mesh);
+    if (b.mat) b.mat.dispose();
+    if (b.kind === 'sprinkler') { const k = this.sprinklers.indexOf(b); if (k >= 0) this.sprinklers.splice(k, 1); }
+    this.bombs.splice(i, 1);
+  }
+
+  // suction bomb / sprinkler: cling where it landed, base flat on the surface
+  _stick(b, hit) {
+    b.stuck = true; b.vel.set(0, 0, 0);
+    b.normal = hit.normal.clone();
+    b.pos.copy(hit.point).addScaledVector(hit.normal, 0.03);
+    b.mesh.position.copy(b.pos);
+    b.mesh.quaternion.setFromUnitVectors(_UP, hit.normal);
+    const near = G.camera.position.distanceToSquared(b.pos) < 30 * 30;
+    if (b.kind === 'suction') {
+      b.fuse = b.s.fuse;
+      if (near) G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.6, pitch: 0.85 });
+      emit('bomb:arm', { actor: b.owner, pos: b.pos.clone(), team: b.team, radius: b.s.radius });
+    } else {
+      // one sprinkler per player: the new one retires the old
+      for (const o of this.sprinklers) if (o.owner === b.owner) o.life = 0;
+      b.life = b.s.life; b.sprT = 0.25;
+      this.sprinklers.push(b);
+      if (near) G.audio?.play('sprinkler_set', { pos: b.pos, volume: 0.7 });
+    }
+  }
+
+  // a stuck sub's frame; true = remove it
+  _updateStuck(b, dt) {
+    b.age += dt;
+    if (b.kind === 'suction') {
+      b.fuse -= dt; b.beepT -= dt;
+      const k = 1 - b.fuse / b.s.fuse;
+      b.body.material.emissiveIntensity = (Math.sin(b.age * (10 + k * 30)) * 0.5 + 0.5) * (0.4 + k * 1.8);
+      b.mesh.scale.setScalar(1 + k * 0.3 + Math.sin(b.age * 40) * 0.03 * k);
+      if (b.beepT <= 0) {
+        b.beepT = 0.32 - k * 0.2;
+        if (G.camera.position.distanceToSquared(b.pos) < 30 * 30) G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.35 + k * 0.4, pitch: 0.9 + k * 0.25 });
+      }
+      if (b.fuse <= 0) { this._explodeBomb(b, b.s, 'suction'); return true; }
+      return false;
+    }
+    // sprinkler: spins and sprays, fast at first, until its life runs out or foes break it
+    if (b.hp <= 0) {
+      G.fx?.burst(b.pos, b.normal, G.teamColors[b.team], { count: 12, speed: 4, size: 0.08, paint: false });
+      if (G.camera.position.distanceToSquared(b.pos) < 30 * 30) G.audio?.play('splat_small', { pos: b.pos, volume: 0.7, pitch: 1.3 });
+      return true;
+    }
+    if ((b.life -= dt) <= 0) return true;
+    const fast = b.s.life - b.life < b.s.burstTime;
+    b.head.rotation.y += dt * (fast ? 13 : 5);
+    if ((b.sprT -= dt) <= 0) { b.sprT = fast ? b.s.interval : b.s.slowInterval; this._spray(b); }
+    return false;
+  }
+
+  // two drops out of the spinning arms, flung outward along the surface and away from it
+  _spray(b) {
+    const s = b.s, n = b.normal;
+    _t1.set(1, 0, 0); if (Math.abs(n.x) > 0.9) _t1.set(0, 0, 1);
+    _t1.addScaledVector(n, -_t1.dot(n)).normalize(); _t2.crossVectors(n, _t1);
+    b.sprA += 2.2;
+    for (let k = 0; k < 2; k++) {
+      const ang = b.sprA + k * Math.PI, c = Math.cos(ang), si = Math.sin(ang);
+      const p = this._new();
+      Object.assign(p, { type: 'drop', wid: 'sprinkler', owner: b.owner, team: b.team, age: 0, life: 1.4, straight: 0, radius: 0.7, damage: s.damage, dmgFar: s.damage, size: 0.12,
+        trail: 0, trailEvery: 0, trailRadius: 0.4, grav: 24, drag: 0.3, seed: Math.random(), vis: 0.085 + Math.random() * 0.02, tail0: 0.4, tailK: 1.0, wob: 0.1, wobF: 19, nose: 0, sats: 1 });
+      p.pos.copy(b.pos).addScaledVector(n, 0.28); p.prev.copy(p.pos); p.start.copy(p.pos);
+      const sp = s.spraySpeed * (0.8 + Math.random() * 0.4);
+      p.vel.set(0, 1.2, 0).addScaledVector(_t1, c * 0.85 * sp).addScaledVector(_t2, si * 0.85 * sp).addScaledVector(n, 0.5 * sp);
+      this.list.push(p);
+    }
+  }
+
+  // an enemy round reaching a sprinkler chips it (true = the round is spent)
+  _hitSprinkler(p) {
+    for (const b of this.sprinklers) {
+      if (b.team === p.team || b.hp <= 0) continue;
+      // closest point of this frame's segment to the sprinkler head
+      _v.subVectors(p.pos, p.prev); const L2 = _v.lengthSq();
+      _v2.subVectors(b.pos, p.prev);
+      const t = L2 > 1e-8 ? clamp(_v2.dot(_v) / L2, 0, 1) : 0;
+      _v3.copy(p.prev).addScaledVector(_v, t);
+      if (_v3.distanceToSquared(b.pos) > (0.38 + p.size) * (0.38 + p.size)) continue;
+      b.hp -= p.damage || 25;
+      G.fx?.burst(_v3, b.normal, p.owner.color, { count: 5, speed: 2.5, size: 0.06, paint: false });
+      return true;
+    }
+    return false;
+  }
+
+  // burst bomb in flight: a foe's body pops it
+  _bombTouchesFoe(b) {
+    for (const e of G.actors) {
+      if (e.team === b.team || !e.alive) continue;
+      const dy = b.pos.y - e.pos.y;
+      if (dy < -0.2 || dy > (e.form === 'squid' ? PLAYER.squidHeight : PLAYER.height) + 0.2) continue;
+      const dx = b.pos.x - e.pos.x, dz = b.pos.z - e.pos.z;
+      if (dx * dx + dz * dz < (PLAYER.radius + 0.2) * (PLAYER.radius + 0.2)) return true;
+    }
+    return false;
   }
 
   throwStorm(a) {
@@ -1021,7 +1157,7 @@ export class Projectiles {
     group.position.copy(pos);
     this.scene.add(group);
     const vel = this.throwVelocity(a, sp.throwSpeed, new THREE.Vector3());
-    this.bombs.push({ kind: 'storm', owner: a, team: a.team, mesh: group, body, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(4, 6, 0), beepT: 0, dir: new THREE.Vector3(vel.x, 0, vel.z).normalize() });
+    this.bombs.push({ kind: 'storm', owner: a, team: a.team, mesh: group, body, mat: body.material, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(4, 6, 0), beepT: 0, dir: new THREE.Vector3(vel.x, 0, vel.z).normalize() });
   }
 
   // ---- Missile Salvo: up to `count` enemies in range, one missile each on a fixed lobbed arc (walls don't stop them)
@@ -1183,6 +1319,8 @@ export class Projectiles {
       const k = 1 - clamp((d - 0.8) / (s.radius - 0.8), 0, 1);
       this.applyHit(b.owner, e, lerp(s.damageMin, s.damageMax, k * k), cause);
     }
+    // a blast in range breaks enemy sprinklers outright
+    for (const sp of this.sprinklers) if (sp.team !== b.team && sp.pos.distanceToSquared(c) < s.radius * s.radius) sp.hp = 0;
   }
 
   _spawnCloud(b) {
@@ -1278,7 +1416,8 @@ export class Projectiles {
           dead = true; break;
         }
       }
-      // world
+      // enemy sprinklers, then the world
+      if (!dead && this.sprinklers.length && this._hitSprinkler(p)) dead = true;
       if (!dead) {
         const hit = G.physics.segment(p.prev, p.pos, _hit, true);
         if (hit.hit) {
@@ -1325,7 +1464,7 @@ export class Projectiles {
     const near = p.owner.isLocal || G.camera.position.distanceToSquared(hit.point) < 22 * 22;
     if (near) {
       G.fx?.burst(hit.point, hit.normal, p.owner.color, { count: p.type === 'blast' ? 14 : 5, speed: p.type === 'blast' ? 5 : 3, size: 0.07, paint: false });
-      if (Math.random() < (p.type === 'shot' ? 0.45 : 1)) G.audio?.play(p.type === 'blast' ? 'splat_big' : 'splat_small', { pos: hit.point, volume: p.type === 'shot' ? 0.35 : 0.6 });
+      if (Math.random() < (p.type === 'shot' ? 0.45 : p.wid === 'sprinkler' ? 0.2 : 1)) G.audio?.play(p.type === 'blast' ? 'splat_big' : 'splat_small', { pos: hit.point, volume: p.type === 'shot' ? 0.35 : 0.6 });
     }
     if (p.type === 'blast') this._blastBurst(p, hit.point, null);
   }
@@ -1355,11 +1494,12 @@ export class Projectiles {
       if (b.kind === 'missile') {
         if (this.barriers.length && b.launched) {
           const br = this._barrierCross(b.prev, b.pos, b.team);
-          if (br) { this._barrierDamage(br, SPECIALS.missiles.damageMax, b.prev); b.pos.copy(b.prev); this._explodeBomb(b, SPECIALS.missiles, 'missiles'); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+          if (br) { this._barrierDamage(br, SPECIALS.missiles.damageMax, b.prev); b.pos.copy(b.prev); this._explodeBomb(b, SPECIALS.missiles, 'missiles'); this._removeBomb(i); continue; }
         }
-        if (this._updateMissile(b, dt)) { this.scene.remove(b.mesh); this.bombs.splice(i, 1); }
+        if (this._updateMissile(b, dt)) this._removeBomb(i);
         continue;
       }
+      if (b.stuck) { if (this._updateStuck(b, dt)) this._removeBomb(i); continue; }
       b.age += dt;
       b.vel.y -= 24 * dt;
       _v.copy(b.pos);
@@ -1367,39 +1507,43 @@ export class Projectiles {
       if (this.barriers.length) {
         const br = this._barrierCross(_v, b.pos, b.team);
         if (br) {
-          // stopped at the shell: detonate outside (a storm just fizzles)
-          this._barrierDamage(br, b.kind === 'storm' ? 40 : SUB.bomb.damageMax * 0.5, _v);
-          if (b.kind !== 'storm') { b.pos.copy(_v); this._explodeBomb(b); }
-          this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue;
+          // stopped at the shell: bombs detonate outside (a storm or a sprinkler just fizzles)
+          const fizzle = b.kind === 'storm' || b.kind === 'sprinkler';
+          this._barrierDamage(br, fizzle ? 40 : b.s.damageMax * 0.5, _v);
+          if (!fizzle) { b.pos.copy(_v); this._explodeBomb(b, b.s, b.kind); }
+          this._removeBomb(i); continue;
         }
       }
+      if (b.kind === 'burst' && this._bombTouchesFoe(b)) { this._explodeBomb(b, b.s, 'burst'); this._removeBomb(i); continue; }
       const hit = G.physics.segment(_v, b.pos, _hit);
       if (hit.hit) {
-        if (b.kind === 'storm') { this._spawnCloud(b); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+        if (b.kind === 'storm') { this._spawnCloud(b); this._removeBomb(i); continue; }
+        if (b.kind === 'burst') { b.pos.copy(hit.point).addScaledVector(hit.normal, 0.15); this._explodeBomb(b, b.s, 'burst'); this._removeBomb(i); continue; }
+        if (b.s.stick) { this._stick(b, hit); continue; }
         b.pos.copy(hit.point).addScaledVector(hit.normal, 0.21);
         const vn = b.vel.dot(hit.normal);
         b.vel.addScaledVector(hit.normal, -vn * 1.35);
         b.vel.multiplyScalar(hit.normal.y > 0.6 ? 0.45 : 0.6);
         if (hit.normal.y > 0.6 && b.fuse < 0) {
-          b.fuse = SUB.bomb.fuse;
+          b.fuse = b.s.fuse;
           G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.6 });
-          emit('bomb:arm', { actor: b.owner, pos: b.pos.clone(), team: b.team, radius: SUB.bomb.radius });
+          emit('bomb:arm', { actor: b.owner, pos: b.pos.clone(), team: b.team, radius: b.s.radius });
         }
       }
-      if (b.kind === 'storm' && b.age > 1.1) { this._spawnCloud(b); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+      if (b.kind === 'storm' && b.age > 1.1) { this._spawnCloud(b); this._removeBomb(i); continue; }
       if (b.fuse >= 0) {
         b.fuse -= dt;
         b.beepT -= dt;
-        const k = 1 - b.fuse / SUB.bomb.fuse;
+        const k = 1 - b.fuse / b.s.fuse;
         b.body.material.emissiveIntensity = (Math.sin(b.age * (10 + k * 30)) * 0.5 + 0.5) * (0.4 + k * 1.8);
         b.mesh.scale.setScalar(1 + k * 0.35 + Math.sin(b.age * 40) * 0.03 * k);
         if (b.beepT <= 0) {
           b.beepT = 0.3 - k * 0.2;
           if (G.camera.position.distanceToSquared(b.pos) < 30 * 30) G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.35 + k * 0.4, pitch: 1 + k * 0.25 });
         }
-        if (b.fuse <= 0) { this._explodeBomb(b); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+        if (b.fuse <= 0) { this._explodeBomb(b, b.s); this._removeBomb(i); continue; }
       }
-      if (b.pos.y < PLAYER.waterY - 1.8) { this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+      if (b.pos.y < PLAYER.waterY - 1.8) { this._removeBomb(i); continue; }
       b.mesh.position.copy(b.pos);
       b.mesh.rotation.x += b.spin.x * dt * (b.fuse < 0 ? 1 : 0.2);
       b.mesh.rotation.z += b.spin.y * dt * (b.fuse < 0 ? 1 : 0.2);
@@ -1487,7 +1631,9 @@ export class Projectiles {
   updateArc(a, show) {
     if (!show || !a || !a.alive) { this.arcLine.visible = false; this.arcRing.visible = false; return; }
     const vel = this._arcVel || (this._arcVel = new THREE.Vector3());
-    this.throwVelocity(a, SUB.bomb.throwSpeed, vel);
+    const rush = a.specialBuff && a.specialBuff.id === 'bombrush';   // Bomb Rush throws free splat bombs
+    const sub = rush ? SUB.bomb : SUB[a.weapon.sub] || SUB.bomb;
+    this.throwVelocity(a, sub.throwSpeed, vel);
     const p = _v.copy(a.pos); p.y += 1.35;
     const pos = this.arcGeo.attributes.position;
     let n = 0, landed = false;
@@ -1507,7 +1653,7 @@ export class Projectiles {
     pos.needsUpdate = true;
     this.arcGeo.setDrawRange(0, n);
     this.arcLine.computeLineDistances();
-    const col = a.ink >= SUB.bomb.inkCost ? a.color : new THREE.Color(0.6, 0.6, 0.6);
+    const col = rush || a.ink >= sub.inkCost ? a.color : _c.setRGB(0.6, 0.6, 0.6);
     this.arcLine.material.color.copy(col).multiplyScalar(1.4);
     this.arcRing.material.color.copy(col).multiplyScalar(1.4);
     this.arcLine.visible = true;

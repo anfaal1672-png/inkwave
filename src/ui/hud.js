@@ -141,7 +141,8 @@ export class HUD {
     this.hitEl = h('div', { class: 'iw-hit' }, h('i'), h('i'), h('i'), h('i'));
     this.killEl = h('div', { class: 'iw-kill' }, h('span', { class: 'iw-kill__ring' }), h('span', { class: 'iw-kill__splat', html: SPLAT_ICON }), h('i'), h('i'), h('i'), h('i'));
     this.shield = h('div', { class: 'iw-shield', html: '<svg viewBox="-50 -50 100 100" aria-hidden="true"><circle r="36" pathLength="100"/></svg>' });
-    this.subChip = h('div', { class: 'iw-subaim' }, h('i', { html: SUB_ICONS.bomb }), h('span', { class: 'iw-subaim__bar' }, h('i')), h('b', null, `${Math.round(SUB.bomb.inkCost)}%`));
+    this.subIco = h('i', { html: SUB_ICONS.bomb }); this.subCostEl = h('b', null, `${Math.round(SUB.bomb.inkCost)}%`);
+    this.subChip = h('div', { class: 'iw-subaim' }, this.subIco, h('span', { class: 'iw-subaim__bar' }, h('i')), this.subCostEl);
     this.tankCanvas = h('canvas', { class: 'iw-tank__cv' });
     this.tankCtx = this.tankCanvas.getContext('2d');
     // the tank's CSS box, kept current by a ResizeObserver (reading clientWidth per frame forced a layout)
@@ -887,6 +888,8 @@ export class HUD {
     if (inv !== L.inv) { L.inv = inv; this.shield.classList.toggle('is-up', inv); }
     const aim = !!(a && a.alive && a.weaponRunner && a.weaponRunner.aimingSub) || !!f.subAim;
     if (aim !== L.aim) { L.aim = aim; this.subChip.classList.toggle('is-on', aim); if (aim) this._snd('ui_toggle', { volume: 0.35 }); }
+    const subId = f.sub || 'bomb';
+    if (subId !== L.subId) { L.subId = subId; this.subIco.innerHTML = SUB_ICONS[subId] || SUB_ICONS.bomb; this.subCostEl.textContent = `${Math.round((SUB[subId] || SUB.bomb).inkCost)}%`; }
     if (aim) {
       const ok = (f.ink ?? 1) >= (f.subCost ?? 0.7) - 1e-3;
       if (ok !== L.aimOk) { L.aimOk = ok; this.subChip.classList.toggle('is-short', !ok); }

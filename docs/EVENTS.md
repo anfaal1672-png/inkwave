@@ -33,7 +33,7 @@ screen-FX modules should subscribe to these instead of editing gameplay code.
 | `actor:enemyInk` | `{ actor, on }` |
 | `weapon:fire` | `{ actor, weapon, muzzle, dir, charge? }` |
 | `weapon:impact` | `{ pos, normal, team, kind, radius }` (kind: 'shot','blast','drop','charger','roll') |
-| `bomb:throw` / `bomb:arm` / `bomb:explode` | `{ actor?, pos, team, radius? }` |
+| `bomb:throw` / `bomb:arm` / `bomb:explode` | `{ actor?, pos, team, radius?, kind? }` (kind on throw: `bomb` · `suction` · `burst` · `sprinkler`) |
 | `special:slam` | `{ actor, pos, radius }` |
 | `storm:start` / `storm:end` | `{ pos, team }` |
 | `superjump:land` | `{ actor, pos }` |

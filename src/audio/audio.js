@@ -922,6 +922,15 @@ def('surge_launch', {
     v.nz({ ft: 'lowpass', f: 400, a: 0.002, d: 0.1, peak: 0.4 });
   },
 });
+// Sprinkler clamps onto a surface: a clack and a short hiss as the head starts to spin
+def('sprinkler_set', {
+  gain: 0.5, max: 2, jitter: 0.04, reverb: 0.05,
+  build(v, p) {
+    v.tone({ f: 900 * p, f1: 400 * p, sw: 0.03, a: 0.001, d: 0.04, peak: 0.5 });
+    v.nz({ ft: 'highpass', f: 2500, a: 0.001, d: 0.02, peak: 0.4 });
+    v.nz({ t: 0.04, f: 2200 * p, f1: 4200 * p, sw: 0.2, q: 1.5, a: 0.03, d: 0.18, peak: 0.3 });
+  },
+});
 def('land', {
   gain: 0.4, max: 3, jitter: 0.06, reverb: 0.03,
   build(v, p) {
@@ -1379,7 +1388,7 @@ export const SFX_GROUPS = {
   UI: ['ui_hover', 'ui_click', 'ui_back', 'ui_confirm', 'ui_toggle', 'ui_slider', 'ui_error'],
   Weapons: ['shoot_shooter', 'shoot_blaster', 'blaster_pump', 'blaster_boom', 'charger_charge', 'charger_full', 'shoot_charger', 'roller_flick', 'roll',
     'shoot_dualies', 'dualies_roll', 'slosh_throw', 'slosh_land', 'splatling_spin', 'splatling_ready', 'shoot_splatling', 'splatling_wind'],
-  Ink: ['splat_small', 'splat_big', 'ink_hit_wall', 'bomb_throw', 'bomb_beep', 'bomb_explode'],
+  Ink: ['splat_small', 'splat_big', 'ink_hit_wall', 'bomb_throw', 'bomb_beep', 'bomb_explode', 'sprinkler_set'],
   Squid: ['squid_in', 'squid_out', 'swim', 'swim_splash', 'jump', 'squid_roll', 'surge_ready', 'surge_launch', 'land', 'climb', 'step_dry', 'step_ink', 'step_enemy', 'ink_drip'],
   World: ['gull', 'harbor_ambience', 'ferry_horn', 'halyard_clink'],
   Combat: ['hit_marker', 'ink_hit_body', 'hurt', 'splat_enemy', 'splatted_self', 'ally_splatted', 'enemy_ink_sizzle'],
