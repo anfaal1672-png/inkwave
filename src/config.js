@@ -305,7 +305,7 @@ Object.assign(WEAPONS, {
     id: 'brella', name: 'Splat Brella', class: 'Brella', model: 'brella', icon: 'brella', skin: null, sub: 'sprinkler', weight: 'mid',
     blurb: 'A shotgun blast of ink. Hold fire to keep the canopy up: it blocks shots from the front until it breaks.',
     pellets: 8, pelletSpreadDeg: 10, fireInterval: 0.6, damage: 18, inkPerShot: 6, projSpeed: 27, straightTime: 0.12, range: 8.5,
-    spreadGround: 0, spreadAir: 0, bloomPerShot: 0,
+    spreadGround: 7, spreadAir: 9, bloomPerShot: 0,   // (crosshair size only: the pellets fan out by pelletSpreadDeg)
     canopyHp: 260, canopyCooldown: 5,
     impactRadius: 0.7, trailRadius: 0.36, trailEvery: 1.6, moveSpeedFiring: 3.8, footEvery: 1, footRadius: 0.75,
     stats: { range: 0.38, damage: 0.85, rate: 0.35, mobility: 0.55, paint: 0.55 },
