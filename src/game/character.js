@@ -19,7 +19,7 @@ import { PLAYER, WEAPONS } from '../config.js';
 import { G } from '../core/ctx.js';
 import {
   BONE_NAMES, BONE_PARENT, BONE_INDEX, HAIR_MAX, HAIR_SEGS, REST,
-  getKidShared, getHairStyle, getRestPositions, getBoneInverses, getClothGeo,
+  getKidShared, getHairStyle, holdHairStyle, releaseHairStyle, getRestPositions, getBoneInverses, getClothGeo,
 } from './character-geo.js';
 import {
   makeCharUniforms, makeSkinMaterial, makeClothMaterial, makeHairMaterial, getDarkMaterial, makeEyeMaterial,
@@ -408,7 +408,7 @@ export class Character {
     // weapon kinds (arsenal): dual wield, dodge roll + lock stance, slosh, splatling spin
     this.jumpRun = 0; this.jumpLead = 0;
     this.kidSY = 1; this.kidSXZ = 1; this.sqSY = 1; this.sqSXZ = 1; this.kidLift = 0;
-    this.offscreen = false; this.far = false; this._poseDt = 0; this._poseN = 0;   // set by actor.js each frame
+    this.offscreen = false; this.mid = false; this.far = false; this._poseDt = 0;   // set by actor.js each frame
     this.tumble = 0; this.tumbleX = 1; this.tumbleZ = 0; this.tumbleDrop = 0; this._dt = 0;
     this.dual = false; this.armL = 0; this.rcP2 = 0; this.rcZ2 = 0; this.dodgeX = 0; this.dodgeZ = 1; this.dodgeDur = 0.3; this.lockW = 0; this.spinW = 0; this.streamW = 0; this.bombSwap = 0;
     this._wst = { t: 0, dt: 0, color: this.color, near: true, hand: 0, runner: null, sinceShoot: 99, sinceFlick: 99, sinceRelease: 99,
@@ -434,6 +434,7 @@ export class Character {
   // ---------------------------------------------------------------------------------------------
   _buildRig() {
     const hair = getHairStyle(this.style);   // keyed on the style object (hair + hat + brows)
+    holdHairStyle(this.style); this._hairHeld = this.style;
     this.hairMeta = hair.meta;
     const rest = getRestPositions(this.style);
     const bones = []; const byName = {};
@@ -761,6 +762,7 @@ export class Character {
     for (const k of ['skin', 'cloth', 'hair', 'eye', 'fill', 'squid', 'squidGhost', 'glow']) this.mats[k].dispose();
     for (const k in this.weapons) for (let w = this.weapons[k]; w; w = w.left) { for (const m of w.lamps) m.dispose(); w.coil?.dispose(); }
     this.skeleton.dispose();
+    if (this._hairHeld) { releaseHairStyle(this._hairHeld); this._hairHeld = null; }
   }
 
   /** Debug snapshot for the lab (feet plant state etc.). */
@@ -821,11 +823,12 @@ export class Character {
     this._updateFormScales(dt);
 
     if (this.kidScale > 0.001) {
-      // off-screen remote characters pose every 3rd frame with the dt they accumulated (their shadow still moves,
-      // just at a third of the rate); everything before this (root tracking, states, forms) ran at full rate
+      // remote characters pose at a capped rate with the dt they accumulated: off-screen ones ~20 times a second (their
+      // shadow still moves), ones 15 m+ away (a few dozen pixels tall) ~30 — so a 60 fps phone poses no more of them
+      // than a 30 fps one did; everything before this (root tracking, states, forms) runs at full rate
       this._poseDt += dt;
-      if (!this.offscreen || this.isLocal || ++this._poseN >= 3) {
-        this._poseN = 0;
+      const every = this.isLocal ? 0 : this.offscreen ? 0.05 : this.mid ? 0.03 : 0;
+      if (this._poseDt >= every - 1e-4) {
         const pdt = Math.min(this._poseDt, 0.1);
         this._poseDt = 0;
         this._updateFeet(pdt, s);

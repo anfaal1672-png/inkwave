@@ -10,6 +10,7 @@
     "smoke:dist": "./tools/smoke.sh desktop dist && ./tools/smoke.sh mobile dist",
     "measure": "node tools/measure-load.mjs",
     "bench": "node tools/bench-frame.mjs",
+    "memory": "node tools/measure-memory.mjs",
     "i18n": "node tools/i18n-check.mjs",
     "test:touch": "node tools/touch-test.mjs",
     "build": "node tools/build.mjs",

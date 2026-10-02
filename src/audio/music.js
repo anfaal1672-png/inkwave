@@ -35,6 +35,14 @@ function cache(ctx) {
   return m;
 }
 
+// Lend `from`'s noise buffers to another context of the same sample rate (an AudioBuffer is plain data, usable by any
+// context — unlike the PeriodicWaves in the same cache): offline renders of one-shots then skip regenerating them.
+export function shareNoise(from, to) {
+  if (from.sampleRate !== to.sampleRate) return;
+  const b = cache(to);
+  for (const kind of ['white', 'pink', 'brown']) b.set('noise:' + kind, noiseBuffer(from, kind));
+}
+
 // Seamlessly looping 2 s mono noise buffers: 'white' | 'pink' | 'brown'. RMS-normalised to ~0.3.
 export function noiseBuffer(ctx, kind = 'white') {
   const c = cache(ctx);
@@ -995,6 +1003,45 @@ export function getSong(id) {
   return s;
 }
 
+// Pre-rendered notes. Every note of the score used to be a fresh little synth (oscillators, noise, filters, envelopes)
+// built on the main thread and run by the audio thread — ~120 nodes a second, the bulk of a match's audio work. The
+// first time a short note (instrument + pitch + gate + velocity step) plays it is synthesized live while a take renders
+// in the background (OfflineAudioContext); after that it is one buffer source into the same group bus.
+const NOTE_MAX_SEC = 1.2, NOTE_BUDGET = 12 * 1048576;   // beyond the budget, notes stay live
+const noteTakes = new Map();   // key → AudioBuffer | 'busy' | 'bad'
+let noteBytes = 0;
+const qVel = (v) => Math.round(v * 10) / 10;   // velocity steps of 0.1 (the live jitter is ±6 %)
+function noteTake(ctx, key, build) {
+  const t = noteTakes.get(key);
+  if (t && t !== 'busy' && t !== 'bad') return t;
+  if (!t && typeof OfflineAudioContext !== 'undefined') { noteTakes.set(key, 'busy'); renderNote(ctx, key, build); }
+  return null;
+}
+async function renderNote(ctx, key, build) {
+  try {
+    const sr = ctx.sampleRate;
+    let seed = 0;
+    for (const ch of key) seed = (seed * 31 + ch.charCodeAt(0)) | 0;
+    // one build into a context as long as the longest take allowed; its length is known once built, only that is kept
+    const oc = new OfflineAudioContext(2, Math.ceil(NOTE_MAX_SEC * sr), sr);
+    shareNoise(ctx, oc);
+    const out = oc.createGain(); out.connect(oc.destination);
+    const v = new V(oc, out, 0, mulberry32(seed));
+    build(v);
+    if (v.endless || v.end > NOTE_MAX_SEC - 0.02) { noteTakes.set(key, 'bad'); return; }
+    const len = Math.max(1, Math.ceil((v.end + 0.02) * sr));
+    if (noteBytes + len * 8 > NOTE_BUDGET) { noteTakes.set(key, 'bad'); return; }
+    const r = await oc.startRendering();
+    const L = r.getChannelData(0).subarray(0, len), R = r.getChannelData(1).subarray(0, len);
+    let stereo = false;
+    for (let i = 0; i < len; i += 7) if (Math.abs(L[i] - R[i]) > 1e-4) { stereo = true; break; }
+    const buf = ctx.createBuffer(stereo ? 2 : 1, len, sr);
+    buf.copyToChannel(L, 0); if (stereo) buf.copyToChannel(R, 1);
+    noteBytes += len * 4 * (stereo ? 2 : 1);
+    noteTakes.set(key, buf);
+  } catch (e) { noteTakes.set(key, 'bad'); }
+}
+
 class Player {
   constructor(eng, id, t0, opts = {}) {
     const ctx = (this.ctx = eng.ctx);
@@ -1076,38 +1123,65 @@ class Player {
       }
       return;
     }
-    const song = this.song, sd = this.stepDur;
+    const song = this.song;
     const vel = e.v * (0.93 + 0.12 * this.rng());
-    const v = new V(this.ctx, this.groups[g], T, this.rng);
+    if (e.i === 'kick' && song.pump) this.pumpDuck(T);
+    if (e.i === 'hat') {
+      if (this.openHat && this.openHat.t < T && this.openHat.p.cancelAndHoldAtTime) {
+        this.openHat.p.cancelAndHoldAtTime(T); this.openHat.p.setTargetAtTime(0, T, 0.012);
+      }
+      this.openHat = null;
+    }
+    // a pre-rendered take of this exact note (instrument, pitch, gate, velocity step) when there is one
+    const key = this.eng.offline ? null : this._noteKey(e, vel);
+    const buf = key && noteTake(this.ctx, key, (v) => this._note(v, e, 0, qVel(vel)));
+    if (buf) {
+      const src = this.ctx.createBufferSource(); src.buffer = buf;
+      src.connect(this.groups[g]); src.start(T);
+      src.onended = () => src.disconnect();
+    } else {
+      const v = new V(this.ctx, this.groups[g], T, this.rng);
+      const p = this._note(v, e, T, vel);
+      if (e.i === 'hat' && e.open) this.openHat = { p, t: T };
+      v.finish();
+    }
+    if (e.i === 'riff' && song.riffBass && this.weight('bass', this.eng.intensity) > 0.02) {
+      const v2 = new V(this.ctx, this.groups.bass, T, this.rng);
+      bass(v2, T, mtof(e.m) / 2, e.len * this.stepDur * 0.85, vel, { style: song.inst.bass });
+      v2.finish();
+    }
+  }
+  // Notes worth pre-rendering: short, repeated ones (drums, bass, plucks, leads, stabs). Long pads, crashes and risers
+  // turn out longer than the cap and stay live; an open hat stays live (the next hat chokes it through its gain).
+  _noteKey(e, vel) {
+    const song = this.song, sd = this.stepDur, q = qVel(vel), ms = (x) => Math.round(x * 1000);
     switch (e.i) {
-      case 'kick': kick(v, T, vel); if (song.pump) this.pumpDuck(T); break;
+      case 'kick': case 'snare': case 'clap': case 'rim': case 'shaker': case 'crash': return `${e.i}|${q}`;
+      case 'hat': return e.open ? null : `hat|${q}`;
+      case 'tom': return `tom|${e.m}|${q}`;
+      case 'bass': return `bass|${song.inst.bass}|${e.m}|${ms(e.len * sd * (song.bassGate ?? 0.82))}|${q}`;
+      case 'riff': return `riff|${e.m}|${ms(e.len * sd * 0.85)}|${q}`;
+      case 'chords': return `ch|${song.inst.chords}|${e.ms.join(',')}|${e.mute ? 1 : 0}|${ms(e.len * sd * 0.9)}|${q}`;
+      case 'arp': return `arp|${e.m}|${ms(e.len * sd)}|${q}`;
+      case 'lead': case 'lead2': return `${e.i}|${e.i === 'lead' ? song.inst.lead : (song.inst.lead2 || 'saw')}|${e.m}|${ms(e.len * sd * 0.92)}|${q}`;
+      default: return null;
+    }
+  }
+  // Build one note into voice v at time T (also used to render a take offline at T = 0). Returns the open hat's gain.
+  _note(v, e, T, vel) {
+    const song = this.song, sd = this.stepDur;
+    switch (e.i) {
+      case 'kick': kick(v, T, vel); break;
       case 'snare': snare(v, T, vel); break;
       case 'clap': clap(v, T, vel); break;
       case 'tom': tom(v, T, mtof(e.m), vel); break;
       case 'rim': rim(v, T, vel); break;
       case 'shaker': shaker(v, T, vel); break;
       case 'crash': crash(v, T, vel); break;
-      case 'hat': {
-        if (this.openHat && this.openHat.t < T && this.openHat.p.cancelAndHoldAtTime) {
-          this.openHat.p.cancelAndHoldAtTime(T); this.openHat.p.setTargetAtTime(0, T, 0.012);
-        }
-        this.openHat = null;
-        const p = hat(v, T, vel, e.open);
-        if (e.open) this.openHat = { p, t: T };
-        break;
-      }
+      case 'hat': return hat(v, T, vel, e.open);
       case 'riser': riser(v, T, e.len * sd, vel); break;
       case 'bass': bass(v, T, mtof(e.m), e.len * sd * (song.bassGate ?? 0.82), vel, { style: song.inst.bass }); break;
-      case 'riff': {
-        const f = mtof(e.m);
-        guitar(v, T, [f, f * 1.4983, f * 2], e.len * sd * 0.85, vel);
-        if (song.riffBass && this.weight('bass', this.eng.intensity) > 0.02) {
-          const v2 = new V(this.ctx, this.groups.bass, T, this.rng);
-          bass(v2, T, f / 2, e.len * sd * 0.85, vel, { style: song.inst.bass });
-          v2.finish();
-        }
-        break;
-      }
+      case 'riff': { const f = mtof(e.m); guitar(v, T, [f, f * 1.4983, f * 2], e.len * sd * 0.85, vel); break; }
       case 'chords': {
         const gate = e.len * sd * 0.9, inst = song.inst.chords, n = e.ms.length;
         if (inst === 'guitar') guitar(v, T, e.ms.map(mtof), gate, vel, { mute: e.mute });
@@ -1131,7 +1205,7 @@ class Player {
         break;
       }
     }
-    v.finish();
+    return null;
   }
   dispose() {
     if (this.disposed) return;

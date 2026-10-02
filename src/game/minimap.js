@@ -260,7 +260,7 @@ export class Minimap {
 
   // Ink refresh for rows [y0, y1). The full map is refreshed over INK_BANDS consecutive frames so no single frame
   // pays for the whole bilinear field + emboss (≈ 1/3 of the work per frame).
-  _drawInk(y0 = 0, y1 = this.h) {
+  _drawInk(y0 = 0, y1 = this.h, x0 = 0, x1 = this.w) {
     const W = this.w, H = this.h, N = W * H;
     const grid = this.paint.grid, cell = this.pixCell, fxA = this.pixFx, fyA = this.pixFy, sxA = this.pixSx, syA = this.pixSy;
     const d = this.inkImg.data, fd = this.flashImg.data, own = this.owner;
@@ -269,8 +269,9 @@ export class Minimap {
     const al = this._alpha || (this._alpha = new Float32Array(N));
     const tm = this._tm || (this._tm = new Uint8Array(N));
     const tt = this._tt || (this._tt = new Uint8Array(N));
-    const a0 = Math.max(0, y0 - 1) * W, a1 = Math.min(H, y1 + 1) * W;
-    for (let i = a0; i < a1; i++) {
+    // field over the rect + a 1 px rim (the emboss below reads the diagonal neighbours)
+    const ya = Math.max(0, y0 - 1), yb = Math.min(H, y1 + 1), xa = Math.max(0, x0 - 1), xb = Math.min(W, x1 + 1);
+    for (let row = ya; row < yb; row++) for (let i = row * W + xa, ie = row * W + xb; i < ie; i++) {
       const k = cell[i];
       if (k < 0) { al[i] = 0; continue; }
       const sx = sxA[i], sy = syA[i];
@@ -289,7 +290,7 @@ export class Minimap {
     }
     let flashes = 0;
     for (let py = y0; py < y1; py++) {
-      for (let px = 0; px < W; px++) {
+      for (let px = x0; px < x1; px++) {
         const i = py * W + px, o = i * 4, a = al[i];
         if (a <= 0.003) { d[o + 3] = 0; fd[o + 3] = 0; own[i] = 0; continue; }
         const c = tt[i] === 2 ? Bc : A;
@@ -305,8 +306,8 @@ export class Minimap {
         own[i] = now;
       }
     }
-    this.ictx.putImageData(this.inkImg, 0, 0, 0, y0, W, y1 - y0);
-    this.fctx.putImageData(this.flashImg, 0, 0, 0, y0, W, y1 - y0);
+    this.ictx.putImageData(this.inkImg, 0, 0, x0, y0, x1 - x0, y1 - y0);
+    this.fctx.putImageData(this.flashImg, 0, 0, x0, y0, x1 - x0, y1 - y0);
     if (flashes && !this._quiet) this.flashT = 0;
   }
 
@@ -329,11 +330,29 @@ export class Minimap {
       this.timer = TOUCH_PRIMARY ? 0.45 : 0.15;   // phones: the ink redraw is a per-pixel loop + putImageData, so do it less often
       const first = this.version === -1;
       this.version = this.paint.version;
+      // only the area the ink changed in since the last refresh (a few splats: a small fraction of the map); a big or
+      // unknown change (new round, team colours) is spread over BANDS frames as before
+      const r = this.paint.takeDirty?.(this._dr || (this._dr = [0, 0, 0, 0]));
+      let rx0 = 0, ry0 = 0, rx1 = this.w, ry1 = this.h;
+      if (r && r[0] <= r[2]) {
+        const tc = this._tc2 || (this._tc2 = { x: 0, y: 0 });
+        this.toCanvas(r[0], r[1], tc); const ax = tc.x, ay = tc.y;
+        this.toCanvas(r[2], r[3], tc);
+        rx0 = Math.max(0, Math.floor(Math.min(ax, tc.x)) - 2); rx1 = Math.min(this.w, Math.ceil(Math.max(ax, tc.x)) + 2);
+        ry0 = Math.max(0, Math.floor(Math.min(ay, tc.y)) - 2); ry1 = Math.min(this.h, Math.ceil(Math.max(ay, tc.y)) + 2);
+      }
+      const small = r && (rx1 - rx0) * (ry1 - ry0) < (this.w * this.h) / BANDS;
       if (first || force) { this._quiet = first; this._drawInk(0, this.h); this._quiet = false; if (first) this.flashT = 9; }
+      else if (small) { if (rx1 > rx0 && ry1 > ry0) this._drawInk(ry0, ry1, rx0, rx1); }
       else { this._drawInk(0, Math.floor(this.h / BANDS)); this._band = 1; }
     }
     this.flashT += dt;
-    this._compose(dt);
+    // phones: re-compose (three full-canvas drawImage + markers) at most ~30 times a second — markers on a corner map
+    // don't need the 60 fps the scene gets
+    this._cdt = (this._cdt || 0) + dt;
+    if (TOUCH_PRIMARY && !force && this._cdt < 1 / 40) return;
+    this._compose(this._cdt);
+    this._cdt = 0;
   }
 
   _compose(dt) {

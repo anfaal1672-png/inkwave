@@ -2,7 +2,7 @@
 // --frames frames of the whole per-frame update (match + bots + physics + paint + fx + HUD + minimap …) at a fixed
 // 1/--fps step with rendering skipped. Software WebGL makes the rendered frame rate meaningless here; this number is
 // not — it is the main-thread budget the frame loop eats before three.js draws anything.
-// usage: node tools/bench-frame.mjs [--profile mobile] [--settings '{"quality":"low"}'] [--frames 240] [--fps 30]
+// usage: node tools/bench-frame.mjs [--profile mobile] [--settings '{"quality":"low"}'] [--frames 240] [--fps 30] [--seed 7] [--settle 2]
 //                                   [--url http://localhost:8490/] [--top 30] [--map tidewater] [--render]
 //   --render: draw every frame too (fewer frames: software WebGL is slow). The main thread only queues GL commands, so
 //             the JS side of three.js (culling, sorting, uniforms, state) shows up while the GPU work mostly does not.
@@ -27,9 +27,19 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 const cdp = await applyProfile(page, profile);
 await page.evaluateOnNewDocument((v) => { try { localStorage.setItem('inkwave.settings', v); } catch { /* ignore */ } }, settings);
+// --seed N: a seeded Math.random, so two builds start from the same round (bots, spawns, weapons) — the per-frame cost
+// swings ±20 % between rounds otherwise
+if (opt('seed', null) != null) {
+  await page.evaluateOnNewDocument((seed) => {
+    let a = seed >>> 0;
+    Math.random = () => { a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }, +opt('seed'));
+}
 await page.goto(u.href, { waitUntil: 'load', timeout: 600000 });
 await page.waitForFunction('window.__inkwave && __inkwave.match && __inkwave.match.state === "playing" && __inkwave.match.local', { timeout: 900000, polling: 250 });
-await new Promise((r) => setTimeout(r, 2000));
+// --settle S: let the round play in real time for S seconds first (caches that fill on first use — pre-rendered sounds
+// and notes — are warm in a real session after the opening seconds)
+await new Promise((r) => setTimeout(r, 1000 * +opt('settle', 2)));
 // the clock stays frozen from the warm-up to the end, so the profile holds nothing but the benchmarked frames
 const run = (n) => page.evaluate((n, fps, withRender) => {
   const g = window.__inkwave;
@@ -40,6 +50,11 @@ const run = (n) => page.evaluate((n, fps, withRender) => {
   return t;
 }, n, fps, withRender);
 await run(withRender ? 5 : 60); // warm-up (JIT, first-use allocations)
+// let the event loop run: caches filled asynchronously after first use (pre-rendered sound takes) are ready in a real
+// session after a few seconds, but a synchronous run never yields to finish them
+await new Promise((r) => setTimeout(r, 3000));
+await run(withRender ? 5 : 60);
+await new Promise((r) => setTimeout(r, 3000));
 await cdp.send('Profiler.enable');
 await cdp.send('Profiler.setSamplingInterval', { interval: 200 });
 await cdp.send('Profiler.start');

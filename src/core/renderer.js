@@ -56,11 +56,19 @@ const GradeShader = {
 
 // r186's PCF filter uses a 5-tap rotated Vogel disk with per-pixel noise, which reads as grainy stipple on every soft
 // shadow edge. Swap it for a noise-free 3×3 grid of hardware-compared (bilinear) taps: smooth and temporally stable.
+// Phones get a 2×2 grid at half-step offsets instead: each bilinear-compared tap already blends 2×2 texels, so 4 taps
+// cover the same footprint with a near-identical edge for less than half the shadow fetches on every shadowed pixel.
+const COARSE = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
 (function patchShadowFilter() {
   const chunk = THREE.ShaderChunk.shadowmap_pars_fragment;
   const re = /shadow = \(\s*texture\( shadowMap, vec3\( shadowCoord\.xy \+ vogelDiskSample\( 0, 5, phi \) \* radius, shadowCoord\.z \) \)[\s\S]*?\) \* 0\.2;/;
   if (!re.test(chunk)) { console.warn('[inkwave] shadow chunk layout changed; keeping stock PCF'); return; }
-  THREE.ShaderChunk.shadowmap_pars_fragment = chunk.replace(re, `vec2 ts = texelSize * max( shadowRadius * 0.55, 0.6 );
+  THREE.ShaderChunk.shadowmap_pars_fragment = chunk.replace(re, COARSE ? `vec2 ts = texelSize * max( shadowRadius * 0.55, 0.6 );
+				shadow = 0.25 * (
+					texture( shadowMap, vec3( shadowCoord.xy + vec2( -0.75, -0.75 ) * ts, shadowCoord.z ) ) +
+					texture( shadowMap, vec3( shadowCoord.xy + vec2( 0.75, -0.75 ) * ts, shadowCoord.z ) ) +
+					texture( shadowMap, vec3( shadowCoord.xy + vec2( -0.75, 0.75 ) * ts, shadowCoord.z ) ) +
+					texture( shadowMap, vec3( shadowCoord.xy + vec2( 0.75, 0.75 ) * ts, shadowCoord.z ) ) );` : `vec2 ts = texelSize * max( shadowRadius * 0.55, 0.6 );
 				float s9 = 0.0;
 				for ( int sx = -1; sx <= 1; sx ++ ) for ( int sy = -1; sy <= 1; sy ++ ) s9 += texture( shadowMap, vec3( shadowCoord.xy + vec2( float( sx ), float( sy ) ) * ts, shadowCoord.z ) );
 				shadow = s9 * ( 1.0 / 9.0 );`);
@@ -78,6 +86,11 @@ export class Renderer {
     r.setClearColor(0x9fd8f0, 1);
     container.appendChild(r.domElement);
     r.domElement.id = 'game-canvas';
+    // A phone under memory pressure (iOS above all, often while the tab is in the background) can take the WebGL
+    // context away. Asking for it back (preventDefault) beats a dead canvas, but a restored context is empty: the ink
+    // atlas, the generated textures and the freed canvases they came from are gone, so reload into a clean session.
+    r.domElement.addEventListener('webglcontextlost', (e) => { e.preventDefault(); console.warn('[inkwave] WebGL context lost'); }, false);
+    r.domElement.addEventListener('webglcontextrestored', () => { console.warn('[inkwave] WebGL context restored — reloading'); location.reload(); }, false);
     this.container = container;
     this.scene = null; this.camera = null;
     this.settings = settings;

@@ -350,6 +350,7 @@ export const JA = {
   'Max': '最大',
   '30 fps keeps a phone much cooler and the battery lasts longer; 60 is smoother. Max follows the screen.': '30fps にすると、スマホが熱くなりにくく、電池も長持ちします。60fps はよりなめらかです。「最大」は画面に合わせます。',
   'Running slowly — a lower Graphics quality in Settings will help': '動作が重くなっています。設定で「グラフィック品質」を下げると軽くなります',
+  'Running slowly — a 30 fps Frame rate limit in Settings keeps it smooth and cooler': '動作が重くなっています。設定で「フレームレート上限」を 30 にすると、なめらかで熱くなりにくくなります',
   'Low': '低',
   'Med': '中',
   'High': '高',

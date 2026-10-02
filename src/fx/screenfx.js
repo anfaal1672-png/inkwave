@@ -26,8 +26,12 @@ const WHITE = new THREE.Color(1, 1, 1);
 const easeOut = (t) => 1 - Math.pow(1 - clamp(t, 0, 1), 3);
 const easeInOut = (t) => { t = clamp(t, 0, 1); return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
 const rnd = (a, b) => a + Math.random() * (b - a);
+// read once and kept current by the change event: .matches re-evaluates the query on every read (it showed up in
+// per-frame profiles)
 const RM_Q = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
-const reducedMotion = () => !!(RM_Q && RM_Q.matches);
+let RM = !!(RM_Q && RM_Q.matches);
+RM_Q?.addEventListener?.('change', (e) => { RM = e.matches; });
+const reducedMotion = () => RM;
 
 // ------------------------------------------------------------------------------------------------ composite shader
 const VERT = /* glsl */`varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;

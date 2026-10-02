@@ -21,6 +21,9 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { G, damp, lerp, rng, VIEW, compileForTarget } from '../core/ctx.js';
 
+// phones / tablets (same test as core/touch.js TOUCH_PRIMARY): smaller key-light shadow, GPU buffers freed when hidden
+const COARSE = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 // ================================================================================================ helpers
 const TAU = Math.PI * 2;
 const c01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -816,7 +819,7 @@ export class Showcase {
     const s = this.scene;
     const key = (this.key = new THREE.DirectionalLight(0xfff0de, 2.7));
     key.castShadow = true;
-    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.mapSize.setScalar(COARSE ? 1024 : 2048);   // a phone shows the stage at a third of the pixels
     key.shadow.bias = -0.0003; key.shadow.normalBias = 0.012; key.shadow.radius = 3;
     this.rimA = new THREE.DirectionalLight(0xffffff, 3);
     this.rimB = new THREE.DirectionalLight(0xd4e8ff, 1.8);
@@ -925,6 +928,13 @@ export class Showcase {
     if (this.pop) { this.pop.scale.setScalar(1); this.pop = null; }
     this.decks.length = 0;
     this._out = 0;
+    // phones: the stage's full-screen HDR target and the key light's shadow map (≈ 10–30 MB of GPU memory) are only
+    // needed while it shows — free them, they are rebuilt on the next show
+    if (COARSE) {
+      this._rt?.dispose(); this._rt = null;
+      const sh = this.key?.shadow;
+      if (sh?.map) { sh.map.dispose(); sh.map = null; }
+    }
   }
 
   _anim() {

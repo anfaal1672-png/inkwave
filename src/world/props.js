@@ -299,6 +299,9 @@ function puffGeo(det, seed) {
 const TPL = new Map();
 const kf = (a) => (typeof a === 'number' ? a.toFixed(4) : String(a));
 function tpl(key, fn) { let g = TPL.get(key); if (!g) { g = fn(); TPL.set(key, g); } return g; }
+// The templates are only read while a kit merges its parts: once a stage is built they are a few MB of dead arrays
+// (kept for the whole session before, one set per stage visited). main.js clears them after PropKit.build().
+export function clearPropTemplates() { TPL.clear(); }
 const G = {
   cbox: (w, h, d, r) => tpl(['cb', w, h, d, r].map(kf).join('|'), () => chamferBox(w, h, d, r)),
   rbox: (w, h, d, r) => tpl(['rb', w, h, d, r].map(kf).join('|'), () => roundBox(w, h, d, r)),
@@ -3111,7 +3114,13 @@ export class PropKit {
     atlas.colorSpace = THREE.SRGBColorSpace; atlas.anisotropy = 8;
     const redraw = () => { drawAtlas(cv.getContext('2d')); atlas.needsUpdate = true; };
     redraw();
-    loadFonts().then(() => { if (!this._disposed) redraw(); });
+    // after the final (font-ready) draw is on the GPU, drop the 2048² canvas behind it: a phone browser keeps that bitmap
+    // (16 MB) alive for as long as the texture lives, and nothing draws into it again
+    loadFonts().then(() => {
+      if (this._disposed) return;
+      redraw();
+      atlas.onUpdate = () => { atlas.onUpdate = null; cv.width = cv.height = 1; };
+    });
     this.atlas = atlas;
     this.chain = canvasTex(128, 128, (x, w, h) => {
       x.clearRect(0, 0, w, h); x.strokeStyle = '#fff'; x.lineWidth = 7; x.lineCap = 'round';

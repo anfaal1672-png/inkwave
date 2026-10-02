@@ -27,6 +27,9 @@
 import * as THREE from 'three';
 import { cheatPaint } from '../game/cheats.js';
 
+// phones / tablets (same test as core/touch.js TOUCH_PRIMARY, kept local so the paint module stays UI-free)
+const COARSE = typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
+
 const MAX_QUADS = 6000;
 const RIP_N = 24;
 const _rel = new THREE.Vector3();
@@ -224,6 +227,8 @@ export class PaintSystem {
     this._q = [];
     this.growing = [];            // splats still spreading / dripping on screen (the gameplay grid is already updated)
     this.version = 0;          // bumps whenever the CPU grid changes (minimap polling)
+    // world-XZ box of the grid changes since the minimap last took it (takeDirty): the minimap redraws just that
+    this.dirty = [Infinity, Infinity, -Infinity, -Infinity]; this.dirtyAll = true;
     this.clock = 0;
     this.frame = 0;
     this.viewPos = null;       // camera position (setView) — ripples far from it are skipped / evicted first
@@ -367,6 +372,7 @@ export class PaintSystem {
     r.setRenderTarget(prev);
     r.setClearColor(cc, ca);
     this.grid.fill(0);
+    this.dirtyAll = true;
     this.counts[0] = this.counts[1] = 0;
     this.quads = 0;
     if (this.growing) this.growing.length = 0;
@@ -461,6 +467,11 @@ export class PaintSystem {
         // drips does not turn the ink into rain)
         this.ripple(center, 0.0038 + 0.0036 * Math.min(radius, 3), 0.1 + 0.05 * Math.min(radius, 3), 0.85 + 0.35 * Math.min(radius, 3), 0.55 + 0.2 * Math.min(radius, 3));
       }
+    }
+    if (claimed > 0) {
+      const d = this.dirty;
+      if (center.x - reach < d[0]) d[0] = center.x - reach; if (center.z - reach < d[1]) d[1] = center.z - reach;
+      if (center.x + reach > d[2]) d[2] = center.x + reach; if (center.z + reach > d[3]) d[3] = center.z + reach;
     }
     return claimed;
   }
@@ -612,10 +623,12 @@ export class PaintSystem {
       }
       this._emitGrowth(g, Math.min(tn, 3), dT, bodyDone);
     }
-    // drying: 1/255 of wetness every 1/40 s (≈ 6.4 s from landing to dry), applied in steps of ≥ 2
+    // drying: 1/255 of wetness every 1/40 s (≈ 6.4 s from landing to dry), applied in steps of ≥ 2 — on phones in
+    // steps of ≥ 8 (5 passes a second instead of 20): each pass rewrites the whole used atlas, and on a phone GPU that
+    // memory traffic is heat; a 3 % step of the wet sheen every 0.2 s is not visible
     this._dryAcc += dt;
     const n = Math.floor(this._dryAcc * 40);
-    if (n >= 2) {
+    if (n >= (COARSE ? 8 : 2)) {
       const k = Math.min(n, 12);
       this._dryAcc -= k / 40;
       this._dryU.uDry.value = k / 255;
@@ -646,6 +659,14 @@ export class PaintSystem {
     r.autoClear = ac;
     this.quads = 0;
     this.dryMesh.visible = false;
+  }
+
+  // Hand over (and reset) the changed area: [minX, minZ, maxX, maxZ] in world metres, or null for "everything".
+  takeDirty(out) {
+    const d = this.dirty, all = this.dirtyAll;
+    out[0] = d[0]; out[1] = d[1]; out[2] = d[2]; out[3] = d[3];
+    d[0] = d[1] = Infinity; d[2] = d[3] = -Infinity; this.dirtyAll = false;
+    return all ? null : out;
   }
 
   // ------------------------------------------------------------ queries

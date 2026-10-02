@@ -2119,8 +2119,26 @@ function hairKey(st) {
 const keyStr = (k) => `${k.hair}.${k.hat}.${k.brows}`;
 export function getHairStyle(st) {
   const k = hairKey(st), ks = keyStr(k);
-  if (!_hair.has(ks)) _hair.set(ks, buildHair(k.hair, k.hat, k.brows));
-  return _hair.get(ks);
+  let h = _hair.get(ks);
+  if (!h) { h = buildHair(k.hair, k.hat, k.brows); h.users = 0; _hair.set(ks, h); }
+  else { _hair.delete(ks); _hair.set(ks, h); }   // Map order = least recently used first
+  return h;
+}
+// Hair meshes are keyed on hair × hat × brows (hundreds of combinations) and every match dresses 8 random bots, so an
+// unbounded cache kept growing for the whole session (CPU arrays + GPU buffers) until a phone tab ran out of memory.
+// Characters hold / release their style; unused meshes beyond the newest few are disposed.
+const HAIR_KEEP = 12;
+export function holdHairStyle(st) { getHairStyle(st).users++; }
+export function releaseHairStyle(st) {
+  const ks = keyStr(hairKey(st)), h = _hair.get(ks);
+  if (h) h.users = Math.max(0, h.users - 1);
+  let spare = 0;
+  for (const v of _hair.values()) if (!v.users) spare++;
+  for (const [key, v] of _hair) {
+    if (spare <= HAIR_KEEP) break;
+    if (v.users) continue;
+    v.geo.dispose(); _hair.delete(key); _inv.delete(key); spare--;
+  }
 }
 export function getRestPositions(st) {
   const h = getHairStyle(st); const out = {};

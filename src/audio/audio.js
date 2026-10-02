@@ -18,7 +18,7 @@
 
 import { DEFAULT_SETTINGS } from '../config.js';
 import {
-  V, music as musicSingleton, makeImpulse, mulberry32, mtof, perc, ahr, adsr, pts, sweep, strokeWave, pulseWave,
+  V, shareNoise, music as musicSingleton, makeImpulse, mulberry32, mtof, perc, ahr, adsr, pts, sweep, strokeWave, pulseWave,
   kick, snare, crash, tom, brass, bell, pad, bass,
 } from './music.js';
 
@@ -85,6 +85,16 @@ export function texture(ctx, kind) {
  * ----------------------------------------------------------------------------------------------------------*/
 const NOOP_HANDLE = Object.freeze({ set() {}, stop() {}, playing: false });
 
+// Pre-rendered one-shots. A synthesized shot is ~25 nodes (oscillators, noise, filters, envelopes) built on the main
+// thread and run by the audio thread for every play — at 10 shots/s per weapon that was ~2 ms of main thread per frame on
+// a mid-range phone, and the busiest part of the audio thread. The first plays of a sound stay live while a few takes
+// are rendered in the background (OfflineAudioContext); later plays are a single buffer source through the same voice
+// chain (distance filter, panner, reverb send), the engine's pitch jitter as playbackRate.
+const CACHE_TAKES = 3;              // takes per sound (a stream of shots never repeats one sample)
+const CACHE_MAX_SEC = 1.6;          // longer builds (fanfares, judge stingers) stay live
+const CACHE_MAX_PITCH = 0.2;        // |pitch − 1| beyond this re-synthesizes (playbackRate also stretches time)
+const CACHE_BUDGET = 8 * 1048576;   // bytes of rendered audio kept at most (beyond it, sounds stay live)
+
 export class AudioEngine {
   // opts: { context (use an existing/offline ctx), seed (deterministic randomness), music: false (don't attach
   //         the music singleton), raw: true (no master dynamics — used by the test to measure raw levels), hrtf }
@@ -99,6 +109,48 @@ export class AudioEngine {
     this.counts = { played: 0, dropped: 0, stolen: 0 };
     this._warned = new Set(); this._duck = null;
     this.music = musicSingleton;
+    this.takes = new Map(); this.takeBytes = 0;   // name → { bufs, busy, bad } (pre-rendered one-shots)
+  }
+
+  // A rendered take of `name`, or null while its takes are not all rendered yet (then they get queued) / it can't be.
+  _take(name, d) {
+    if (this.offline || this.opts.cache === false || typeof OfflineAudioContext === 'undefined') return null;
+    let c = this.takes.get(name);
+    if (!c) {
+      const ok = d.build && d.build.length <= 2 && !d.live;
+      this.takes.set(name, (c = { bufs: [], busy: false, bad: !ok }));
+    }
+    if (c.bad) return null;
+    if (c.bufs.length < CACHE_TAKES) { if (!c.busy) this._renderTake(name, d, c); return null; }
+    return c.bufs[Math.floor(this.rng() * c.bufs.length) % c.bufs.length];
+  }
+
+  async _renderTake(name, d, c) {
+    c.busy = true;
+    try {
+      const sr = this.ctx.sampleRate;
+      let seed = c.bufs.length * 7919;
+      for (const ch of name) seed = (seed * 31 + ch.charCodeAt(0)) | 0;
+      // one build into a context as long as the longest take allowed (main-thread work = one more build); its length
+      // is known once built, and only that much is kept
+      const oc = new OfflineAudioContext(2, Math.ceil(CACHE_MAX_SEC * sr), sr);
+      shareNoise(this.ctx, oc);
+      const out = oc.createGain(); out.connect(oc.destination);
+      const v = new V(oc, out, 0, mulberry32(seed));
+      d.build(v, 1, {});
+      if (v.endless || v.end > CACHE_MAX_SEC - 0.02) { c.bad = true; return; }
+      const len = Math.max(1, Math.ceil((v.end + 0.02) * sr));
+      if (this.takeBytes + len * 8 > CACHE_BUDGET) { c.bad = true; return; }
+      const r = await oc.startRendering();
+      const L = r.getChannelData(0).subarray(0, len), R = r.getChannelData(1).subarray(0, len);
+      let stereo = false;
+      for (let i = 0; i < len; i += 7) if (Math.abs(L[i] - R[i]) > 1e-4) { stereo = true; break; }
+      const buf = this.ctx.createBuffer(stereo ? 2 : 1, len, sr);
+      buf.copyToChannel(L, 0); if (stereo) buf.copyToChannel(R, 1);
+      this.takeBytes += len * 4 * (stereo ? 2 : 1);
+      c.bufs.push(buf);
+    } catch (e) { c.bad = true; }
+    finally { c.busy = false; }
   }
 
   init() {
@@ -288,10 +340,14 @@ export class AudioEngine {
       while (this.voices.length >= MAX_VOICES) this._steal(this.voices.shift(), now);
     }
     const pitch = Math.max(0.05, o.pitch ?? 1) * (1 + (this.rng() * 2 - 1) * (d.jitter ?? 0.06));
+    const take = d.build && Math.abs(pitch - 1) <= CACHE_MAX_PITCH ? this._take(name, d) : null;
     const voice = this._voice(d, t, o.pos, vol);
     const v = voice.v;
     try {
-      if (d.build) d.build(v, pitch, o);
+      if (take) {
+        const src = this.ctx.createBufferSource(); src.buffer = take; src.playbackRate.value = pitch;
+        v._src(src, t, t + take.duration / pitch, voice.out);
+      } else if (d.build) d.build(v, pitch, o);
       else if (d.loop) {
         // loop sound fired as a one-shot: short burst with a fade out
         const len = d.oneShot ?? 1.2;
