@@ -182,7 +182,7 @@ export const WEAPONS = {
     weight: 'heavy',   // WEIGHT (default 'mid'); variants inherit it
     blurb: 'Hold to spin up, release for a long high-speed stream. The more charge, the longer it lasts.',
     stats: { range: 0.78, damage: 0.55, rate: 1.0, mobility: 0.38, paint: 0.7 },
-    chargeTime: 0.95, burstMin: 0.3, burstMax: 1.7, fireInterval: 0.066, damage: 28, inkPerShot: 0.6,
+    chargeTime: 0.95, burstMin: 0.3, burstMax: 1.45, fireInterval: 0.066, damage: 28, inkPerShot: 0.6,
     projSpeed: 40, straightTime: 0.16, range: 15,
     spreadGround: 3.2, spreadAir: 7, spreadFirst: 0.6, bloomPerShot: 0.05,
     impactRadius: 0.75, trailRadius: 0.42, trailEvery: 1.2,
@@ -273,8 +273,8 @@ Object.assign(WEAPONS, {
   brush: variant('roller', {
     id: 'brush', name: 'Inkbrush', class: 'Brush', model: 'brush', icon: 'brush', skin: null, sub: 'sprinkler', weight: 'light',
     blurb: 'Hold to dash along painting a narrow trail. Tap for rapid flicks that pepper foes up close.',
-    rollSpeed: 7.4, rollWidth: 0.95, rollSplat: 0.44, rollInkPerMeter: 0.32, rollDamage: 25,
-    flickInterval: 0.17, flickWindup: 0.05, flickInk: 2, flickDrops: 4, flickDamageNear: 30, flickDamageFar: 12, flickSpeed: 12.5, flickSpreadDeg: 26,
+    rollSpeed: 7.4, rollWidth: 1.2, rollSplat: 0.55, rollInkPerMeter: 0.36, rollDamage: 25,
+    flickInterval: 0.17, flickWindup: 0.05, flickInk: 2, flickDrops: 5, flickDamageNear: 36, flickDamageFar: 14, flickSpeed: 14, flickSpreadDeg: 26,
     impactRadius: 0.7, moveSpeedFiring: 5.2, footRadius: 0.55,
     stats: { range: 0.22, damage: 0.35, rate: 1.0, mobility: 1.0, paint: 0.72 },
     special: 'storm', specialCost: 170,
