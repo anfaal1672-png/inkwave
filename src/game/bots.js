@@ -10,10 +10,12 @@
 // forward in short bursts instead of sweeping its aim blindly. The level-5 ApexBrain keeps omniscient perception.
 import * as THREE from 'three';
 import { G, clamp, angleDiff } from '../core/ctx.js';
+import { Hit } from './physics.js';
 import { PLAYER, DIFFICULTY, SUB, SPECIALS } from '../config.js';
 
 const _v = new THREE.Vector3(), _v2 = new THREE.Vector3(), _v3 = new THREE.Vector3();
 const _stats = { own: 0, enemy: 0, empty: 0, n: 0 };
+const _wallHit = new Hit();
 const PAINT_OFFS = [-1.05, -0.52, 0, 0.52, 1.05];        // paint-aim candidates around the heading (±60°)
 const SQUID_DODGERS = new Set(['shooter', 'dualies', 'splatling']);
 const LANES = [[0.5, 0], [0.42, -8], [0.42, 8], [0.2, 0]];   // opening lanes by slot: [share of the way to the enemy base, sideways m]
@@ -79,6 +81,7 @@ export class BotBrain {
     this.bombPrep = 0; this.bombYaw = 0; this.bombPitch = 0; this._huntBomb = false;
     this.tailT = 0; this._wy = 0; this._wp = 0; this._splats = this.a.stats ? this.a.stats.splats : 0;
     this.hopN = 0; this.hopT = 0; this.sqDodgeT = 0; this.sqCd = 0; this.sqSide = 1; this.strafeRun = 0;
+    this.rollCd = 0; this.rollOn = false; this.rollX = 0; this.rollZ = 0; this.surgePlan = -1;
     this.lookT = 0; this.lookNext = 1 + Math.random() * 3; this.lookOff = 0;
   }
 
@@ -111,7 +114,7 @@ export class BotBrain {
     if (!G.match || !G.match.playing()) { it.move.set(0, 0, 0); it.fire = it.squid = it.sub = it.jump = it.special = false; this.mvMag = 0; return; }
     this.think -= dt; this.jumpCd -= dt; this.bombCd -= dt; this.strafeT -= dt; this.paintPause -= dt; this.dodgeCd -= dt;
     this.acqT += dt; this.t += dt;
-    this.sqCd -= dt; this.sqDodgeT -= dt; this.ambushCd -= dt; this._repCd -= dt; this.lookT -= dt; this.exitPaintT -= dt;
+    this.sqCd -= dt; this.sqDodgeT -= dt; this.rollCd -= dt; this.ambushCd -= dt; this._repCd -= dt; this.lookT -= dt; this.exitPaintT -= dt;
     const apex = !!this.diff.apex;
 
     // ---------------- perception
@@ -260,7 +263,11 @@ export class BotBrain {
             && !a.weaponRunner.charging && Math.random() < 0.7) {
           this.sqDodgeT = 0.25; this.sqCd = 1.6 + Math.random() * 1.4; this.sqSide = Math.random() < 0.5 ? -1 : 1;
         }
-        if (this.sqDodgeT > 0 && !apex) { it.squid = true; it.fire = false; move.set(-nz * this.sqSide, 0, nx * this.sqSide); }
+        if (this.sqDodgeT > 0 && !apex) {
+          it.squid = true; it.fire = false; move.set(-nz * this.sqSide, 0, nx * this.sqSide);
+          // end of the dodge: sometimes Squid Roll straight back across, armoured, and come out shooting
+          if (this.sqDodgeT < 0.08 && this.rollCd <= 0) { if (Math.random() < 0.6 * this.diff.fireDiscipline) this._planRoll(Math.PI); else this.rollCd = 0.5; }
+        }
         else if (!apex && w.kind !== 'charger' && !a.weaponRunner.charging && a.grounded && this.dodgeCd <= 0 && dist > 3
                  && Math.random() < 0.35 * this.pers.jumpy * dt && !this._nearWater(a, 1.6)) { it.jump = true; this.dodgeCd = 1.2 + Math.random() * 1.5; }
         // dodge: a strafe-hop right after taking a hit
@@ -290,8 +297,10 @@ export class BotBrain {
         }
         this._wy = wantYaw; this._wp = wantPitch;
       } else {
-        // retreat: swim away through own ink, keep eyes on the threat
+        // retreat: swim away through own ink, keep eyes on the threat; hit on the way out → sometimes a Squid Roll
+        // juke ~120° off the swim line (its damage cut soaks the next shots), then carry on
         it.squid = true;
+        if (a.lastDamage < 0.05 && this.rollCd <= 0) { if (Math.random() < 0.5 * this.diff.fireDiscipline) this._planRoll((Math.random() < 0.5 ? -1 : 1) * 2.1); else this.rollCd = 1; }
       }
     } else if (this.mode === 'ambush' && this.target) {
       // sit still in own ink (a squid in ink can't be seen from afar), eyes on the enemy walking up
@@ -436,6 +445,32 @@ export class BotBrain {
     if (this.noProg === 0) this._skipped = false;
     this.stuck = this.noProg;
     if (this._needJump && this.jumpCd <= 0 && a.grounded) { it.jump = true; this.jumpCd = 0.6; this._needJump = false; }
+    // Squid Roll: the stick snaps to the planned direction (bypassing the steering smoothing) on the jump frame
+    if (this.rollOn) {
+      this.rollOn = false;
+      if (a.submerged && it.squid) { it.move.set(this.rollX, 0, this.rollZ); it.jump = true; this.mvYaw = Math.atan2(this.rollX, this.rollZ); }
+    }
+    // Squid Surge: on a tall wall, cling and charge, then let go (a short wall is just climbed)
+    if (a.climbing) {
+      if (this.surgePlan < 0) this.surgePlan = this._tallWall(a) && Math.random() < 0.35 + 0.6 * this.diff.fireDiscipline ? PLAYER.surgeCharge * (0.7 + 0.4 * Math.random()) : 0;
+      if (this.surgePlan > 0 && !a.surging) { if (a.surgeT < this.surgePlan) it.jump = true; else this.surgePlan = 0; }
+    } else this.surgePlan = -1;
+  }
+
+  // Plan a Squid Roll this frame: `turn` rad off the current fast swim heading (only while swimming near full speed)
+  _planRoll(turn) {
+    const a = this.a;
+    if (a._fastT <= 0 || a.rollCd > 0) return;
+    const c = Math.cos(turn), s = Math.sin(turn);
+    this.rollX = a._fastX * c + a._fastZ * s; this.rollZ = -a._fastX * s + a._fastZ * c;
+    this.rollOn = true; this.rollCd = 2.5 + Math.random() * 2.5;
+  }
+
+  // Is the wall we cling to still a wall ~2.4 m up? (worth a Squid Surge)
+  _tallWall(a) {
+    _v.set(a.pos.x, a.pos.y + 2.4, a.pos.z); _v2.set(-a.wallN.x, 0, -a.wallN.z);
+    const h = G.physics.raycast(_v, _v2, PLAYER.radius + 0.7, _wallHit);
+    return h.hit && Math.abs(h.normal.y) < 0.5;
   }
 
   // Low on health mid-duel: head for own ink away from the threat (swim = heal + hard to spot), then come back.

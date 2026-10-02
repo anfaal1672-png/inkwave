@@ -894,6 +894,34 @@ def('jump', {
     v.nz({ f: 800, f1: 1800, sw: 0.1, q: 1.5, a: 0.02, d: 0.08, peak: 0.2 });
   },
 });
+// Squid Roll: a wet flip — splash off the surface, a spinning whoosh, a bright rising chirp for the damage cut
+def('squid_roll', {
+  gain: 0.6, max: 3, jitter: 0.05, reverb: 0.05,
+  build(v, p) {
+    v.nz({ f: 1500 * p, f1: 650 * p, sw: 0.1, q: 2, a: 0.002, d: 0.12, peak: 0.6 });
+    v.nz({ kind: 'pink', f: 900 * p, f1: 2600 * p, sw: 0.22, q: 1.2, a: 0.03, d: 0.16, peak: 0.45 });
+    v.tone({ type: 'triangle', f: 520 * p, f1: 1250 * p, sw: 0.14, a: 0.004, d: 0.12, peak: 0.3 });
+    plips(v, 0.03, 2, 0.08, [900, 1700], 0.12, p);
+  },
+});
+// Squid Surge fully charged on the wall: a bubbly two-note ping
+def('surge_ready', {
+  gain: 0.42, max: 2, jitter: 0, reverb: 0.06,
+  build(v, p) {
+    v.tone({ f: 880 * p, a: 0.002, d: 0.07, peak: 0.4 });
+    v.tone({ t: 0.06, f: 1320 * p, a: 0.002, d: 0.12, peak: 0.4 });
+    plips(v, 0, 3, 0.1, [1200, 2200], 0.1, p);
+  },
+});
+// Squid Surge release: a gushing up-sweep
+def('surge_launch', {
+  gain: 0.62, max: 3, jitter: 0.04, reverb: 0.06,
+  build(v, p) {
+    v.nz({ f: 500 * p, f1: 2400 * p, sw: 0.25, q: 1.4, a: 0.005, d: 0.22, peak: 0.7 });
+    v.tone({ type: 'triangle', f: 220 * p, f1: 700 * p, sw: 0.2, a: 0.004, d: 0.18, peak: 0.35 });
+    v.nz({ ft: 'lowpass', f: 400, a: 0.002, d: 0.1, peak: 0.4 });
+  },
+});
 def('land', {
   gain: 0.4, max: 3, jitter: 0.06, reverb: 0.03,
   build(v, p) {
@@ -1352,7 +1380,7 @@ export const SFX_GROUPS = {
   Weapons: ['shoot_shooter', 'shoot_blaster', 'blaster_pump', 'blaster_boom', 'charger_charge', 'charger_full', 'shoot_charger', 'roller_flick', 'roll',
     'shoot_dualies', 'dualies_roll', 'slosh_throw', 'slosh_land', 'splatling_spin', 'splatling_ready', 'shoot_splatling', 'splatling_wind'],
   Ink: ['splat_small', 'splat_big', 'ink_hit_wall', 'bomb_throw', 'bomb_beep', 'bomb_explode'],
-  Squid: ['squid_in', 'squid_out', 'swim', 'swim_splash', 'jump', 'land', 'climb', 'step_dry', 'step_ink', 'step_enemy', 'ink_drip'],
+  Squid: ['squid_in', 'squid_out', 'swim', 'swim_splash', 'jump', 'squid_roll', 'surge_ready', 'surge_launch', 'land', 'climb', 'step_dry', 'step_ink', 'step_enemy', 'ink_drip'],
   World: ['gull', 'harbor_ambience', 'ferry_horn', 'halyard_clink'],
   Combat: ['hit_marker', 'ink_hit_body', 'hurt', 'splat_enemy', 'splatted_self', 'ally_splatted', 'enemy_ink_sizzle'],
   Status: ['low_ink', 'empty_click', 'refill_full', 'special_ready', 'special_activate', 'special_slam', 'storm_rain', 'storm_thunder', 'respawn', 'super_jump'],

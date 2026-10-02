@@ -71,7 +71,7 @@ export class Actor {
     this.anim = {
       time: 0, speed: 0, localMove: { x: 0, z: 0 }, grounded: true, vy: 0, aimPitch: 0, firing: false, charge: 0, rolling: false,
       form: 'kid', wallNormal: new THREE.Vector3(), ink: 1, lowInk: false, special: 0, invuln: false,
-      turnRate: 0, hp: 1, inEnemyInk: false, surface: 0, subAim: false,
+      turnRate: 0, hp: 1, inEnemyInk: false, surface: 0, subAim: false, surge: 0,
     };
     this.reset();
   }
@@ -110,6 +110,12 @@ export class Actor {
     this.kidT = 99;              // time since becoming a kid (emerge delay for the first shot)
     this.climbExit = 0;
     this.climbV = 0;
+    this.surgeT = 0;             // Squid Surge: seconds jump has been held on the wall (charge)
+    this.surging = false;        // a released surge is carrying us up the wall
+    this._surgeFx = 0;
+    this.rollArmor = 0;          // Squid Roll damage cut left (s)
+    this.rollCd = 0;
+    this._fastT = 0; this._fastX = 0; this._fastZ = 1; this._fastS = 0;   // last fast swim heading (see PLAYER.rollWindow)
     this.inkWarnCd = 0;
     this.superJumpState = null;
     this.yawVel = 0; this._faceTarget = null;
@@ -188,6 +194,7 @@ export class Actor {
       if (amount <= 0) return false;
     }
     if (this.specialActive && this.specialActive.armor) amount *= 0.25;
+    if (this.rollArmor > 0) amount *= PLAYER.rollArmorMul;
     this.hp -= amount;
     this.lastDamage = 0;
     this.hurtFlash = Math.min(1, this.hurtFlash + amount / 60);
@@ -268,6 +275,7 @@ export class Actor {
     if (this.specialBuff && (this.specialBuff.t -= dt) <= 0) this.specialBuff = null;
     this._rushCd -= dt;
     this.invuln = Math.max(0, this.invuln - dt);
+    this.rollArmor = Math.max(0, this.rollArmor - dt); this.rollCd -= dt;
     this.lastDamage += dt; this.lastFire += dt; this.landT += dt; this.kidT += dt;
     this.hurtFlash = Math.max(0, this.hurtFlash - dt * 0.6);
     this.inkWarnCd -= dt;
@@ -302,6 +310,13 @@ export class Actor {
     const onEnemy = this.grounded && this.groundTeam === 2 && !this.submerged;
     this.onEnemy = onEnemy;
 
+    // remember the heading of a near-full-speed swim for a moment (velocity is still last frame's here): the Squid
+    // Roll tests the stick against it, since the plant-and-reverse brake has already eaten the speed by the jump press
+    const fsp = Math.hypot(this.vel.x, this.vel.z);
+    if (this.submerged && fsp >= P.swimSpeed * (WEIGHT[this.weapon.weight] || WEIGHT.mid).swim * P.rollMinSpeed) {
+      this._fastT = P.rollWindow; this._fastX = this.vel.x / fsp; this._fastZ = this.vel.z / fsp; this._fastS = fsp;
+    } else this._fastT -= dt;
+
     // ---- wall climb (squid on own-ink wall, pushing into it)
     this._updateClimb(dt, isSquid);
 
@@ -317,7 +332,8 @@ export class Actor {
     // ---- jump (buffered, with coyote time)
     this.coyote = this.grounded ? P.coyoteTime : this.coyote - dt;
     let jumped = false;
-    if (this.jumpBuffer > 0 && (this.grounded || this.coyote > 0) && !this.climbing) {
+    if (this.jumpBuffer > 0 && this.submerged && this._squidRoll()) jumped = true;
+    else if (this.jumpBuffer > 0 && (this.grounded || this.coyote > 0) && !this.climbing) {
       let jv = (this.submerged ? P.swimJumpVel : P.jumpVel) * cheatMove(this, 'cheatJump');
       if (onEnemy) jv *= 0.72;
       this.vel.y = jv;
@@ -589,6 +605,26 @@ export class Actor {
     }
   }
 
+  // ------------------------------------------------------------------ squid roll
+  // Swimming fast, stick flipped back (PLAYER.rollCos) + jump: leap out of the ink the new way, spinning, with the
+  // damage cut of PLAYER.rollArmorMul for rollArmorTime. Returns false (→ a normal swim jump) when it doesn't apply.
+  _squidRoll() {
+    const P = PLAYER, mv = this.intent.move;
+    if (this._fastT <= 0 || this.rollCd > 0) return false;
+    const mh = Math.hypot(mv.x, mv.z);
+    if (mh < 0.5 || (mv.x * this._fastX + mv.z * this._fastZ) / mh > P.rollCos) return false;
+    const sp = Math.max(P.rollSpeedMin, this._fastS * P.rollCarry) * cheatMove(this, 'cheatSpeed');
+    this.vel.set((mv.x / mh) * sp, P.rollVel, (mv.z / mh) * sp);
+    this.grounded = false; this.coyote = 0; this.jumpBuffer = 0; this._fastT = 0;
+    this.rollArmor = P.rollArmorTime; this.rollCd = P.rollCooldown;
+    this.character.trigger('squidroll');
+    G.fx?.burst(_v.copy(this.pos).setY(this.pos.y + 0.15), _v2.set(-this._fastX, 0.8, -this._fastZ), this.color, { count: 12, speed: 4, size: 0.08 });
+    if (this.isLocal || this._nearCamera()) G.audio?.play('squid_roll', { pos: this.isLocal ? undefined : this.pos, volume: this.isLocal ? 0.8 : 0.55 });
+    if (this.isLocal) rumble(this, 0.1, 0.3, 80);
+    emit('actor:roll', { actor: this });
+    return true;
+  }
+
   // ------------------------------------------------------------------ wall climb
   _updateClimb(dt, isSquid) {
     const P = PLAYER;
@@ -624,14 +660,18 @@ export class Actor {
       return;
     }
     this.wallN.copy(h.normal);
+    this._surge(dt);
     // is there more of our ink above? (stop at the ink line instead of flying past it)
     _v.copy(this.pos); _v.y += 0.85;
     const hu = G.physics.raycast(_v, dir, P.radius + 0.45, this._ledgeHit);
     const capped = hu.hit && Math.abs(hu.normal.y) < 0.5 && !(hu.face >= 0 && G.paint.sample(hu.face, hu.u, hu.v) - 1 === this.team);
     // climb speed eases in (no instant 0 → 7.5 m/s snap), cling when the stick is neutral, and eases toward the
     // ledge-pop speed as the top comes into reach (so the pop never yanks the squid's vertical speed)
-    let want = capped ? 0 : P.climbSpeed * cheatMove(this, 'cheatSpeed') * clamp(into, 0, 1) * mag;
-    if (!hu.hit && want > 0) want = Math.min(want, Math.sqrt(2 * P.gravity * P.apexGravityMul * (P.ledgePopClear + 0.3)));
+    // (charging a surge clings; a released surge holds its launch speed all the way to the top or the ink line)
+    let want = capped || this.surgeT > 0 ? 0 : P.climbSpeed * cheatMove(this, 'cheatSpeed') * clamp(into, 0, 1) * mag;
+    if (this.surging && !capped) want = this.climbV;
+    else this.surging = false;
+    if (!hu.hit && want > 0 && !this.surging) want = Math.min(want, Math.sqrt(2 * P.gravity * P.apexGravityMul * (P.ledgePopClear + 0.3)));
     const a = P.climbAccel * dt * (want > this.climbV ? 1 : 1.6);
     this.climbV = this.climbV < want ? Math.min(want, this.climbV + a) : Math.max(want, this.climbV - a);
     this.vel.y = this.climbV;
@@ -644,10 +684,39 @@ export class Actor {
     this.anim.wallNormal.copy(n);
   }
 
+  // Squid Surge: holding jump on the wall charges (PLAYER.surge*); letting go after surgeMin launches up the wall
+  _surge(dt) {
+    const P = PLAYER;
+    if (this.intent.jump && !this.surging) {
+      const was = this.surgeT;
+      this.surgeT += dt;
+      const near = this.isLocal || this._nearCamera();
+      if ((this._surgeFx -= dt) <= 0 && this.surgeT > P.surgeMin && near) {
+        this._surgeFx = 0.09;
+        G.fx?.burst(_v.copy(this.pos).setY(this.pos.y + 0.3).addScaledVector(this.wallN, 0.15), this.wallN, this.color, { count: 2, speed: 1.6, size: 0.05, paint: false });
+      }
+      if (was < P.surgeCharge && this.surgeT >= P.surgeCharge) {
+        if (near) G.audio?.play('surge_ready', { pos: this.isLocal ? undefined : this.pos, volume: this.isLocal ? 0.7 : 0.45 });
+        if (this.isLocal) rumble(this, 0.05, 0.2, 60);
+      }
+    } else if (this.surgeT > 0) {
+      if (this.surgeT >= P.surgeMin) {
+        const k = clamp((this.surgeT - P.surgeMin) / (P.surgeCharge - P.surgeMin), 0, 1);
+        this.surging = true;
+        this.climbV = (P.surgeSpeedMin + (P.surgeSpeed - P.surgeSpeedMin) * k) * cheatMove(this, 'cheatSpeed');
+        G.fx?.burst(_v.copy(this.pos).setY(this.pos.y + 0.2), _v2.set(this.wallN.x, -1, this.wallN.z), this.color, { count: 10, speed: 4.5, size: 0.08 });
+        if (this.isLocal || this._nearCamera()) G.audio?.play('surge_launch', { pos: this.isLocal ? undefined : this.pos, volume: this.isLocal ? 0.8 : 0.55, pitch: 0.9 + 0.2 * k });
+        if (this.isLocal) rumble(this, 0.15, 0.35, 110);
+        emit('actor:surge', { actor: this, charge: k });
+      }
+      this.surgeT = 0;
+    }
+  }
+
   _setClimb(on) {
     if (this.climbing === on) return;
     this.climbing = on;
-    if (!on) this.climbV = 0;
+    if (!on) { this.climbV = 0; this.surgeT = 0; this.surging = false; }
     emit('actor:climb', { actor: this, on });
   }
 
@@ -660,9 +729,11 @@ export class Actor {
     const g = P.gravity * P.apexGravityMul;
     const rise = Math.max(0.25, top + P.ledgePopClear - this.pos.y);
     const cv = this.climbV;             // (read before _setClimb clears it) — keeps the vertical speed continuous
+    const surge = this.surging;         // a surge flies well over the top instead of the controlled hop
     this._setClimb(false);
-    this.vel.y = Math.max(Math.sqrt(2 * g * rise), Math.min(cv, 6.5));
-    this.vel.x = dir.x * P.ledgePopCarry; this.vel.z = dir.z * P.ledgePopCarry;
+    this.vel.y = Math.max(Math.sqrt(2 * g * rise), Math.min(cv, surge ? P.surgePopMax : 6.5));
+    const carry = surge ? P.ledgePopCarry * 1.5 : P.ledgePopCarry;
+    this.vel.x = dir.x * carry; this.vel.z = dir.z * carry;
     this.climbExit = 0.3;
     this.grounded = false;
     G.fx?.burst(_v2.copy(this.pos).setY(this.pos.y + 0.3), _v.set(0, 1, 0), this.color, { count: 7, speed: 2.6, size: 0.07 });
@@ -932,6 +1003,7 @@ export class Actor {
     a.charge = this.weaponRunner.charge;
     a.rolling = this.weaponRunner.rolling;
     a.subAim = !!this.weaponRunner.aimingSub;      // bomb cocked
+    a.surge = this.climbing ? clamp(this.surgeT / PLAYER.surgeCharge, 0, 1) : 0;
     a.form = !isSquid ? 'kid' : this.climbing ? 'climb' : this.submerged ? 'swim' : 'squid';
     if (this.specialActive) a.form = 'kid';
     a.ink = this.ink / PLAYER.inkMax;

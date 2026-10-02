@@ -81,6 +81,16 @@ export const PLAYER = {
   climbAccel: 46, climbSideSpeed: 5.2, climbAttachDot: 0.5, climbDetachDot: -0.45,
   ledgePopClear: 0.42,    // apex this far above the ledge top when popping over it
   ledgePopCarry: 2.5,     // forward speed onto the ledge
+  // Squid Roll (Splatoon 3): swimming near full speed, flip the stick back and jump → leap out the new way, spinning,
+  // with a brief damage cut. The fast heading is remembered for rollWindow s because the plant-and-reverse brake
+  // starts the moment the stick flips, a frame or two before the jump press lands.
+  rollMinSpeed: 0.7,      // × the swim speed
+  rollCos: -0.34,         // stick vs. swim heading: more than ~110° apart
+  rollWindow: 0.2, rollVel: 7.2, rollCarry: 0.8, rollSpeedMin: 6.5, rollCooldown: 0.45,
+  rollArmorTime: 0.32, rollArmorMul: 0.7,
+  // Squid Surge (Splatoon 3): hold jump while climbing to cling and charge, let go to shoot up the wall and well over
+  // the top. A short hold does nothing (a tap of jump on a wall stays harmless).
+  surgeCharge: 0.75, surgeMin: 0.22, surgeSpeedMin: 10, surgeSpeed: 16, surgePopMax: 12.5,
   emergeDelay: 0.07,      // squid → kid before the first shot can leave the barrel (the shot is buffered, not lost)
   fireBuffer: 0.16,
 };

@@ -41,6 +41,7 @@ export class PlayerController {
     this.autoLvl = null;
     this.autoHold = 0;       // seconds of manual control left after the player touched something
     this._dodgeV = new THREE.Vector3();
+    this.sqLinger = 0; this.sqJump = false;   // touch squid → jump hand-off (see update)
   }
 
   update(dt) {
@@ -152,6 +153,15 @@ export class PlayerController {
     it.fire = inp.mouse.left || inp.padValue(7) > 0.3 || !!th?.fire || !!th?.slide;
     it.sub = inp.mouse.right || inp.down('KeyE') || inp.padButton(5) || !!th?.sub;
     it.special = inp.down('KeyF') || inp.down('KeyQ') || inp.padButton(3) || inp.padButton(11) || !!th?.special;
+    // touch: one thumb can't hold Squid and press Jump together, so squid form lingers a moment after the Squid
+    // button lets go, and a Jump pressed in that moment keeps it while held — swim jumps, the Squid Roll and the
+    // Squid Surge (hold Jump on a wall) all work by sliding the thumb from Squid to Jump. Fire always wins.
+    if (th) {
+      this.sqLinger = th.squid ? 0.14 : this.sqLinger - dt;
+      const keep = !th.fire && !th.slide && (this.sqLinger > 0 || (th.jump && this.sqJump));
+      this.sqJump = keep && th.jump;
+      if (keep) it.squid = true;
+    }
     if (bot && bot.fire !== null) it.fire = bot.fire;
     // touch slide button (dualies): one dodge roll toward the stick / swipe direction (stick space → camera-relative world xz)
     const sl = tc ? tc.takeSlide() : null;

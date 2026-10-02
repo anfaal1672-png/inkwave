@@ -104,7 +104,7 @@ sound robotic. SFX names (all must exist):
 `ui_hover ui_click ui_back ui_confirm ui_toggle ui_slider ui_error`
 `shoot_shooter shoot_blaster blaster_boom charger_charge(loop) charger_full shoot_charger roller_flick roll(loop; pitch/volume ≈ speed)`
 `splat_small splat_big ink_hit_wall bomb_throw bomb_beep bomb_explode`
-`squid_in squid_out swim(loop) swim_splash jump land climb(loop)`
+`squid_in squid_out swim(loop) swim_splash jump squid_roll surge_ready surge_launch land climb(loop)`
 `hit_marker hurt splat_enemy splatted_self ally_splatted enemy_ink_sizzle(loop)`
 `low_ink empty_click refill_full special_ready special_activate special_slam storm_rain(loop) storm_thunder respawn super_jump`
 `ready go_horn countdown_tick one_minute final_count times_up judge_drumroll judge_reveal victory_fanfare defeat_jingle xp_tick level_up`
