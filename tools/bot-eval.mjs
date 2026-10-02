@@ -65,7 +65,9 @@ async function evalMap(map, runs) {
   await page.waitForFunction('window.__inkwave && __inkwave.api && __inkwave.debug', { timeout: 900000, polling: 250 });
   await page.evaluate(() => window.__inkwave.debug.freeze());
   const rows = [];
+  let lost = 0;
   for (let r = 0; r < runs; r++) {
+   try {
     const t0 = Date.now();
     await page.evaluate((o) => window.__inkwave.api.startMatch({ mapId: o.map, difficulty: o.difficulty, duration: o.duration }), { map, difficulty, duration });
     await page.waitForFunction('__inkwave.match && !__inkwave.match.attract && __inkwave.match.state !== "init"', { timeout: 600000, polling: 100 });
@@ -128,6 +130,16 @@ async function evalMap(map, runs) {
     if (res.state !== 'judge' && res.state !== 'results') console.error(`${map} #${r}: match did not finish (state ${res.state})`);
     rows.push({ ...res, map });
     console.error(`  ${map} #${r + 1}: painted ${((res.cov0 + res.cov1) * 100).toFixed(0)}%  kills ${res.kills}  eff ${(res.turf / Math.max(1, res.S.ink) * 100).toFixed(1)}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+   } catch (e) {
+    // software WebGL (SwiftShader) now and then drops the context in long headless runs; the game reloads itself
+    // on context restore — wait for it and replay this match (a few times at most)
+    if (!/destroyed|navigation/i.test(e.message) || lost >= 3) throw e;
+    lost++;
+    console.error(`  ${map} #${r + 1}: page reloaded (WebGL context lost) — replaying the match`);
+    await page.waitForFunction('window.__inkwave && __inkwave.api && __inkwave.debug', { timeout: 900000, polling: 250 });
+    await page.evaluate(() => window.__inkwave.debug.freeze());
+    r--;
+   }
   }
   if (errors.length) console.error(`${map} page errors:`, [...new Set(errors)].slice(0, 5));
   await browser.close();
