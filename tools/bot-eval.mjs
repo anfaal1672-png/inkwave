@@ -32,6 +32,9 @@ const randomWeapons = opt('weapons', '') === 'random';
 // --focus brush,wiper: with --weapons random, every match puts these weapons on the teams (team t gets focus[t]) so a
 // few runs are enough to judge them; the rest of each team is drawn as usual
 const focus = opt('focus', '') ? opt('focus', '').split(',') : [];
+// frames stepped per page.evaluate: short batches hand control back to the browser between them (long ones have
+// made SwiftShader drop the WebGL context mid-run)
+const STEP = 60;
 const outFile = opt('out', '');
 const chunk = Math.max(1, +opt('chunk', runs));
 const used = Object.fromEntries(WEAPON_ORDER.map((id) => [id, 0]));
@@ -85,7 +88,7 @@ async function evalMap(map, runs) {
       }
     });
     const total = Math.ceil((duration + 12) * fps);
-    for (let done = 0; done < total; done += 300) {
+    for (let done = 0; done < total; done += STEP) {
       const fin = await page.evaluate((k, fps) => {
         const g = window.__inkwave; g._skipRender = true;
         const S = window.__bs;
@@ -110,7 +113,7 @@ async function evalMap(map, runs) {
         }
         g._skipRender = false;
         return g.match.state === 'judge' || g.match.state === 'results';
-      }, 300, fps);
+      }, STEP, fps);
       if (fin) break;
     }
     const res = await page.evaluate(() => {
