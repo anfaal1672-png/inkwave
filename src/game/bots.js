@@ -81,6 +81,7 @@ export class BotBrain {
     this.bombPrep = 0; this.bombYaw = 0; this.bombPitch = 0; this._huntBomb = false;
     this.tailT = 0; this._wy = 0; this._wp = 0; this._splats = this.a.stats ? this.a.stats.splats : 0;
     this.hopN = 0; this.hopT = 0; this.sqDodgeT = 0; this.sqCd = 0; this.sqSide = 1; this.strafeRun = 0;
+    this._tap = false; this._wipeHold = 0;
     this.rollCd = 0; this.rollOn = false; this.rollX = 0; this.rollZ = 0; this.surgePlan = -1;
     this.lookT = 0; this.lookNext = 1 + Math.random() * 3; this.lookOff = 0;
   }
@@ -235,6 +236,12 @@ export class BotBrain {
           if (w.kind === 'charger') {
             it.fire = !(a.weaponRunner.charging && a.weaponRunner.charge >= this.chargeRelease);
             if (a.weaponRunner.charging) move.multiplyScalar(0.3);
+          } else if (w.kind === 'roller' && w.slash) {
+            // wiper: quick taps up close; now and then a held, fully charged cut
+            const wr = a.weaponRunner;
+            if (wr.charging) it.fire = wr.charge < 1;
+            else if (this._wipeHold > 0) { this._wipeHold -= dt; it.fire = true; }
+            else { this._tap = !this._tap; it.fire = dist < 6.5 && this._tap; if (it.fire && dist > 2.5 && Math.random() < 0.12) this._wipeHold = 0.35; }
           } else if (w.kind === 'roller') {
             it.fire = dist < 5.5 || (a.weaponRunner.rolling && dist < 8);
           } else if (w.kind === 'splatling') {

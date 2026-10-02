@@ -805,7 +805,7 @@ export class Menus {
     const sub = (W.sub && (this.api.subs || SUB)[W.sub]) || this._sub();
     const items = [
       { id: 'play', label: 'PLAY', sub: 'Turf War · 4 v 4', icon: GLYPHS.play, cls: 'iw-btn--menu iw-btn--xl iw-btn--primary', accept: () => this._go('setup'), sound: 'ui_confirm' },
-      { id: 'loadout', label: 'LOADOUT', icon: weaponIcon(W.kind || lo.weapon), cls: 'iw-btn--menu', accept: () => this._go('loadout') },
+      { id: 'loadout', label: 'LOADOUT', icon: weaponIcon(W.icon || W.kind || lo.weapon), cls: 'iw-btn--menu', accept: () => this._go('loadout') },
       { id: 'locker', label: 'LOCKER', icon: GLYPHS.hanger, cls: 'iw-btn--menu', accept: () => this._go('locker') },
       { id: 'settings', label: 'SETTINGS', icon: GLYPHS.gear, cls: 'iw-btn--menu', accept: () => this._go('settings') },
       { id: 'howto', label: 'HOW TO PLAY', icon: GLYPHS.question, cls: 'iw-btn--menu', accept: () => this._go('howto') },
@@ -838,7 +838,7 @@ export class Menus {
     const kit = this._panel('iw-kitcard iw-in iw-in--right',
       h('div', { class: 'iw-kitcard__label' }, tr('CURRENT LOADOUT')),
       h('div', { class: 'iw-kitcard__main' },
-        h('span', { class: 'iw-kitcard__icon', html: weaponIcon(W.kind || lo.weapon) }),
+        h('span', { class: 'iw-kitcard__icon', html: weaponIcon(W.icon || W.kind || lo.weapon) }),
         h('div', null, h('div', { class: 'iw-kitcard__name' }, tr(W.name)), h('div', { class: 'iw-kitcard__kind' }, tr(W.class || KIND_LABEL[W.kind] || '')))),
       h('div', { class: 'iw-kitcard__chips' },
         h('span', { class: 'iw-chip' }, h('i', { html: SUB_ICONS[sub.id] || SUB_ICONS.bomb }), tr(sub.name)),
@@ -1078,7 +1078,7 @@ export class Menus {
     const lo = this._loadout();
     const W = this._weapons()[lo.weapon];
     const weaponChip = h('button', { class: 'iw-wchip iw-in' },
-      h('span', { class: 'iw-wchip__icon', html: weaponIcon(W.kind || lo.weapon) }),
+      h('span', { class: 'iw-wchip__icon', html: weaponIcon(W.icon || W.kind || lo.weapon) }),
       h('span', { class: 'iw-wchip__text' }, h('small', null, tr('WEAPON')), h('b', null, tr(W.name))),
       h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.pencil })));
     this._fx(weaponChip);
@@ -1561,7 +1561,7 @@ export class Menus {
       const c = h('button', { class: 'iw-wcard iw-in iw-in--pop' + (id === equipped ? ' is-equipped' : '') + (isNew ? ' is-new' : ''), style: { '--tilt': `${[-1.5, 1, -0.8, 1.4, -1.1][i % 5]}deg` } },
         h('span', { class: 'iw-wcard__ink' }),
         h('span', { class: 'iw-wcard__blob', html: splatSVG({ seed: 40 + i * 3, cls: 'iw-fa', r: 58, arms: 8, drops: 0 }) }),
-        h('span', { class: 'iw-wcard__icon', html: weaponIcon(w.kind || id) }),
+        h('span', { class: 'iw-wcard__icon', html: weaponIcon(w.icon || w.kind || id) }),
         h('span', { class: 'iw-wcard__name' }, tr(w.name)),
         h('span', { class: 'iw-wcard__kind' }, classOf(w)),
         h('span', { class: 'iw-wcard__eq', html: GLYPHS.check }),
@@ -2161,7 +2161,7 @@ export class Menus {
         list.map((p) => {
           const st = h('span', { class: 'iw-rrow__st' });
           const row = h('div', { class: 'iw-rrow' + (p.isSelf ? ' is-self' : '') },
-            h('span', { class: 'iw-rrow__w', html: weaponIcon((this._weapons()[p.weapon] || {}).kind || p.weapon) }),
+            h('span', { class: 'iw-rrow__w', html: weaponIcon(p.weapon) }),
             h('span', { class: 'iw-rrow__name' }, p.name, p.isSelf ? h('em', null, tr('YOU')) : null),
             st);
           rosterRows.push({ row, st, name: p.name, team: p.team, sig: '' });
@@ -2291,7 +2291,7 @@ export class Menus {
           const badges = h('span', { class: 'iw-prow__aw' });
           const isMvp = p._aw.some((a) => a.id === 'mvp');
           const row = h('div', { class: 'iw-prow iw-in iw-in--left' + (p.isSelf ? ' is-self' : '') + (isMvp ? ' is-mvp' : '') },
-            h('span', { class: 'iw-prow__w', html: weaponIcon((this._weapons()[p.weapon] || {}).kind || p.weapon) }),
+            h('span', { class: 'iw-prow__w', html: weaponIcon(p.weapon) }),
             h('span', { class: 'iw-prow__name' }, h('span', { class: 'iw-prow__nm' }, p.name), p.isSelf ? h('em', null, tr('YOU')) : null, badges),
             h('span', { class: 'iw-prow__turf' }, turfBar, turfNum, h('small', null, 'p')),
             nSplat, nDeath);

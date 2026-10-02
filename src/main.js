@@ -664,7 +664,7 @@ class Game {
     m.setup();
     this._applyQuality();   // the new match's characters and props carry the full materials
     this.minimap.setViewerTeam(0);
-    { const w = WEAPONS[this.profile.weapon] || WEAPONS.shooter; this.touch?.setLoadout(w.kind, w.special); this.touch?.setColor(G.teamHex[0]); }
+    { const w = WEAPONS[this.profile.weapon] || WEAPONS.shooter; this.touch?.setLoadout(w.icon || w.kind, w.special); this.touch?.setColor(G.teamHex[0]); }
     G.mode = 'match';
     this.hud?.setVisible(false);
     this.hudPrompt = null; this._hintT = 0; this._hints = {};

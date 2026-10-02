@@ -634,7 +634,9 @@ export class Character {
     if (id === this.weaponId) return;
     const old = this.weaponId && this.weapons[this.weaponId];
     if (old) { this.bones.handR.remove(old.pivot); if (old.left) this.bones.handL.remove(old.left.pivot); }
-    const w = this._getWeapon(id, kind, skin);
+    // W.model: a weapon built on another kind's mechanics and pose (brush / wiper on the roller, stringer on the charger,
+    // brella on the shooter) still gets its own 3D model
+    const w = this._getWeapon(id, (W && W.model) || kind, skin);
     this.bones.handR.add(w.pivot);
     if (w.left) this.bones.handL.add(w.left.pivot);
     this.weaponId = id; this.weaponKind = kind; this.weapon = w; this.hold = HOLD[kind];

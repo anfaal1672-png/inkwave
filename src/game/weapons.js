@@ -50,6 +50,10 @@ export class WeaponRunner {
     // slosher windup · splatling stream
     this.slosh = -1; this.streaming = false; this.burstT = 0; this.burstDur = 0; this.burstFrac = 0;
     this.spinLoop?.stop(0.08); this.spinLoop = null;
+    // wiper: seconds the trigger has been held since the last slash (-1 = not holding) · brella canopy
+    this.slashHold = -1;
+    if (this.canopyUp) G.projectiles?.setCanopy(this.a, false);
+    this.canopyUp = false; this.canopyBroken = false; this.canopyCd = 0; this.canopyHp = this.a?.weapon?.canopyHp || 0;
   }
   onDeath() { this.reset(); }
   busy() { return this.charging || this.flick >= 0 || this.slosh >= 0 || this.streaming || !!this.dodge || this.lockT > 0; }
@@ -91,6 +95,7 @@ export class WeaponRunner {
     if (!inp.fire) this.bloom = Math.max(0, this.bloom - dt / (w.bloomRecover ?? 0.28));
     this.spread = this._spreadDeg(w);
     this.sinceHand[0] += dt; this.sinceHand[1] += dt;
+    if (w.canopyHp) this._canopy(dt, inp, w);
     switch (w.kind) {
       case 'shooter': case 'blaster': this._auto(dt, inp, w); break;
       case 'charger': this._charger(dt, inp, w); break;
@@ -152,7 +157,8 @@ export class WeaponRunner {
       a.ink -= w.inkPerShot;
       a.lastFire = 0;
       this.spread = this._spreadDeg(w);
-      if (w.kind === 'shooter') G.projectiles.fireShooter(a, w, this.spread);
+      if (w.pellets) G.projectiles.firePellets(a, w);
+      else if (w.kind === 'shooter') G.projectiles.fireShooter(a, w, this.spread);
       else G.projectiles.fireBlaster(a, w, this.spread);
       this._footSplat(w.footEvery, w.footRadius);
       this.bloom = Math.min(1, this.bloom + (w.bloomPerShot ?? 0.3));
@@ -187,7 +193,8 @@ export class WeaponRunner {
       const c = Math.max(0.12, this.charge);
       a.ink = Math.max(0, a.ink - w.inkFull * c);
       a.lastFire = 0;
-      G.projectiles.fireCharger(a, w, c);
+      if (w.arrows) G.projectiles.fireArrows(a, w, c);
+      else G.projectiles.fireCharger(a, w, c);
       this._footSplat(1, w.footRadius + 0.35 * c);
       a.character.trigger('charge_release');
       this.charge = 0; this.chargeT = 0;
@@ -196,8 +203,50 @@ export class WeaponRunner {
     }
   }
 
+  // brella: holding fire keeps the canopy up (it soaks enemy rounds from the front, Projectiles._hitCanopy); once broken
+  // it regrows after canopyCooldown
+  _canopy(dt, inp, w) {
+    if (this.canopyBroken && (this.canopyCd -= dt) <= 0) { this.canopyBroken = false; this.canopyHp = w.canopyHp; }
+    const up = !!inp.fire && !this.canopyBroken;
+    if (up !== this.canopyUp) { this.canopyUp = up; G.projectiles.setCanopy(this.a, up); }
+  }
+
+  // ---- wiper (roller family, w.slash): a press slashes a sheet of ink sideways at once; keep holding to charge, and let
+  // go of a full charge for a wide, heavy cut
+  _wiper(dt, inp, w) {
+    const a = this.a;
+    if (inp.firePressed) {
+      this.slashHold = 0;
+      if (this.cooldown <= 0) { if (a.ink < w.slashInk) this._empty(); else this._slash(w, false); }
+    }
+    if (inp.fire && this.slashHold >= 0) {
+      this.slashHold += dt;
+      if (this.slashHold > 0.2 && a.ink >= w.chargedInk) {
+        if (!this.charging) { this.charging = true; this.charge = 0; this.chargeDinged = false; }
+        this.charge = Math.min(1, (this.slashHold - 0.2) / w.chargeTime);
+        a.fireFacing = 0.4;
+        if (this.charge >= 1 && !this.chargeDinged) { this.chargeDinged = true; if (a.isLocal) G.audio?.play('charger_full', { volume: 0.6, pitch: 1.2 }); rumble(a, 0.05, 0.3, 60); }
+      }
+    } else {
+      if (this.charging) { this.charging = false; if (this.charge >= 1 && this.cooldown <= 0.15) this._slash(w, true); this.charge = 0; }
+      this.slashHold = -1;
+    }
+  }
+  _slash(w, charged) {
+    const a = this.a;
+    a.ink = Math.max(0, a.ink - (charged ? w.chargedInk : w.slashInk)); a.lastFire = 0;
+    G.projectiles.fireSlash(a, w, charged);
+    a.character.trigger('flick');
+    this._footSplat(1, w.footRadius);
+    this.cooldown = charged ? w.slashInterval * 1.5 : w.slashInterval;
+    this.firingT = 0.25; this.flickRecover = 0.12;
+    if (a.isLocal || a._nearCamera()) G.audio?.play('roller_flick', { pos: a.isLocal ? undefined : a.pos, volume: charged ? 0.9 : 0.65, pitch: charged ? 0.95 : 1.45 });
+    rumble(a, charged ? 0.3 : 0.1, charged ? 0.35 : 0.15, charged ? 120 : 60);
+  }
+
   _roller(dt, inp, w) {
     const a = this.a;
+    if (w.slash) { this._wiper(dt, inp, w); return; }
     // flick wind-up → release
     if (this.flick >= 0) {
       this.flick += dt;
@@ -258,7 +307,7 @@ export class WeaponRunner {
     for (let i = -1; i <= 1; i++) {
       const off = i * w.rollWidth * 0.33;
       _v.set(a.pos.x + fx * 0.75 + rx * off, a.pos.y + 0.35, a.pos.z + fz * 0.75 + rz * off);
-      area += G.paint.splat(_v, 0.62, a.team, { seed: Math.random(), kind: 'roll', stretch: _fwd });
+      area += G.paint.splat(_v, w.rollSplat || 0.62, a.team, { seed: Math.random(), kind: 'roll', stretch: _fwd });
     }
     a.addTurf(area);
     emit('weapon:impact', { pos: _v.set(a.pos.x + fx * 0.75, a.pos.y + 0.02, a.pos.z + fz * 0.75).clone(), normal: a.groundN ? a.groundN.clone() : UP.clone(), team: a.team, kind: 'roll', radius: w.rollWidth / 2 });
@@ -556,6 +605,7 @@ export class Projectiles {
     this.beams = [];
     this.barriers = [];          // Bubble Barrier domes
     this.sprinklers = [];        // stuck, spraying sprinklers (also in bombs): what enemy shots test against
+    this.canopies = [];          // actors holding a brella canopy up (WeaponRunner._canopy)
     // glossy ink teardrops (+ satellite droplets), one instanced draw
     const geo = new THREE.SphereGeometry(1, 14, 12).rotateX(Math.PI / 2);
     this.blobShape = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BLOBS * 4), 4);
@@ -614,6 +664,7 @@ export class Projectiles {
     for (const b of this.bombs) { this.scene.remove(b.mesh); if (b.mat) b.mat.dispose(); }
     this.bombs.length = 0;
     this.sprinklers.length = 0;
+    this.canopies.length = 0;
     for (const c of this.clouds) this.scene.remove(c.group);
     this.clouds.length = 0;
     for (const br of this.barriers) this.scene.remove(br.mesh);
@@ -627,7 +678,7 @@ export class Projectiles {
 
   _new() {
     const p = this.pool.pop() || { pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(), start: new THREE.Vector3() };
-    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.vol = null;   // optional fields never leak between recycled rounds
+    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.vol = null; p.arrow = null;   // optional fields never leak between recycled rounds
     return p;
   }
 
@@ -705,6 +756,134 @@ export class Projectiles {
     if (Math.abs(e1) > 0.25 || Math.abs(p1 - Math.atan2(dir.y, hdir)) > 0.35) return dir;   // unreachable: leave it
     const cp = Math.cos(p1);
     return dir.set((dir.x / hdir) * cp, Math.sin(p1), (dir.z / hdir) * cp);
+  }
+
+  // ---- brella: one shotgun blast of `pellets` rounds in a cone (no bloom); each round is an ordinary shot
+  firePellets(a, w) {
+    const m = this._muzzle(a, _v.set(0, 0, 0));
+    const lk = lockDir(a, m);
+    const base = lk ? _fwd.copy(lk.dir) : this._aimFrom(a, m, _fwd);
+    if (!lk) this._ballistic(m, base, a.aimPoint, w.projSpeed, w.straightTime, 28, 0.8, w.range);
+    for (let i = 0; i < w.pellets; i++) {
+      const dir = this._spread(_dir.copy(base), w.pelletSpreadDeg * (i === 0 ? 0.3 : 1));
+      const p = this._new();
+      Object.assign(p, { type: 'shot', wid: w.id, owner: a, team: a.team, age: 0, life: 0.9, straight: w.straightTime, radius: w.impactRadius, damage: w.damage, size: 0.13, trail: -(1.5 - w.trailEvery), trailEvery: w.trailEvery, trailRadius: w.trailRadius, grav: 28, drag: 0.8, seed: Math.random(),
+        vis: 0.075 + Math.random() * 0.015, tail0: 0.6, tailK: 1.2, wob: 0.03, wobF: 26, nose: 0.3, sats: 1 });
+      p.pos.copy(m); p.prev.copy(m); p.start.copy(m);
+      p.vel.copy(dir).multiplyScalar(w.projSpeed * (0.92 + Math.random() * 0.12));
+      this.list.push(p);
+    }
+    if (a.isLocal || a._nearCamera()) {
+      G.audio?.play('shoot_blaster', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.7 : 0.5, pitch: 1.35 });
+      G.fx?.muzzle(m, base, a.color, 'blaster');
+    }
+    if (a.isLocal) emit('recoil', { amount: 0.012 });
+    emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: base.clone() });
+    rumble(a, 0.12, 0.22, 70);
+  }
+
+  // ---- stringer: a fan of arrows (straight, fast, then dropping); a full draw tags each one to burst after it lands
+  fireArrows(a, w, charge) {
+    const m = this._muzzle(a, _v.set(0, 0, 0));
+    const lk = lockDir(a, m);
+    const base = lk ? _fwd.copy(lk.dir) : this._aimFrom(a, m, _fwd);
+    const range = lerp(w.rangeMin, w.rangeMax, charge), straight = range / w.arrowSpeed;
+    const dmg = lerp(w.damageMin, w.damageMax, charge), full = charge >= 0.999;
+    const n = w.arrows;
+    for (let i = 0; i < n; i++) {
+      const off = (i - (n - 1) / 2) * w.arrowSpreadDeg * DEG;
+      const c = Math.cos(off), sn = Math.sin(off);
+      _dir.set(base.x * c + base.z * sn, base.y, -base.x * sn + base.z * c).normalize();
+      const p = this._new();
+      Object.assign(p, { type: 'shot', wid: w.id, owner: a, team: a.team, age: 0, life: straight + 0.8, straight, radius: w.impactRadius, damage: dmg, size: 0.12, trail: -1, trailEvery: 1.4, trailRadius: 0.32, grav: 30, drag: 0.4, seed: Math.random(),
+        vis: 0.065, tail0: 1.8, tailK: 2.2, wob: 0, wobF: 1, nose: 0.7, sats: 1 });
+      if (full) p.arrow = w.arrowBlast;
+      p.pos.copy(m); p.prev.copy(m); p.start.copy(m);
+      p.vel.copy(_dir).multiplyScalar(w.arrowSpeed);
+      this.list.push(p);
+    }
+    if (a.isLocal || a._nearCamera()) G.audio?.play('shoot_charger', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.6 : 0.45, pitch: 1.35 + 0.2 * (1 - charge) });
+    if (a.isLocal) emit('recoil', { amount: 0.008 + 0.01 * charge });
+    emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: base.clone(), charge });
+    rumble(a, 0.1 + 0.2 * charge, 0.2 + 0.2 * charge, 80);
+  }
+
+  // a fully drawn arrow landed: a small blast a beat later (a stuck record in this.bombs, see _updateStuck)
+  _arrowBurst(p, at, normal) {
+    const s = p.arrow, group = new THREE.Group();
+    const mat = this._bombMat(p.team).clone();
+    const body = new THREE.Mesh(this.burstGeo, mat); body.scale.setScalar(0.45);
+    group.add(body); group.position.copy(at);
+    this.scene.add(group);
+    this.bombs.push({ kind: 'arrow', s, owner: p.owner, team: p.team, wid: p.wid, mesh: group, body, head: null, mat, pos: at.clone(), vel: new THREE.Vector3(), fuse: (WEAPONS[p.wid] || {}).blastDelay || 0.35, age: 0,
+      spin: new THREE.Vector3(), beepT: 0, stuck: true, normal: normal.clone(), hp: 0, life: 0, sprT: 0, sprA: 0 });
+  }
+
+  // ---- wiper: a horizontal sheet of drops at chest height (wider + heavier when charged), plus the blade itself
+  // striking whatever stands within reach in front
+  fireSlash(a, w, charged) {
+    let yaw0 = a.aimYaw, up = clamp(a.aimPitch, -0.35, 0.5) + 0.04;
+    const L = aimLockFor(a);
+    if (L) { const lk = lockDir(a, _v2.set(a.pos.x, a.pos.y + 1.0, a.pos.z)); if (lk) { yaw0 = lk.yaw; up = lk.pitch; } }
+    const fx = Math.sin(yaw0), fz = Math.cos(yaw0);
+    const n = charged ? w.chargedDrops : w.slashDrops, spread = (charged ? w.chargedSpreadDeg : w.slashSpreadDeg) * DEG;
+    const near = charged ? w.chargedDamageNear : w.slashDamageNear, far = charged ? w.chargedDamageFar : w.slashDamageFar;
+    const ox = a.pos.x + fx * 0.5, oy = a.pos.y + 1.0, oz = a.pos.z + fz * 0.5;
+    for (let i = 0; i < n; i++) {
+      const t = (i / (n - 1)) * 2 - 1;
+      const ang = yaw0 + t * spread * 0.5 + (Math.random() - 0.5) * 0.04;
+      const sp = w.slashSpeed * (charged ? 1.12 : 1) * (0.9 + 0.15 * (1 - Math.abs(t)) + Math.random() * 0.06);
+      const p = this._new();
+      Object.assign(p, { type: 'drop', wid: w.id, owner: a, team: a.team, age: 0, life: 0.9, straight: 0.08, radius: w.impactRadius * (charged ? 1.15 : 1), damage: near, dmgFar: far, size: 0.14, trail: 0, trailEvery: 1.6, trailRadius: 0.42, grav: 22, drag: 0.5, seed: Math.random(),
+        vis: (charged ? 0.11 : 0.09) + Math.random() * 0.02, tail0: 0.7, tailK: 1.2, wob: 0.08, wobF: 20, nose: 0.2, sats: 1 });
+      p.pos.set(ox, oy, oz); p.prev.copy(p.pos); p.start.copy(p.pos);
+      const cu = Math.cos(up);
+      p.vel.set(Math.sin(ang) * cu * sp, Math.sin(up) * sp, Math.cos(ang) * cu * sp);
+      this.list.push(p);
+    }
+    // the blade: foes within reach and in front take the cut directly
+    const reach = w.bladeReach, dmg = charged ? w.chargedBladeDamage : w.bladeDamage;
+    for (const e of G.actors) {
+      if (e.team === a.team || !e.alive) continue;
+      const dx = e.pos.x - a.pos.x, dz = e.pos.z - a.pos.z, dy = e.pos.y - a.pos.y;
+      const fwd = dx * fx + dz * fz;
+      if (fwd < 0 || fwd > reach || Math.abs(dx * fz - dz * fx) > reach * 0.8 || Math.abs(dy) > 1.3) continue;
+      this.applyHit(a, e, dmg, w.id);
+    }
+    if (a.isLocal) emit('recoil', { amount: charged ? 0.012 : 0.006 });
+    emit('weapon:fire', { actor: a, weapon: w.id, muzzle: new THREE.Vector3(ox, oy, oz), dir: new THREE.Vector3(fx, Math.sin(up), fz).normalize(), charge: charged ? 1 : 0 });
+  }
+
+  // brella canopies (WeaponRunner._canopy): the list Projectiles.update tests enemy rounds against
+  setCanopy(a, on) {
+    const i = this.canopies.indexOf(a);
+    if (on && i < 0) this.canopies.push(a);
+    else if (!on && i >= 0) this.canopies.splice(i, 1);
+  }
+
+  // an enemy round crossing the front face of a raised canopy (a disc 0.55 m ahead of the holder) is soaked up
+  _hitCanopy(p) {
+    for (const a of this.canopies) {
+      if (a.team === p.team || !a.alive) continue;
+      const fx = Math.sin(a.aimYaw), fz = Math.cos(a.aimYaw);
+      const cx = a.pos.x + fx * 0.55, cy = a.pos.y + 1.0, cz = a.pos.z + fz * 0.55;
+      const d0 = (p.prev.x - cx) * fx + (p.prev.z - cz) * fz, d1 = (p.pos.x - cx) * fx + (p.pos.z - cz) * fz;
+      if (!(d0 > 0 && d1 <= 0)) continue;
+      const t = d0 / (d0 - d1);
+      const hx = p.prev.x + (p.pos.x - p.prev.x) * t, hy = p.prev.y + (p.pos.y - p.prev.y) * t, hz = p.prev.z + (p.pos.z - p.prev.z) * t;
+      if ((hx - cx) ** 2 + (hy - cy) ** 2 + (hz - cz) ** 2 > 0.8 * 0.8) continue;
+      const wr = a.weaponRunner;
+      wr.canopyHp -= p.damage || 20;
+      _v3.set(hx, hy, hz);
+      G.fx?.burst(_v3, _v2.set(fx, 0, fz), p.owner.color, { count: 5, speed: 2.5, size: 0.06, paint: false });
+      if (wr.canopyHp <= 0) {
+        wr.canopyBroken = true; wr.canopyCd = a.weapon.canopyCooldown || 5; wr.canopyUp = false; this.setCanopy(a, false);
+        G.fx?.burst(_v3, _v2.set(fx, 0.4, fz), a.color, { count: 14, speed: 4, size: 0.09, paint: false });
+        if (a.isLocal || a._nearCamera()) G.audio?.play('splat_big', { pos: a.isLocal ? undefined : _v3, volume: 0.7, pitch: 1.3 });
+      } else if (a.isLocal || a._nearCamera()) G.audio?.play('ink_hit_wall', { pos: _v3, volume: 0.4 });
+      return true;
+    }
+    return false;
   }
 
   fireShooter(a, w, spreadDeg) {
@@ -1075,6 +1254,12 @@ export class Projectiles {
   // a stuck sub's frame; true = remove it
   _updateStuck(b, dt) {
     b.age += dt;
+    if (b.kind === 'arrow') {
+      b.fuse -= dt;
+      b.body.material.emissiveIntensity = 0.5 + 2 * (0.5 + 0.5 * Math.sin(b.age * 40));
+      if (b.fuse <= 0) { this._explodeBomb(b, b.s, b.wid); return true; }
+      return false;
+    }
     if (b.kind === 'suction') {
       b.fuse -= dt; b.beepT -= dt;
       const k = 1 - b.fuse / b.s.fuse;
@@ -1297,18 +1482,21 @@ export class Projectiles {
 
   _explodeBomb(b, s = SUB.bomb, cause = 'bomb') {
     const c = b.pos;
+    // small blasts (burst bombs, stringer arrows) paint, sound and shake in proportion: three arrows at once must not
+    // read like three splat bombs
+    const big = clamp(s.radius / 3, 0.35, 1);
     let area = G.paint.splat(_v.copy(c).setY(c.y + 0.2), s.paintRadius, b.team, { seed: Math.random() });
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0, n = big > 0.6 ? 5 : 2; i < n; i++) {
       const a = Math.random() * Math.PI * 2, r = s.paintRadius * (0.6 + Math.random() * 0.4);
       area += G.paint.splat(_v.set(c.x + Math.cos(a) * r, c.y + 0.5, c.z + Math.sin(a) * r), 0.7 + Math.random() * 0.5, b.team, { seed: Math.random() });
     }
     b.owner.addTurf(area);
     G.fx?.explosion(c, G.teamColors[b.team], s.radius);
-    G.audio?.play('bomb_explode', { pos: c });
-    emit('shake', { pos: c.clone(), amount: 0.6 });
+    G.audio?.play('bomb_explode', { pos: c, volume: big, pitch: 1 + (1 - big) * 0.6 });
+    emit('shake', { pos: c.clone(), amount: 0.6 * big });
     emit('bomb:explode', { actor: b.owner, pos: c.clone(), team: b.team, radius: s.radius });
     const loc = G.local;
-    if (loc && loc.alive) { const d = loc.pos.distanceTo(c); if (d < 14) rumble(loc, clamp(1 - d / 14, 0, 1) * 0.6, clamp(1 - d / 14, 0, 1) * 0.5, 160); }
+    if (loc && loc.alive) { const d = loc.pos.distanceTo(c); if (d < 14) rumble(loc, clamp(1 - d / 14, 0, 1) * 0.6 * big, clamp(1 - d / 14, 0, 1) * 0.5 * big, 160); }
     for (const e of G.actors) {
       if (e.team === b.team || !e.alive) continue;
       _v.copy(e.pos); _v.y += 0.7;
@@ -1392,7 +1580,8 @@ export class Projectiles {
           continue;
         }
       }
-      // actors
+      // raised brella canopies, then actors
+      if (this.canopies.length && this._hitCanopy(p)) { list[i] = list[list.length - 1]; list.pop(); this.pool.push(p); continue; }
       for (const e of G.actors) {
         if (e.team === p.team || !e.alive) continue;
         const h = e.form === 'squid' ? PLAYER.squidHeight : PLAYER.height;
@@ -1413,6 +1602,7 @@ export class Projectiles {
           if (p.type !== 'blast') emit('weapon:impact', { pos: _v.clone(), normal: _v2.clone(), team: p.team, kind: p.type === 'drop' || p.type === 'slosh' ? 'drop' : 'shot', radius: p.radius * 0.5, victim: e });
           if (p.type === 'blast') this._blastBurst(p, _v, e);
           if (p.type === 'slosh' && p.head) this._sloshSplash(p, _v, e);
+          if (p.arrow) this._arrowBurst(p, _v, _v2.set(0, 1, 0));
           dead = true; break;
         }
       }
@@ -1467,6 +1657,7 @@ export class Projectiles {
       if (Math.random() < (p.type === 'shot' ? 0.45 : p.wid === 'sprinkler' ? 0.2 : 1)) G.audio?.play(p.type === 'blast' ? 'splat_big' : 'splat_small', { pos: hit.point, volume: p.type === 'shot' ? 0.35 : 0.6 });
     }
     if (p.type === 'blast') this._blastBurst(p, hit.point, null);
+    if (p.arrow) this._arrowBurst(p, _v, hit.normal);
   }
 
   _blastBurst(p, at, direct) {

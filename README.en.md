@@ -31,8 +31,9 @@
 ## Features
 
 - **Turf war, 4 v 4.** Three minutes, most ground painted wins. Play against bots on three difficulty levels.
-- **Squid form.** Hold to dive into your ink: swim fast, refill your tank, climb inked walls, dolphin-jump water gaps.
-- **15 weapons**, each with its own feel: Spritzer (shooter), Swell Roller, Glint Charger, Popper Blaster, Twinfin Dualies (dodge roll), Tidebucket Slosher and Gyre Splatling, plus a recoloured variant of each (Tidal Pro, Sprinkle Jr., Brisk Roller, Snap Charger, Rapid Blaster, Glide Dualies, Tri-Slosher, Mini Splatling). Every kit comes with Splat Bombs and one of six specials (Tidal Slam, Ink Tempest, Ink Armor, Missile Salvo, Bomb Rush, Bubble Barrier).
+- **Squid form.** Hold to dive into your ink: swim fast, refill your tank, climb inked walls, dolphin-jump water gaps. Swimming fast, flip the stick back and jump for a **Squid Roll** (you take less damage mid-roll); hold jump on a wall and let go for a **Squid Surge** up and over the top.
+- **19 weapons**, each with its own feel: Spritzer (shooter), Swell Roller, Glint Charger, Popper Blaster, Twinfin Dualies (dodge roll), Tidebucket Slosher, Gyre Splatling, Inkbrush (brush), Splat Wiper (wiper), Tri-Stringer (stringer) and Splat Brella (brella: keep firing to hold up a canopy that blocks shots from the front), plus variants (Tidal Pro, Sprinkle Jr., Brisk Roller, Snap Charger, Rapid Blaster, Glide Dualies, Tri-Slosher, Mini Splatling). Weapons are light, middle or heavy, which sets how fast you run and swim.
+- **4 sub weapons and 6 specials.** Each kit has its own sub (Splat Bomb, Suction Bomb, Burst Bomb, Sprinkler) and one of six specials (Tidal Slam, Ink Tempest, Ink Armor, Missile Salvo, Bomb Rush, Bubble Barrier).
 - **Three stages, day or dusk.** Tidewater Plaza, Kelpline Terminal and Halyard Marina, a working marina with a car ferry moored across the middle where the water gaps are the whole point.
 - **Ink that behaves like liquid.** Splats spread and settle, fresh ink is glossy and dries, drips run down walls, and swimming leaves a wake in the surface itself.
 - **A map you can actually read.** Hold <kbd>Tab</kbd> and the camera cranes up into a tilt-shift diorama of the live stage, with pins for your team and one-click Super Jumps.

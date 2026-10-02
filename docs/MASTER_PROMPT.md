@@ -127,7 +127,7 @@
   | Super Jump | スーパージャンプ |
   | Dodge roll (Dualies) | スライド |
   | Locker | ロッカー |
-  | Shooter / Roller / Charger / Blaster / Dualies / Slosher / Splatling | シューター / ローラー / チャージャー / ブラスター / マニューバー / スロッシャー / スピナー |
+  | Shooter / Roller / Charger / Blaster / Dualies / Slosher / Splatling / Brush / Wiper / Stringer / Brella | シューター / ローラー / チャージャー / ブラスター / マニューバー / スロッシャー / スピナー / フデ / ワイパー / ストリンガー / シェルター |
   | 武器の固有名 (Spritzer, Swell Roller …) | カタカナ表記 (スプリッツァー、スウェルローラー …) |
   | Alpha / Bravo (チーム名) | アルファ / ブラボー |
   | Easy / Normal / Hard | かんたん / ふつう / むずかしい |

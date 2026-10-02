@@ -33,7 +33,7 @@ const TWIN_KICK = [{ transform: 'scale(1.55)', strokeWidth: '2.6px' }, { transfo
 const TWIN_KICK_T = { duration: 130, easing: 'cubic-bezier(.2,.8,.3,1)' };
 const TAU = Math.PI * 2;
 const STREAKS = { 2: N_('DOUBLE SPLAT!'), 3: N_('TRIPLE SPLAT!'), 4: N_('QUAD SPLAT!') };
-const kindOf = (w) => (WEAPONS[w] && WEAPONS[w].kind) || w || 'shooter';
+const kindOf = (w) => (WEAPONS[w] && (WEAPONS[w].icon || WEAPONS[w].kind)) || w || 'shooter';
 
 // ------------------------------------------------------------------ HUD-only art
 const K = '#15121c';

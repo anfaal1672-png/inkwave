@@ -100,6 +100,39 @@ export const WEAPON_ICONS = {
     <path d="M41 30 L60 30 M41 34 L60 34" stroke="${LT}" stroke-width="1.6"/>
     <circle cx="21" cy="15" r="4.2" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="2.2"/>
     <path d="M11 29.5 L33 29.5" stroke="#fff" stroke-opacity=".6" stroke-width="2.6" stroke-linecap="round"/>`),
+  // brush: long handle, metal ferrule, a fat ink-soaked bristle head
+  brush: svg(`<g ${O}>
+      <path d="M8 58 L30 30 L35 34 L13 61 Z" fill="${LT}"/>
+      <path d="M28 27 L37 35 L41 31 L32 23 Z" fill="${DK}"/>
+      <path d="M32 22 C38 12 48 6 58 6 C58 16 52 26 42 32 Z" fill="currentColor"/>
+    </g>
+    <path d="M40 18 Q46 12 53 10" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>`),
+  // wiper: a wrapped two-hand hilt, a wide guard, a long blade with an ink edge
+  wiper: svg(`<g ${O}>
+      <path d="M6 58 L17 47 L21 51 L10 62 Z" fill="${DK}"/>
+      <path d="M13 41 L27 55 L30 52 L16 38 Z" fill="${LT}"/>
+      <path d="M21 46 L52 15 C55 12 59 8 60 4 C56 5 52 9 49 12 L18 43 Z" fill="${LT}"/>
+      <path d="M24 45 L54 15" stroke="currentColor" stroke-width="5"/>
+    </g>`),
+  // stringer: a bow held flat with three ink arrows nocked
+  stringer: svg(`<g ${O}>
+      <path d="M8 44 C20 28 44 28 56 44" fill="none" stroke="${LT}" stroke-width="7"/>
+      <path d="M8 44 L32 52 L56 44" fill="none" stroke-width="2"/>
+      <rect x="28" y="40" width="8" height="20" rx="3" fill="${DK}"/>
+    </g>
+    <g stroke="${K}" stroke-width="2.5" stroke-linecap="round">
+      <path d="M32 50 L32 10 M32 50 L18 14 M32 50 L46 14"/>
+    </g>
+    <circle cx="32" cy="9" r="4" fill="currentColor" stroke="${K}" stroke-width="2.5"/>
+    <circle cx="17.5" cy="13" r="4" fill="currentColor" stroke="${K}" stroke-width="2.5"/>
+    <circle cx="46.5" cy="13" r="4" fill="currentColor" stroke="${K}" stroke-width="2.5"/>`),
+  // brella: an ink canopy over a short shotgun grip
+  brella: svg(`<g ${O}>
+      <path d="M26 38 L22 56 Q21.5 59 24.5 59 L29 59 Q31.5 59 32 56 L35 39 Z" fill="${DK}"/>
+      <path d="M4 34 C6 16 20 6 32 6 C44 6 58 16 60 34 C54 30 48 30 43 34 C38 30 26 30 21 34 C16 30 10 30 4 34 Z" fill="currentColor"/>
+      <path d="M32 6 L32 36" fill="none"/>
+    </g>
+    <path d="M14 22 Q20 13 30 11" stroke="#fff" stroke-opacity=".6" stroke-width="3" fill="none" stroke-linecap="round"/>`),
 };
 
 export const SUB_ICONS = {
@@ -412,7 +445,7 @@ export const RULE_ART = {
 };
 
 // ------------------------------------------------------------------ helpers
-export const weaponIcon = (idOrKind) => WEAPON_ICONS[idOrKind] || WEAPON_ICONS[WEAPONS[idOrKind]?.kind] || WEAPON_ICONS.shooter;
+export const weaponIcon = (idOrKind) => WEAPON_ICONS[idOrKind] || WEAPON_ICONS[WEAPONS[idOrKind]?.icon] || WEAPON_ICONS[WEAPONS[idOrKind]?.kind] || WEAPON_ICONS.shooter;
 export const specialIcon = (id) => SPECIAL_ICONS[id] || SPECIAL_ICONS.slam;
 
 // live language switching re-renders key-cap strings with this (i18n relabel)

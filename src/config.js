@@ -269,10 +269,53 @@ Object.assign(WEAPONS, {
     stats: { range: 0.56, damage: 0.5, rate: 0.9, mobility: 0.62, paint: 0.6 },
     special: 'barrier', specialCost: 185,
   }),
+  // ---- new kinds, each built on the closest existing mechanics (kind = runner, bots, pose) with its own model / icon
+  brush: variant('roller', {
+    id: 'brush', name: 'Inkbrush', class: 'Brush', model: 'brush', icon: 'brush', skin: null, sub: 'sprinkler', weight: 'light',
+    blurb: 'Hold to dash along painting a narrow trail. Tap for rapid flicks that pepper foes up close.',
+    rollSpeed: 7.4, rollWidth: 0.95, rollSplat: 0.44, rollInkPerMeter: 0.32, rollDamage: 25,
+    flickInterval: 0.17, flickWindup: 0.05, flickInk: 2, flickDrops: 4, flickDamageNear: 30, flickDamageFar: 12, flickSpeed: 12.5, flickSpreadDeg: 26,
+    impactRadius: 0.7, moveSpeedFiring: 5.2, footRadius: 0.55,
+    stats: { range: 0.22, damage: 0.35, rate: 1.0, mobility: 1.0, paint: 0.72 },
+    special: 'storm', specialCost: 170,
+  }),
+  // Wiper: the roller family with w.slash — a press slashes a sheet of ink sideways at once, holding charges a heavy cut
+  wiper: variant('roller', {
+    id: 'wiper', name: 'Splat Wiper', class: 'Wiper', model: 'wiper', icon: 'wiper', skin: null, sub: 'burst', weight: 'light', slash: true,
+    blurb: 'Tap to slash a sheet of ink sideways. Hold to charge, release for a wide, heavy cut.',
+    slashInterval: 0.32, slashInk: 2.5, slashDrops: 5, slashSpreadDeg: 60, slashSpeed: 16, slashDamageNear: 32, slashDamageFar: 16,
+    chargeTime: 0.55, chargedInk: 6, chargedDrops: 7, chargedSpreadDeg: 80, chargedDamageNear: 80, chargedDamageFar: 30,
+    bladeDamage: 30, chargedBladeDamage: 60, bladeReach: 1.7,
+    impactRadius: 0.8, moveSpeedFiring: 4.8, footRadius: 0.6,
+    stats: { range: 0.4, damage: 0.7, rate: 0.75, mobility: 0.9, paint: 0.45 },
+    special: 'slam', specialCost: 180,
+  }),
+  // Stringer: the charger family with w.arrows — loose a fan of arrows; a full draw makes them burst where they land
+  stringer: variant('charger', {
+    id: 'stringer', name: 'Tri-Stringer', class: 'Stringer', model: 'stringer', icon: 'stringer', skin: null, sub: 'bomb', weight: 'mid',
+    blurb: 'Draw and loose three arrows in a fan. At full draw they burst a moment after they land.',
+    arrows: 3, arrowSpreadDeg: 6, arrowSpeed: 58, chargeTime: 0.9, rangeMin: 9, rangeMax: 21, damageMin: 30, damageMax: 45,
+    blastDelay: 0.35, arrowBlast: { id: 'arrow', radius: 1.4, damageMax: 30, damageMin: 30, paintRadius: 1.2 },
+    inkFull: 14, impactRadius: 0.9, moveSpeedFiring: 2.8,
+    stats: { range: 0.82, damage: 0.8, rate: 0.35, mobility: 0.5, paint: 0.6 },
+    special: 'missiles', specialCost: 190,
+  }),
+  // Brella: the shooter family with w.pellets (a shotgun) and w.canopyHp — holding fire keeps the canopy up in front
+  brella: variant('shooter', {
+    id: 'brella', name: 'Splat Brella', class: 'Brella', model: 'brella', icon: 'brella', skin: null, sub: 'sprinkler', weight: 'mid',
+    blurb: 'A shotgun blast of ink. Hold fire to keep the canopy up: it blocks shots from the front until it breaks.',
+    pellets: 8, pelletSpreadDeg: 10, fireInterval: 0.6, damage: 18, inkPerShot: 6, projSpeed: 27, straightTime: 0.12, range: 8.5,
+    spreadGround: 0, spreadAir: 0, bloomPerShot: 0,
+    canopyHp: 260, canopyCooldown: 5,
+    impactRadius: 0.7, trailRadius: 0.36, trailEvery: 1.6, moveSpeedFiring: 3.8, footEvery: 1, footRadius: 0.75,
+    stats: { range: 0.38, damage: 0.85, rate: 0.35, mobility: 0.55, paint: 0.55 },
+    special: 'barrier', specialCost: 190,
+  }),
 });
 export const WEAPON_ORDER = [
   'shooter', 'shooter_pro', 'shooter_jr', 'dualies', 'dualies_glide', 'splatling', 'splatling_mini', 'roller',
-  'roller_brisk', 'slosher', 'slosher_tri', 'charger', 'charger_snap', 'blaster', 'blaster_rapid',
+  'roller_brisk', 'brush', 'wiper', 'slosher', 'slosher_tri', 'charger', 'charger_snap', 'stringer', 'blaster', 'blaster_rapid',
+  'brella',
 ];
 
 export const SUB = {
