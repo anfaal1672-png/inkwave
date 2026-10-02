@@ -76,14 +76,15 @@ class Game {
     for (const m of MAPS) { try { m.thumb = layoutThumbSVG(MAP_LAYOUTS[m.layout || m.id], m.theme); } catch (e) { console.warn('thumb', m.id, e); } }
     const stored = (() => { try { return JSON.parse(localStorage.getItem('inkwave.settings')) || {}; } catch { return {}; } })();
     this.settings = G.settings = { ...loadJSON('inkwave.settings', DEFAULT_SETTINGS), ...CHEAT_DEFAULTS };
-    // phones and tablets start on the low preset and 30 fps — each only while that setting has never been saved, so a
-    // choice is never overridden (players from before the frame-rate limit existed get 30 fps once)
-    // (q2: phones that had the old default 'low' move to the power saver once; a later choice sticks)
-    if (TOUCH_PRIMARY && (!stored.quality || !('fpsCap' in stored) || stored.q2 !== 1)) {
+    // phones and tablets start on the power-saver preset at a 60 fps limit — each only while that setting has never been
+    // saved, so a choice is never overridden
+    // (q2: phones that had the old default 'low' move to the power saver once; q3: phones on the old default 30 fps
+    // limit move to 60 once — the per-frame work was cut to fit 60 on a mid-range phone; a later choice sticks)
+    if (TOUCH_PRIMARY && (!stored.quality || !('fpsCap' in stored) || stored.q2 !== 1 || stored.q3 !== 1)) {
       if (!stored.quality) this.settings.quality = 'saver';
       else if (stored.q2 !== 1 && stored.quality === 'low') this.settings.quality = 'saver';
-      if (!('fpsCap' in stored)) this.settings.fpsCap = 30;
-      this.settings.q2 = 1;
+      if (!('fpsCap' in stored) || (stored.q3 !== 1 && +stored.fpsCap === 30)) this.settings.fpsCap = 60;
+      this.settings.q2 = 1; this.settings.q3 = 1;
       saveJSON('inkwave.settings', this.settings);
     }
     // v1.1: fov became horizontal — migrate old vertical values once
@@ -144,7 +145,7 @@ class Game {
       loadModule('audio', true), loadModule('music', true),
     ]);
     this.CharacterClass = charMod.Character;
-    try { this.PropKit = (await MODULES.props()).PropKit; } catch (e) { console.error('[inkwave] prop kit failed to load', e); this.PropKit = null; }
+    try { const pm = await MODULES.props(); this.PropKit = pm.PropKit; this._clearPropTemplates = pm.clearPropTemplates; } catch (e) { console.error('[inkwave] prop kit failed to load', e); this.PropKit = null; }
     G.audio = audioMod.audio; G.music = musicMod.music;
     await progress(0.15, tr('Building the plaza…'));
 
@@ -257,6 +258,7 @@ class Game {
           if (r && r.colliders) colliders.push(...r.colliders);
         }
         this.props.build();
+        this._clearPropTemplates?.();
       } catch (e) { console.error('[inkwave] props failed', e); this.props = null; }
     }
     const level = (G.level = new Level(MAP_LAYOUTS[layoutId], colliders));
@@ -770,8 +772,8 @@ class Game {
     // (a 60 Hz display at a 30 cap renders every second refresh, not every third); the clock is only read on frames
     // that run, so dt spans the skipped ones.
     let cap = +this.settings.fpsCap || 0;
-    // power saver: behind a menu (title backdrop match, settings) nothing needs more than 20 fps
-    if (this.settings.quality === 'saver' && this.menus?.current) {
+    // power saver (and every phone): behind a menu (title backdrop match, settings) nothing needs more than 20 fps
+    if ((this.settings.quality === 'saver' || TOUCH_PRIMARY) && this.menus?.current) {
       const m = this.match;
       if (!(m && !m.attract && m.state === 'playing' && !m.paused)) cap = Math.min(cap || 60, 20);
     }
@@ -811,7 +813,7 @@ class Game {
     const s = this.R.dynScale || 1;
     // targets: under a frame-rate limit, hold 90 % of it (headroom can't show above the cap: step back up after 12 s
     // at the cap); phones otherwise 30 fps, desktops 40. Phones never go below 0.75 — at half density a hot phone
-    // looked smeared, and the 30 fps limit leaves the GPU room at 0.75.
+    // looked smeared.
     const phone = TOUCH_PRIMARY, cap = +this.settings.fpsCap || 0, floor = 0.75;
     const slowDt = cap > 0 ? 1 / (cap * 0.9) : phone ? 1 / 32 : 1 / 40;
     const fastDt = cap > 0 ? 1 / (cap * 0.97) : phone ? 1 / 50 : 1 / 75;
@@ -819,11 +821,15 @@ class Game {
     else if (avg < fastDt && s < 1 && d.ups < 2) { d.slow = 0; if (++d.fast >= 3) { this.R.setDynamicScale(s + 0.125, floor); d.fast = 0; d.ups++; } }
     else {
       d.fast = 0;
-      d.slow = avg > 1 / 25 && s <= floor + 0.01 ? (d.slow || 0) + 1 : 0;
+      // still slow at the lowest density for 12 s (a slow or throttling device): under 25 fps, or on a phone held at a
+      // 60 fps limit under 45 — then a lower preset, or (already on the lowest) the 30 fps limit, is suggested once
+      const hi = phone && cap >= 60;
+      d.slow = avg > (hi ? 1 / 45 : 1 / 25) && s <= floor + 0.01 ? (d.slow || 0) + 1 : 0;
       const q = this.settings.quality;
-      if (d.slow >= 3 && !this._suggestedQ && !LOWQ.has(q)) {
+      if (d.slow >= 3 && !this._suggestedQ && (!LOWQ.has(q) || hi)) {
         this._suggestedQ = true;
-        this.hud?.feed({ text: tr('Running slowly — a lower Graphics quality in Settings will help'), color: '#ffd166', kind: 'info' });
+        const text = LOWQ.has(q) ? tr('Running slowly — a 30 fps Frame rate limit in Settings keeps it smooth and cooler') : tr('Running slowly — a lower Graphics quality in Settings will help');
+        this.hud?.feed({ text, color: '#ffd166', kind: 'info' });
       }
     }
   }
@@ -921,10 +927,11 @@ class Game {
     this.input.endFrame();
   }
 
-  // low preset: only characters near the camera (and your own) cast shadows. A squid kid is ~37k shadow triangles in
-  // ~5 draws; 20 m away its shadow is a few texels of the 1024 map. Meshes keep their own flag (userData.cs0).
+  // low presets (and every preset on a phone): only characters near the camera (and your own) cast shadows. A squid kid
+  // is ~37k shadow triangles in ~5 draws; 20 m away its shadow is a few texels of the map. Meshes keep their own flag
+  // (userData.cs0).
   _charShadows() {
-    const q = this.settings.quality, low = LOWQ.has(q), r2 = q === 'saver' ? 144 : 400, cam = G.camera.position;
+    const q = this.settings.quality, low = LOWQ.has(q) || TOUCH_PRIMARY, r2 = q === 'saver' ? 144 : 400, cam = G.camera.position;
     for (const a of G.actors) {
       const root = a.character?.root;
       if (!root) continue;

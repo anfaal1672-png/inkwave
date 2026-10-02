@@ -40,7 +40,7 @@
 - **Everything procedural.** Characters, animation, weapons, textures, props, sound effects and music are all generated in code. The only downloaded assets are the fonts, the stage-select renders and the baked lightmaps.
 - **Cheats.** Autoplay (a bot plays your character in five strengths, the top one sees through walls and dodges shots; touch any control to take over for a moment), aimbot, invincibility, infinite ink, special on tap, move speed / jump / gravity / fire rate / damage dials, frozen or peaceful enemies, a stopped clock, paint-the-whole-stage and more (25 in all): Pause → Cheats, or Settings → Cheats. They switch off again on reload.
 - **Japanese and English.** The UI is Japanese by default (with the official Splatoon terms); switch under Settings → Gameplay → Language.
-- **Plays on phones.** Touch controls with a floating move stick, swipe to aim and on-screen buttons (left-handed layout, size and opacity in Settings → Touch). Phones and tablets start on the Low preset with a 30 fps limit (cooler, easier on the battery); the resolution adapts on top of that.
+- **Plays on phones.** Touch controls with a floating move stick, swipe to aim and on-screen buttons (left-handed layout, size and opacity in Settings → Touch). Phones and tablets start on the Power saver preset with a 60 fps limit; the resolution adapts to hold it, and if the phone still can't keep up it suggests the 30 fps limit (cooler, easier on the battery).
 
 <p align="center">
   <img src="assets/stages/tidewater-day.webp" width="49%" alt="Tidewater Plaza">

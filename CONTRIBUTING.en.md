@@ -32,12 +32,15 @@ For load-time and frame-rate work, measure before and after with:
 ```bash
 npm run measure -- --profile desktop --runs 3            # or --profile mobile, --cache warm, --settings '{"quality":"low"}'
 npm run bench                                             # main-thread ms per frame (mobile emulation, low) + where it goes
+npm run memory                                            # memory over 6 rounds in a row (GPU, canvases, JS heap)
 node tools/profile-boot.mjs --profile mobile --shaders    # boot CPU profile + every shader program's compile time
 ```
 
 `npm run measure` prints download size (raw and brotli), the boot timeline per loading stage, and fps / 1 % low / draw calls over 10 s of live play as JSON. Baseline numbers live in [docs/PERF_BASELINE.md](docs/PERF_BASELINE.md). Frame rates under software WebGL are only comparable with each other, never with real hardware.
 
 `npm run bench` runs the whole per-frame update (match, bots, physics, paint, effects, HUD, minimap) at a fixed 30 fps step with drawing skipped (`--render` includes it) and profiles it: software WebGL cannot tell you a frame rate, but this CPU budget is comparable.
+It swings about ±20 % with how a round plays out: to compare two builds, pass `--seed 7` (seeded randomness) and `--settle 15` (15 s of normal play first, so the pre-rendered sounds and music notes exist) and average a few seeds.
+`npm run memory` boots to the title, then plays each stage by day and at dusk and after every round prints GPU memory (textures, renderbuffers, buffers), canvases, JS heap and three.js texture / geometry / program counts. A value that keeps climbing round after round is a leak.
 
 ## Production build
 

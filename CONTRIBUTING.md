@@ -36,11 +36,14 @@ npm run test:touch   # タッチ操作だけで、タイトル → 試合（全�
 ```bash
 npm run measure -- --profile desktop --runs 3            # --profile mobile、--cache warm、--settings '{"quality":"low"}' なども可
 npm run bench                                             # 1 フレームの CPU 時間（スマホ模擬、low）とその内訳
+npm run memory                                            # 試合を 6 回続けたときのメモリ（GPU・canvas・JS）
 node tools/profile-boot.mjs --profile mobile --shaders    # 起動中の CPU プロファイルと、シェーダーごとのコンパイル時間
 ```
 
 - `npm run measure` は、転送量（そのまま / brotli 後）、ロード画面の段階ごとの時間、試合中 10 秒間の fps・1% low・描画コール数を JSON で出力します。これまでの計測値は [docs/PERF_BASELINE.md](docs/PERF_BASELINE.md) にあります。
 - `npm run bench` は、1 フレームの更新処理（試合、ボット、物理、ペイント、エフェクト、HUD、ミニマップ）を、30fps の固定ステップで描画なしで回し、プロファイルを取ります（`--render` を付けると描画も含めます）。ソフトウェア描画では fps は当てになりませんが、この CPU 時間は比べられます。
+  - 試合の展開で ±20% ほどぶれます。2 つの版を比べるときは、`--seed 7`（乱数を固定）と `--settle 15`（最初の 15 秒をふつうに動かして、効果音・BGM の録音を済ませる）を付け、種を変えて何回か回してください。
+- `npm run memory` は、タイトルのあと 3 ステージを昼・夕方で 1 回ずつ遊び、そのたびに GPU のメモリ（テクスチャ・レンダーバッファ・バッファ）、canvas、JS ヒープ、three.js のテクスチャ・ジオメトリ・プログラム数を表にします。試合を重ねても増え続ける値があれば、解放漏れです。
 - ソフトウェア描画での fps は、同じ環境での比較にだけ使ってください。実機の値とは比べられません。
 
 ## 本番ビルド

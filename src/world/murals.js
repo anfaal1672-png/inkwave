@@ -32,6 +32,8 @@ export async function createMuralTexture() {
   drawCabinSide(g, CSIDE);
   drawCabinEnd(g, CEND);
   const tex = new THREE.CanvasTexture(c);
+  // drawn once: free the canvas bitmap (16 MB) once it is on the GPU (phones keep it alive as long as the texture)
+  tex.onUpdate = () => { tex.onUpdate = null; c.width = c.height = 1; };
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   tex.wrapS = THREE.RepeatWrapping;

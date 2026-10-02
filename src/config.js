@@ -319,7 +319,7 @@ export const DEFAULT_SETTINGS = {
   bloom: true,
   cameraShake: 1.0,         // 0..1
   showFps: false,
-  fpsCap: 0,                // frame rate limit: 0 (the display's rate) | 60 | 30 — phones start on 30 (cooler, longer battery)
+  fpsCap: 0,                // frame rate limit: 0 (the display's rate) | 60 | 30 — phones start on 60 (main.js)
   master: 0.8, music: 0.6, sfx: 0.85,
   colorblind: false,
   minimap: true,

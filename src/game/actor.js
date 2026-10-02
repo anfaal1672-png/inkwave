@@ -953,12 +953,13 @@ export class Actor {
     ch.root.rotation.y = this.yaw;
     ch.setHurt(Math.max(this.hurtFlash, 1 - this.hp / PLAYER.hp) * (this.hp < PLAYER.hp ? 1 : 0), G.teamColors[this.enemyTeam]);
     // visibility for the character's pose throttle (G.frustum is built once per frame in main.js): a 1.5 m sphere
-    // around the chest, and 30 m+ from the camera drops hair / jiggle / finger detail
+    // around the chest; 15 m+ from the camera poses at ~30 Hz, 30 m+ also drops hair / jiggle / finger detail
     if (G.frustum && !this.isLocal) {
       _cullSph.center.set(this.pos.x, this.pos.y + 0.9, this.pos.z); _cullSph.radius = 1.5;
       ch.offscreen = !G.frustum.intersectsSphere(_cullSph);
-      ch.far = G.camera.position.distanceToSquared(this.pos) > 900;
-    } else { ch.offscreen = false; ch.far = false; }
+      const d2 = G.camera.position.distanceToSquared(this.pos);
+      ch.mid = d2 > 225; ch.far = d2 > 900;
+    } else { ch.offscreen = false; ch.mid = false; ch.far = false; }
     ch.update(dt, a);
     this._events(a);
     // swim wake
