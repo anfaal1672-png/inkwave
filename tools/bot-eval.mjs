@@ -89,7 +89,11 @@ async function evalMap(map, runs) {
       const fin = await page.evaluate((k, fps) => {
         const g = window.__inkwave; g._skipRender = true;
         const S = window.__bs;
+        // paint splats are GPU draws: with rendering skipped nothing else flushes them, and 300 frames of queued ink
+        // (sprinklers, brushes…) has made SwiftShader drop the WebGL context mid-run — drain the queue every 30 frames
+        const gl = window.__G.renderer.getContext();
         for (let i = 0; i < k; i++) {
+          if (i % 30 === 29) gl.finish();
           g._frame(1 / fps);
           if (g.match.state === 'playing') {
             for (const a of g.match.actors) {
