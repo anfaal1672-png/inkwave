@@ -7,7 +7,7 @@
 //   ms/bot     mean CPU time of one bot's update() (performance.now around it)
 // usage: node tools/bot-eval.mjs [--runs 3] [--maps tidewater,kelpline] [--difficulty hard] [--duration 90]
 //                                [--fps 30] [--port 8490] [--url http://localhost:8493/] [--parallel 2] [--json]
-//                                [--weapons random] [--out per-weapon.json] [--chunk 3]
+//                                [--weapons random] [--focus brush,wiper] [--out per-weapon.json] [--chunk 3]
 //   --url points at another checkout (python3 tools/serve.py 8493 in a git worktree) for a before / after comparison.
 //   --weapons random prints a per-weapon table (kills, deaths, K/D, turf/min, win%, modes) instead of the per-map one,
 //   for weapon balance; --chunk N restarts the browser every N matches of a map so --parallel can split one map.
@@ -29,6 +29,9 @@ const asJson = args.includes('--json');
 // --weapons random: all 8 bots get random weapons (distinct kinds within a team, least-used first so every weapon appears
 // about equally often) and the run prints a per-weapon table; --out <file> also writes it as JSON.
 const randomWeapons = opt('weapons', '') === 'random';
+// --focus brush,wiper: with --weapons random, every match puts these weapons on the teams (team t gets focus[t]) so a
+// few runs are enough to judge them; the rest of each team is drawn as usual
+const focus = opt('focus', '') ? opt('focus', '').split(',') : [];
 const outFile = opt('out', '');
 const chunk = Math.max(1, +opt('chunk', runs));
 const used = Object.fromEntries(WEAPON_ORDER.map((id) => [id, 0]));
@@ -36,9 +39,11 @@ const pickWeapons = () => {
   const teams = [];
   for (let t = 0; t < 2; t++) {
     const kinds = new Set(), out = [];
+    const kindOf = (id) => WEAPONS[id].icon || WEAPONS[id].kind;   // brush / wiper / … count as their own kind
+    if (focus.length) { const id = focus[t % focus.length]; out.push(id); kinds.add(kindOf(id)); used[id]++; }
     while (out.length < 4) {
-      const pool = WEAPON_ORDER.filter((id) => !kinds.has(WEAPONS[id].kind)).sort((a, b) => used[a] - used[b] + (Math.random() - 0.5) * 0.9);
-      const id = pool[0]; out.push(id); kinds.add(WEAPONS[id].kind); used[id]++;
+      const pool = WEAPON_ORDER.filter((id) => !kinds.has(kindOf(id))).sort((a, b) => used[a] - used[b] + (Math.random() - 0.5) * 0.9);
+      const id = pool[0]; out.push(id); kinds.add(kindOf(id)); used[id]++;
     }
     teams.push(out);
   }

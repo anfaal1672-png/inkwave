@@ -236,12 +236,13 @@ export class BotBrain {
           if (w.kind === 'charger') {
             it.fire = !(a.weaponRunner.charging && a.weaponRunner.charge >= this.chargeRelease);
             if (a.weaponRunner.charging) move.multiplyScalar(0.3);
-          } else if (w.kind === 'roller' && w.slash) {
-            // wiper: quick taps up close; now and then a held, fully charged cut
+          } else if (w.kind === 'roller' && (w.slash || w.flickInterval < 0.3)) {
+            // wiper / brush: rapid taps up close (holding would only charge the wiper or roll the brush into the foe);
+            // a wiper now and then holds for a fully charged cut
             const wr = a.weaponRunner;
             if (wr.charging) it.fire = wr.charge < 1;
             else if (this._wipeHold > 0) { this._wipeHold -= dt; it.fire = true; }
-            else { this._tap = !this._tap; it.fire = dist < 6.5 && this._tap; if (it.fire && dist > 2.5 && Math.random() < 0.12) this._wipeHold = 0.35; }
+            else { this._tap = !this._tap; it.fire = dist < (w.slash ? 6.5 : 5) && this._tap; if (w.slash && it.fire && dist > 2.5 && Math.random() < 0.12) this._wipeHold = 0.35; }
           } else if (w.kind === 'roller') {
             it.fire = dist < 5.5 || (a.weaponRunner.rolling && dist < 8);
           } else if (w.kind === 'splatling') {
@@ -338,7 +339,11 @@ export class BotBrain {
       // a slow wobble on top so the aim doesn't look ruled
       wantYaw = heading + this.pyOff + Math.sin(this.t * 0.9 + this.ph2) * 0.1;
       wantPitch = this.pPitch;
-      if (w.kind === 'roller') {
+      if (w.kind === 'roller' && w.slash) {
+        // wiper: paint with a stream of quick slashes (holding would only charge)
+        this._tap = !this._tap;
+        it.fire = this._tap && inkFrac > 0.08 && needPaint;
+      } else if (w.kind === 'roller') {
         it.fire = inkFrac > 0.08 && (needPaint || Math.random() < 0.02) && wantMove;
       } else if (w.kind === 'charger') {
         // charge to ~70 % and release a paint line, then a short breather before the next one
