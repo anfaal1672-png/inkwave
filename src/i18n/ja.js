@@ -104,6 +104,9 @@ export const JA = {
   'Damage': '攻撃力',
   'Fire rate': '連射力',
   'Mobility': '機動力',
+  'Lightweight': '軽量級',
+  'Middleweight': '中量級',
+  'Heavyweight': '重量級',
   'Ink coverage': '塗り性能',
 
   // weapon classes

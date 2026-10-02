@@ -25,8 +25,8 @@ export const PLAYER = {
   squidHeight: 0.55,
   runSpeed: 6.0,
   squidDrySpeed: 2.9,    // squid hopping on unpainted ground
-  swimSpeed: 11.8,       // squid submerged in own ink
-  enemyInkSpeed: 1.9,
+  swimSpeed: 12.0,       // squid submerged in own ink (Splatoon: swim ≈ 2 × run)
+  enemyInkSpeed: 1.5,    // wading in enemy ink (Splatoon: ≈ ¼ of the run speed)
   climbSpeed: 7.5,
   accelGround: 42,
   accelAir: 14,
@@ -36,15 +36,15 @@ export const PLAYER = {
   gravity: 25,
   maxFall: 40,
   inkMax: 100,
-  inkRefillSwim: 42,     // per second while submerged
-  inkRefillKid: 9,       // per second in kid form after idle delay
+  inkRefillSwim: 34,     // per second while submerged (Splatoon: an empty tank fills in ~3 s)
+  inkRefillKid: 10,      // per second in kid form after idle delay (Splatoon: ~10 s)
   inkRefillDelay: 0.9,
   enemyInkDps: 20,       // damage/s while standing in enemy ink ...
   enemyInkDamageCap: 40, // ... never takes you below (hp - cap) from ink alone
   regenDelay: 1.3,
   regenRate: 22,
   regenRateSwim: 60,
-  respawnTime: 5.5,
+  respawnTime: 7.0,      // Splatoon: ~8.5 s from the splat to the spawn pad; a little shorter keeps 3-min rounds busy
   spawnInvuln: 1.6,
   fallDeathY: -1.45,  // touching the sea (surface y = -1.6) splats you
   waterY: -1.6,
@@ -83,6 +83,15 @@ export const PLAYER = {
   ledgePopCarry: 2.5,     // forward speed onto the ledge
   emergeDelay: 0.07,      // squid → kid before the first shot can leave the barrel (the shot is buffered, not lost)
   fireBuffer: 0.16,
+};
+
+// Weapon weight (Splatoon's light / middle / heavy classes): scales the plain run speed and the swim speed only —
+// each weapon's firing / charging speeds are its own. Ratios from Splatoon 3 (run 1.04 / 0.96 / 0.88, swim 2.02 /
+// 1.92 / 1.728 distance units per frame).
+export const WEIGHT = {
+  light: { run: 1.083, swim: 1.052 },
+  mid: { run: 1, swim: 1 },
+  heavy: { run: 0.917, swim: 0.9 },
 };
 
 // ---- Weapons ----
@@ -160,6 +169,7 @@ export const WEAPONS = {
   },
   splatling: {
     id: 'splatling', name: 'Gyre Splatling', kind: 'splatling', class: 'Splatling', sub: 'bomb',
+    weight: 'heavy',   // WEIGHT (default 'mid'); variants inherit it
     blurb: 'Hold to spin up, release for a long high-speed stream. The more charge, the longer it lasts.',
     stats: { range: 0.78, damage: 0.55, rate: 1.0, mobility: 0.38, paint: 0.7 },
     chargeTime: 0.95, burstMin: 0.3, burstMax: 1.7, fireInterval: 0.066, damage: 28, inkPerShot: 0.6,
@@ -185,6 +195,7 @@ Object.assign(WEAPONS, {
   }),
   shooter_jr: variant('shooter', {
     id: 'shooter_jr', name: 'Sprinkle Jr.', skin: { body: '#bfe8d8', trim: '#7fb8a8' },
+    weight: 'light',
     blurb: 'A light, thrifty sprayer. Weak shots, but it paints fast and moves easily.',
     fireInterval: 0.085, damage: 28, range: 11.5, spreadGround: 11, spreadAir: 14, inkPerShot: 0.55,
     impactRadius: 0.9, trailRadius: 0.46, moveSpeedFiring: 5.0,
@@ -193,6 +204,7 @@ Object.assign(WEAPONS, {
   }),
   roller_brisk: variant('roller', {
     id: 'roller_brisk', name: 'Brisk Roller', skin: { body: '#2f3a4f', trim: '#9fb4d0' },
+    weight: 'light',
     blurb: 'A narrow, quick roller. Sprints across the turf and flicks fast.',
     rollSpeed: 5.4, rollWidth: 1.4, rollInkPerMeter: 0.8, rollDamage: 125,
     flickInterval: 0.45, flickWindup: 0.14, flickDamageNear: 100, flickDamageFar: 25, flickSpeed: 15, flickDrops: 7,
@@ -202,6 +214,7 @@ Object.assign(WEAPONS, {
   }),
   charger_snap: variant('charger', {
     id: 'charger_snap', name: 'Snap Charger', skin: { body: '#e8d9f0', trim: '#8a78a8' },
+    weight: 'light',
     blurb: 'Charges fast for a shorter line. Quick to aim, easy on the ink.',
     chargeTime: 0.85, rangeMin: 9, rangeMax: 19, damageMin: 40, damageMax: 140, inkFull: 12, moveSpeedFiring: 2.6,
     stats: { range: 0.72, damage: 0.9, rate: 0.38, mobility: 0.55, paint: 0.4 },
@@ -217,6 +230,7 @@ Object.assign(WEAPONS, {
   }),
   dualies_glide: variant('dualies', {
     id: 'dualies_glide', name: 'Glide Dualies', skin: { body: '#d8e6f2', trim: '#5c7896' },
+    weight: 'light',
     blurb: 'Faster pistols with a short, nimble dodge-roll. Four rolls before you run dry.',
     fireInterval: 0.068, damage: 28, range: 11, rolls: 4, rollTime: 0.25, rollDist: 2.4, rollInk: 5, lockTime: 0.35,
     stats: { range: 0.42, damage: 0.38, rate: 1.0, mobility: 1.0, paint: 0.5 },
@@ -231,6 +245,7 @@ Object.assign(WEAPONS, {
   }),
   splatling_mini: variant('splatling', {
     id: 'splatling_mini', name: 'Mini Splatling', skin: { body: '#f2c9c9', trim: '#a86060' },
+    weight: 'mid',
     blurb: 'Spins up fast and moves lightly, but its bursts are short.',
     chargeTime: 0.5, burstMin: 0.25, burstMax: 1.0, range: 11.5, moveSpeedCharging: 3.4, moveSpeedFiring: 4.2,
     stats: { range: 0.56, damage: 0.5, rate: 0.9, mobility: 0.62, paint: 0.6 },

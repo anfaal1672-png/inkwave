@@ -61,6 +61,8 @@ const DIFF_INFO = {
   normal: { pips: 2, text: N_('Balanced bots that push turf and fight back.') },
   hard: { pips: 3, text: N_('Sharp, aggressive bots that punish mistakes. Bring your A-game.') },
 };
+// Splatoon's weight classes (config.js WEIGHT): run / swim speed of the weapon's holder
+const WEIGHT_LABELS = { light: N_('Lightweight'), mid: N_('Middleweight'), heavy: N_('Heavyweight') };
 const STAT_LABELS = [['range', N_('Range')], ['damage', N_('Damage')], ['rate', N_('Fire rate')], ['mobility', N_('Mobility')], ['paint', N_('Ink coverage')]];
 const KIND_LABEL = { shooter: N_('Shooter'), roller: N_('Roller'), charger: N_('Charger'), blaster: N_('Blaster'), dualies: N_('Dualies'), slosher: N_('Slosher'), splatling: N_('Splatling') };
 const STAT_ICONS = { range: GLYPHS.target, damage: GLYPHS.bolt, rate: GLYPHS.clock, mobility: GLYPHS.feather, paint: GLYPHS.drop };
@@ -1610,7 +1612,7 @@ export class Menus {
       const first = shown === id && !entered;
       shown = id;
       const w = Ws[id], eqW = Ws[equipped];
-      kind.textContent = classOf(w).toUpperCase();
+      kind.textContent = classOf(w).toUpperCase() + ' · ' + tr(WEIGHT_LABELS[w.weight] || WEIGHT_LABELS.mid);
       nm.textContent = tr(w.name);
       blurb.textContent = tr(w.blurb || '');
       detail.classList.toggle('is-equipped', id === equipped);

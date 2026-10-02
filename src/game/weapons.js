@@ -7,7 +7,7 @@
 // blooms with sustained fire, recovers when you let go). Hit tests use the victim's visual (smoothed) body.
 import * as THREE from 'three';
 import { G, emit, clamp, lerp, smoothstep } from '../core/ctx.js';
-import { WEAPONS, SUB, SPECIALS, PLAYER } from '../config.js';
+import { WEAPONS, SUB, SPECIALS, PLAYER, WEIGHT } from '../config.js';
 import { Physics, Hit } from './physics.js';
 import { CHEATS, cheatMove } from './cheats.js';
 import { lockDir, aimLockFor } from './aimbot.js';
@@ -65,7 +65,7 @@ export class WeaponRunner {
     if (this.flickRecover > 0) return lerp(PLAYER.runSpeed, w.moveSpeedFiring * 0.6, this.flickRecover / 0.18);
     if (this.charging) return lerp(PLAYER.runSpeed * 0.7, w.moveSpeedFiring, Math.min(1, this.charge * 3));
     if (this.firingT > 0) return w.moveSpeedFiring;
-    return PLAYER.runSpeed;
+    return PLAYER.runSpeed * (WEIGHT[w.weight] || WEIGHT.mid).run;   // light weapons run faster, heavy ones slower
   }
 
   // current shot cone half-angle in degrees (HUD crosshair should use this)
@@ -1265,6 +1265,10 @@ export class Projectiles {
           _v.copy(p.prev).lerp(p.pos, _res.t);
           let dmg = p.damage;
           if (p.type === 'drop') dmg = lerp(p.damage, p.dmgFar, clamp(p.start.distanceTo(_v) / 7, 0, 1));
+          // shooter / splatling rounds: full damage along the straight part of the flight; once the round has been
+          // falling a while the damage tapers to half (Splatoon's distance falloff — a long-range tap no longer splats
+          // in as few hits)
+          else if (p.type === 'shot' && p.age > p.straight * 1.6) dmg *= lerp(1, 0.5, clamp((p.age - p.straight * 1.6) / 0.16, 0, 1));
           if (p.vol) { if (p.vol.hits.includes(e)) dmg = 0; else p.vol.hits.push(e); }
           if (dmg > 0) this.applyHit(p.owner, e, dmg, p.wid || p.type);
           G.fx?.burst(_v, _v2.copy(p.vel).normalize().negate(), p.owner.color, { count: 6, speed: 3, size: 0.07 });
