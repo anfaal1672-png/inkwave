@@ -276,4 +276,140 @@ export const HALYARD = {
   },
 };
 
-export const MAP_LAYOUTS = { tidewater: TIDEWATER, kelpline: KELPLINE, halyard: HALYARD };
+// ------------------------------------------------------------------------------------------------------------
+// Coral Skatepark — a seaside skatepark. Open concrete with lots of things to ride up and hide behind:
+//   • centre: a funbox (2 m platform, a ramp up from each side, a ledge block on top) — the hill everyone fights for
+//   • left flank (per team): a 1.6 m-deep bowl with a ramp out on the mid side; squids climb its inked walls
+//   • right flank: a raised viewing deck (1.8 m) with a ramp from base, grind ledges below it
+//   • quarter-pipes against both side railings (cover, and a kicker for jumps)
+const S = {
+  concrete: '#d9d6cf', light: '#e8e4dc', coral: '#e7a08f', mint: '#9fcdb8', lav: '#b9b2d6', sky: '#9cc3dc',
+  spawn: '#eae6de', steel: '#8e98a0', wood: '#c9a27c', planter: '#b9ad9a', bowl: '#c9c6bf', cream: '#ece4d4',
+};
+export const SKATEPARK = {
+  id: 'skatepark',
+  bounds: { minX: -23, maxX: 23, minZ: -44, maxZ: 44 },
+  spawnPads: [[0, 2.4, -40], [0, 2.4, 40]],
+  spawnBarrier: 4.2,
+  single: [
+    // funbox: platform + ledge block on top
+    B(-5, 5, 0, 2.0, -3, 3, { color: S.lav, pattern: PATTERN.concrete }),
+    B(-1.4, 1.4, 2.0, 2.9, -1.4, 1.4, { color: S.coral, pattern: PATTERN.plain }),
+  ],
+  half: [
+    // ground, leaving a hole for the bowl (x -18..-10, z -18..-10); thick enough to wall the bowl in
+    B(-23, 23, -2.8, 0, -44, -18, { color: S.concrete, pattern: PATTERN.concrete }),
+    B(-23, 23, -2.8, 0, -10, 0, { color: S.concrete, pattern: PATTERN.concrete }),
+    B(-23, -18, -2.8, 0, -18, -10, { color: S.concrete, pattern: PATTERN.concrete }),
+    B(-10, 23, -2.8, 0, -18, -10, { color: S.concrete, pattern: PATTERN.concrete }),
+    // the bowl: floor 1.6 m down, a ramp out on the mid side
+    B(-18, -10, -2.8, -1.6, -18, -10, { color: S.bowl, pattern: PATTERN.concrete }),
+    R([-14, -1.6, -14.2], [-14, 0, -10], 3.2, { color: S.light, pattern: PATTERN.rampboard }),
+    // sea railings along both long sides (this half; the mirror covers the other)
+    B(-23, -22.4, 0, 1.05, -43.4, 0, { color: S.steel, pattern: PATTERN.metal }),
+    B(22.4, 23, 0, 1.05, -43.4, 0, { color: S.steel, pattern: PATTERN.metal }),
+    // back wall
+    B(-23, 23, 0, 3.8, -44, -43.4, { color: S.cream, pattern: PATTERN.concrete, mural: [{ n: [0, 0, 1], id: 0 }] }),
+
+    // ---- spawn deck (front drop + two side ramps) and low parapets on its front corners
+    B(-9, 9, 0, 2.4, -43.4, -36.5, { color: S.spawn, pattern: PATTERN.spawn }),
+    R([-16, 0, -40], [-9, 2.4, -40], 4, { color: S.light, pattern: PATTERN.hazard }),
+    R([16, 0, -40], [9, 2.4, -40], 4, { color: S.light, pattern: PATTERN.hazard }),
+    B(-9, -6.4, 2.4, 3.2, -37.1, -36.5, { color: S.cream, pattern: PATTERN.plain }),
+    B(6.4, 9, 2.4, 3.2, -37.1, -36.5, { color: S.cream, pattern: PATTERN.plain }),
+
+    // ---- base: graffiti walls + a planter island
+    B(-17, -16, 0, 2.6, -33, -27, { color: S.mint, pattern: PATTERN.concrete, mural: [{ n: [1, 0, 0], id: 1 }, { n: [-1, 0, 0], id: 1 }] }),
+    B(5, 11, 0, 2.2, -30.6, -29.6, { color: S.coral, pattern: PATTERN.concrete, mural: [{ n: [0, 0, 1], id: 1 }, { n: [0, 0, -1], id: 1 }] }),
+    B(-4, 0, 0, 0.8, -27, -24, { color: S.planter, pattern: PATTERN.planter, tag: 'planter' }),
+
+    // ---- right flank: raised viewing deck + its ramp, a parapet on the deck's mid edge, grind ledges below
+    B(12, 22.4, 0, 1.8, -20, -9, { color: S.sky, pattern: PATTERN.tiles }),
+    R([17, 0, -26], [17, 1.8, -20], 3.6, { color: S.light, pattern: PATTERN.rampboard }),
+    B(12, 15.4, 1.8, 2.6, -9.6, -9, { color: S.cream, pattern: PATTERN.plain }),
+    B(6, 11, 0, 0.7, -24, -23, { color: S.light, pattern: PATTERN.concrete }),
+    B(4, 5, 0, 0.7, -16, -11, { color: S.light, pattern: PATTERN.concrete }),
+
+    // ---- mid: walls to duck behind on the way in, and the ramp up onto the funbox from this side
+    B(-8.5, -7.2, 0, 2.4, -14, -9, { color: S.coral, pattern: PATTERN.concrete }),
+    B(8, 11, 0, 1.2, -6.4, -5.4, { color: S.wood, pattern: PATTERN.wood }),
+    R([-2, 0, -9.5], [-2, 2.0, -3], 3.6, { color: S.light, pattern: PATTERN.rampboard }),
+    B(-15, -13, 0, 1.4, -6, -4, { color: S.wood, pattern: PATTERN.wood }),
+    B(-15, -13, 1.4, 2.8, -6, -4, { color: S.wood, pattern: PATTERN.wood }),
+  ],
+  decor: {
+    lamps: [[-22.6, -36], [-22.6, -14], [22.6, -30], [22.6, 4], [-11, -43], [11, -43]],
+    palms: [[-2, -25.5]],
+    flags: [[-8, 2.4, -42.6], [8, 2.4, -42.6]],
+  },
+};
+
+// ------------------------------------------------------------------------------------------------------------
+// Gull Rooftops — two warehouse roofs over the harbour, joined across a drop by three bridges:
+//   • the gap (z -4..4) is open to the sea below: falling in splats you. A wide centre bridge, a narrow one on each flank
+//   • left flank (per team): a penthouse (3.4 m) with a ramp at its front — the long-sightline high ground
+//   • right flank: a water tower block, AC units and skylights for cover; a raised walkway feeds the flank bridge
+//   • low parapets ring the roof edges
+const T = {
+  roof: '#c9c4ba', light: '#dcd7cc', brick: '#b97a64', tar: '#8d9196', glass: '#a9c7d6', steel: '#7f8a94',
+  spawn: '#eae6de', cream: '#ece4d4', wood: '#c29a72', tank: '#9fb4b0', mustard: '#d9b45f', plank: '#b89c78',
+};
+export const ROOFTOPS = {
+  id: 'rooftops',
+  bounds: { minX: -22, maxX: 22, minZ: -44, maxZ: 44 },
+  spawnPads: [[0, 2.6, -40], [0, 2.6, 40]],
+  spawnBarrier: 4.2,
+  single: [
+    // centre bridge across the drop
+    B(-4, 4, -0.4, 0, -4, 4, { color: T.plank, pattern: PATTERN.gangdeck }),
+  ],
+  half: [
+    // the roof (this team's side of the drop)
+    B(-22, 22, -1.2, 0, -44, -4, { color: T.roof, pattern: PATTERN.concrete }),
+    // flank bridge (mirrored to the other flank)
+    B(13, 17, -0.4, 0, -4, 4, { color: T.plank, pattern: PATTERN.gangdeck }),
+    // parapets: the long edges and along the drop between the bridges (low, jumpable)
+    B(-22, -21.4, 0, 1.0, -43.4, -4, { color: T.light, pattern: PATTERN.concrete }),
+    B(21.4, 22, 0, 1.0, -43.4, -4, { color: T.light, pattern: PATTERN.concrete }),
+    B(4, 13, 0, 0.7, -4.6, -4, { color: T.light, pattern: PATTERN.concrete }),
+    B(-21.4, -17, 0, 0.7, -4.6, -4, { color: T.light, pattern: PATTERN.concrete }),
+    B(-13, -4, 0, 0.7, -4.6, -4, { color: T.light, pattern: PATTERN.concrete }),
+    B(17, 21.4, 0, 0.7, -4.6, -4, { color: T.light, pattern: PATTERN.concrete }),
+    // back wall: the next building up
+    B(-22, 22, 0, 4.4, -44, -43.4, { color: T.brick, pattern: PATTERN.brick, mural: [{ n: [0, 0, 1], id: 0 }] }),
+
+    // ---- spawn deck (front drop + two side ramps)
+    B(-9, 9, 0, 2.6, -43.4, -36.5, { color: T.spawn, pattern: PATTERN.spawn }),
+    R([-16, 0, -40], [-9, 2.6, -40], 4, { color: T.light, pattern: PATTERN.hazard }),
+    R([16, 0, -40], [9, 2.6, -40], 4, { color: T.light, pattern: PATTERN.hazard }),
+    B(-9, -6.4, 2.6, 3.4, -37.1, -36.5, { color: T.cream, pattern: PATTERN.plain }),
+    B(6.4, 9, 2.6, 3.4, -37.1, -36.5, { color: T.cream, pattern: PATTERN.plain }),
+
+    // ---- left flank: the penthouse (high ground) and its front ramp
+    B(-21.4, -13.5, 0, 3.4, -32, -24, { color: T.brick, pattern: PATTERN.brick, mural: [{ n: [1, 0, 0], id: 2 }] }),
+    R([-17.5, 0, -17], [-17.5, 3.4, -24], 3.4, { color: T.light, pattern: PATTERN.treads }),
+    B(-21.4, -20.8, 3.4, 4.2, -32, -24, { color: T.light, pattern: PATTERN.concrete }),
+
+    // ---- right flank: water tower block, raised walkway to the flank bridge, AC units
+    B(13, 17, 0, 4.6, -30, -26, { color: T.tank, pattern: PATTERN.metalpanel }),
+    B(14, 21.4, 0, 1.6, -18, -6, { color: T.tar, pattern: PATTERN.nonslip }),
+    R([17.7, 0, -23], [17.7, 1.6, -18], 3.4, { color: T.light, pattern: PATTERN.treads }),
+    B(8, 10.4, 0, 1.6, -24, -22, { color: T.steel, pattern: PATTERN.metalpanel }),
+
+    // ---- mid-base cover: skylights (low, glass), a stair-house and crates
+    B(-6, -2, 0, 0.8, -26, -21, { color: T.glass, pattern: PATTERN.glasstile }),
+    B(3, 8, 0, 0.8, -17, -13, { color: T.glass, pattern: PATTERN.glasstile }),
+    B(-11, -7, 0, 2.8, -15, -11, { color: T.cream, pattern: PATTERN.render, mural: [{ n: [1, 0, 0], id: 1 }] }),
+    B(-3, -1.6, 0, 1.4, -10, -8.6, { color: T.wood, pattern: PATTERN.wood }),
+    B(-1.6, -0.2, 0, 1.4, -10, -8.6, { color: T.wood, pattern: PATTERN.wood }),
+    B(-1.6, -0.2, 1.4, 2.8, -10, -8.6, { color: T.wood, pattern: PATTERN.wood }),
+    B(6, 9, 0, 1.0, -8, -7.4, { color: T.light, pattern: PATTERN.concrete }),
+  ],
+  decor: {
+    lamps: [[-21.6, -36], [-21.6, -10], [21.6, -34], [-11, -43], [11, -43]],
+    palms: [],
+    flags: [[-8, 2.6, -42.6], [8, 2.6, -42.6]],
+  },
+};
+
+export const MAP_LAYOUTS = { tidewater: TIDEWATER, kelpline: KELPLINE, halyard: HALYARD, skatepark: SKATEPARK, rooftops: ROOFTOPS };

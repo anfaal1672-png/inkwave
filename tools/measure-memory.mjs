@@ -122,7 +122,7 @@ const sample = (label) => page.evaluate((label) => {
 const rows = [];
 await new Promise((r) => setTimeout(r, 3000));
 rows.push(await sample('title'));
-const stages = ['tidewater', 'kelpline', 'halyard'];
+const stages = ['tidewater', 'kelpline', 'halyard', 'skatepark', 'rooftops'];
 for (let i = 0; i < rounds; i++) {
   const mapId = stages[i % stages.length], time = Math.floor(i / stages.length) % 2 ? 'dusk' : 'day';
   await page.evaluate((o) => window.__inkwave.api.startMatch(o), { mapId, time, duration: 60 });

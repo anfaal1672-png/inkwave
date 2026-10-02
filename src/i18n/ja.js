@@ -83,6 +83,10 @@ export const JA = {
   'Container yard with grate catwalks, a sunken trench and a steel gantry deck.': '金網の通路、沈んだ溝、鉄のガントリーデッキがあるコンテナヤード。',
   'Halyard Marina': 'ハリヤード・マリーナ',
   'Floating docks, a tug on blocks and a car ferry moored across the middle. Mind the water.': '浮き桟橋、台に乗ったタグボート、真ん中に停泊したカーフェリー。水に落ちないように注意。',
+  'Coral Skatepark': 'コーラルスケートパーク',
+  'A seaside skatepark: a funbox to fight over, a bowl to drop into and a deck to hold.': '海辺のスケートパーク。中央のボックスを取り合い、ボウルに飛び込み、デッキを守ろう。',
+  'Gull Rooftops': 'ガル・ルーフトップ',
+  'Two warehouse roofs over the harbour, joined by three bridges. Mind the gap.': '港の倉庫の屋上ふたつを、3 本の橋がつなぐ。すき間に落ちないように。',
 
   // bot skill
   'Chill': 'のんびり',

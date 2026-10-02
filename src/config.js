@@ -386,6 +386,8 @@ export const MAPS = [
   { id: 'tidewater', name: 'Tidewater Plaza', blurb: 'A sun-bleached harbor plaza on the edge of the sea.', theme: 'day', times: { day: 'day', dusk: 'sunset' } },
   { id: 'kelpline', name: 'Kelpline Terminal', blurb: 'Container yard with grate catwalks, a sunken trench and a steel gantry deck.', theme: 'day', times: { day: 'day', dusk: 'sunset' } },
   { id: 'halyard', name: 'Halyard Marina', blurb: 'Floating docks, a tug on blocks and a car ferry moored across the middle. Mind the water.', theme: 'golden', times: { day: 'golden', dusk: 'sunset' } },
+  { id: 'skatepark', name: 'Coral Skatepark', blurb: 'A seaside skatepark: a funbox to fight over, a bowl to drop into and a deck to hold.', theme: 'day', times: { day: 'day', dusk: 'sunset' } },
+  { id: 'rooftops', name: 'Gull Rooftops', blurb: 'Two warehouse roofs over the harbour, joined by three bridges. Mind the gap.', theme: 'golden', times: { day: 'golden', dusk: 'sunset' } },
 ];
 
 export const BOT_NAMES = [
