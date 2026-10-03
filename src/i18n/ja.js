@@ -146,6 +146,8 @@ export const JA = {
   'Sprinkle Jr.': 'スプリンクルJr.',
   'A light, thrifty sprayer. Weak shots, but it paints fast and moves easily.': '軽くてインク消費の少ないシューター。威力は低いが、塗りが速く動きやすい。',
   'Brisk Roller': 'ブリスクローラー',
+  'Dynamo Roller': 'ダイナモローラー',
+  'A heavy roller. Slow to roll and slow to swing, but it paints the widest stripe and its flick hurls a huge wave of ink.': '重いローラー。転がすのも振るのも遅いが、いちばん太く塗れて、振ればインクの大波を遠くまで飛ばす。',
   'A narrow, quick roller. Sprints across the turf and flicks fast.': '幅がせまく足の速いローラー。ナワバリを駆け抜け、振りも速い。',
   'Snap Charger': 'スナップチャージャー',
   'Charges fast for a shorter line. Quick to aim, easy on the ink.': 'チャージが速く、射程は短めのチャージャー。すばやく狙えて、インクも少なくてすむ。',

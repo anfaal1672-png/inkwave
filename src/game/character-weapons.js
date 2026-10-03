@@ -243,9 +243,12 @@ function buildShooter() {
 }
 
 // ---------------------------------------------------------------------------------------------- roller
-function buildRoller() {
+// o (the Dynamo builds on this): xs = drum width scale, k = drum radius scale, L = grip -> drum axis, extra(P, I, L) adds
+// its own parts to the body / ink before they are merged
+function buildRoller(o = {}) {
   const P = new Parts(), I = new Parts(), LED = new Parts();
-  const L = 0.84; // grip -> drum axis
+  const L = o.L || 0.84; // grip -> drum axis
+  const xs = o.xs || 1, k = o.k || 1;
   // shaft: brushed tube, ferrules, two knurled rubber grips (top = right hand, mid = left hand)
   P.add(latheZ([[0, -0.072], [0.0098, -0.072], [0.0098, 0.715], [0, 0.715]], 10), C.metal, M.metal);
   const topGrip = latheZ(smoothProfile([[0, -0.094], [0.0112, -0.094], [0.0148, -0.086], [0.0142, -0.07], [0.0136, -0.03], [0.0138, 0.02], [0.0142, 0.052], [0.0158, 0.06], [0.0118, 0.066]], 10), 12);
@@ -261,13 +264,13 @@ function buildRoller() {
   const hub = superEllipsoid(0.026, 0.024, 0.036, 0.5, 0.6, 12, 8); P.add(at(hub, 0, 0, 0.716), C.dark, M.satin);
   const collar = latheZ([[0.0098, 0.69], [0.0162, 0.692], [0.0168, 0.702], [0.0098, 0.704]], 12); P.add(collar, C.metal, M.metal);
   for (const sx of [1, -1]) {
-    const arm = sweep([new V3(0, 0, 0.712), new V3(0.13 * sx, -0.004, 0.734), new V3(0.285 * sx, -0.012, 0.768), new V3(0.328 * sx, -0.02, 0.808), new V3(0.334 * sx, -0.022, L)], {
-      seg: 12, radial: 7, capSteps: 2, radius: (t) => 0.0122 - 0.002 * t, flat: 0.62, outward: (Pp, o) => o.set(0, 1, 0),
+    const arm = sweep([new V3(0, 0, 0.712), new V3(0.13 * xs * sx, -0.004, 0.734), new V3(0.285 * xs * sx, -0.012, 0.768), new V3(0.328 * xs * sx, -0.02, 0.808 + (L - 0.84) * 0.6), new V3(0.334 * xs * sx, -0.022, L)], {
+      seg: 12, radial: 7, capSteps: 2, radius: (t) => (0.0122 - 0.002 * t) * (o.armR || 1), flat: 0.62, outward: (Pp, ov) => ov.set(0, 1, 0),
     });
     P.add(arm.geo, C.gunmetal, M.metal);
     const boss = latheZ([[0, -0.014], [0.0262, -0.014], [0.0282, -0.01], [0.0284, 0.008], [0.025, 0.013], [0, 0.013]], 12);
-    boss.rotateY(Math.PI / 2); P.add(at(boss, 0.322 * sx, -0.022, L), C.dark, M.gloss);
-    for (let k = 0; k < 5; k++) { const a = (k / 5) * Math.PI * 2; screw(P, new V3(0.3355 * sx, -0.022 + Math.cos(a) * 0.017, L + Math.sin(a) * 0.017), new V3(sx, 0, 0), 0.0024); }
+    boss.rotateY(Math.PI / 2); P.add(at(boss, (0.322 + 0.3 * (xs - 1)) * sx, -0.022, L), C.dark, M.gloss);
+    for (let j = 0; j < 5; j++) { const a = (j / 5) * Math.PI * 2; screw(P, new V3((0.3355 + 0.3 * (xs - 1)) * sx, -0.022 + Math.cos(a) * 0.017, L + Math.sin(a) * 0.017), new V3(sx, 0, 0), 0.0024); }
   }
   const res = superEllipsoid(0.056, 0.026, 0.036, 0.55, 0.6, 12, 7); I.add(at(res, 0, 0.03, 0.738));
   const resFrame = superEllipsoid(0.06, 0.009, 0.04, 0.4, 0.5, 14, 4); P.add(at(resFrame, 0, 0.052, 0.738), C.dark, M.gloss);
@@ -287,6 +290,7 @@ function buildRoller() {
     }
   });
   drum.rotateZ(Math.PI / 2);
+  drum.scale(xs, k, k);
   const caps = new Parts();
   for (const sx of [1, -1]) {
     const c = latheZ([[0, -0.007], [0.074, -0.007], [0.081, -0.002], [0.081, 0.003], [0.064, 0.008], [0.03, 0.009], [0.018, 0.013], [0, 0.013]], 16);
@@ -294,8 +298,16 @@ function buildRoller() {
     for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2 + 0.4; const b = lathe([[0, 0], [0.0042, 0], [0.0042, 0.002], [0, 0.0028]], 5); caps.add(orient(b, new V3(sx, 0, 0), new V3(0.3085 * sx + 0.002 * sx, Math.cos(a) * 0.05, Math.sin(a) * 0.05)), C.metal, M.metal); }
     const hubC = latheZ([[0, 0], [0.016, 0], [0.018, 0.006], [0.012, 0.012], [0, 0.013]], 10); hubC.rotateY(sx * Math.PI / 2); caps.add(at(hubC, 0.309 * sx, 0, 0), C.metal, M.metal);
   }
+  if (o.extra) o.extra(P, I, L);
+  const capGeo = caps.build();
+  // wider drum: the end caps move out with its ends (and grow with its radius) rather than stretching
+  if (xs !== 1 || k !== 1) {
+    const pa = capGeo.attributes.position;
+    for (let i = 0; i < pa.count; i++) { const x = pa.getX(i); pa.setXYZ(i, x + Math.sign(x) * 0.3 * (xs - 1), pa.getY(i) * k, pa.getZ(i) * k); }
+    capGeo.computeVertexNormals();
+  }
   return {
-    kind: 'roller', body: P.build(), ink: I.build(), drum, drumCaps: caps.build(), drumAt: new V3(0, -0.022, L), drumR: 0.1,
+    kind: 'roller', body: P.build(), ink: I.build(), drum, drumCaps: capGeo, drumAt: new V3(0, -0.022, L), drumR: 0.1 * k,
     parts: { led: part(LED, new V3(-0.03, 0.062, 0.738), 'lamp', { color: '#3a2600', emissive: '#ffb000', intensity: 0.6 }) },
     muzzle: new V3(0, -0.022, L),
     gripR: { pos: new V3(0, 0, -0.022), handZ: new V3(0, 0, 1), handY: new V3(-0.3, 1, 0) },
@@ -305,6 +317,30 @@ function buildRoller() {
 }
 
 // ---------------------------------------------------------------------------------------------- charger
+// "Dynamo Roller": a wide, fat drum on a longer, heavier frame, with a finned generator housing (the dynamo) on the
+// yoke and a pair of ink tanks either side of it
+function buildDynamo() {
+  return buildRoller({
+    xs: 1.32, k: 1.3, L: 0.9, armR: 1.35,
+    extra(P, I, L) {
+      // generator: a gunmetal can along the shaft just below the yoke, cooling fins, a copper-wound band, end bells
+      const z0 = 0.56, z1 = 0.672;
+      P.add(latheZ([[0, z0 - 0.006], [0.03, z0 - 0.004], [0.036, z0 + 0.006], [0.036, z1 - 0.006], [0.03, z1 + 0.004], [0, z1 + 0.006]], 16), C.gunmetal, M.metal);
+      for (let j = 0; j < 7; j++) P.add(latheZ([[0.035, 0], [0.044, 0.002], [0.044, 0.006], [0.035, 0.008]], 16).translate(0, 0, z0 + 0.012 + j * 0.013), C.dark, M.satin);
+      P.add(latheZ([[0.0362, 0], [0.0372, 0.002], [0.0372, 0.018], [0.0362, 0.02]], 16).translate(0, 0, z1 - 0.03), '#b8742c', M.metal);
+      // ink tanks: two capsules hugging the yoke, team ink behind a dark cage
+      for (const sx of [1, -1]) {
+        I.add(at(superEllipsoid(0.024, 0.024, 0.042, 0.6, 0.7, 12, 8), 0.2 * sx, 0.02, 0.765));
+        P.add(at(superEllipsoid(0.028, 0.006, 0.046, 0.4, 0.5, 12, 4), 0.2 * sx, 0.045, 0.765), C.dark, M.gloss);
+        P.add(at(superEllipsoid(0.028, 0.006, 0.046, 0.4, 0.5, 12, 4), 0.2 * sx, -0.006, 0.765), C.dark, M.satin);
+      }
+      // a cross brace between the arms, striped like a hazard bar
+      P.add(at(superEllipsoid(0.37, 0.008, 0.011, 0.3, 0.5, 16, 4), 0, -0.016, 0.79), C.gunmetal, M.metal);
+      for (let j = -4; j <= 4; j++) P.add(at(superEllipsoid(0.02, 0.0085, 0.0115, 0.35, 0.5, 6, 4), j * 0.075, -0.016, 0.79), j % 2 ? C.dark : C.hazard, M.print);
+    },
+  });
+}
+
 function buildCharger() {
   const P = new Parts(), I = new Parts(), G = new Parts(), T = new Parts(), BOLT = new Parts(), LENS = new Parts(), EYE = new Parts(), PORTS = new Parts();
   pistolGrip(P, { T });
@@ -749,7 +785,7 @@ function buildBrella() {
   };
 }
 
-const BUILDERS = { shooter: buildShooter, roller: buildRoller, charger: buildCharger, blaster: buildBlaster, dualies: buildDualies, slosher: buildSlosher, splatling: buildSplatling,
+const BUILDERS = { shooter: buildShooter, roller: () => buildRoller(), dynamo: buildDynamo, charger: buildCharger, blaster: buildBlaster, dualies: buildDualies, slosher: buildSlosher, splatling: buildSplatling,
   brush: buildBrush, wiper: buildWiper, stringer: buildStringer, brella: buildBrella };
 export const WEAPON_KINDS = Object.keys(BUILDERS);
 
