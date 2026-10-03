@@ -260,7 +260,10 @@ export class BotBrain {
         const tol = Math.max(0.05, Math.atan2(0.55, dist)) * (this._firing ? 2.4 : 1.5);
         const aimed = off < tol;
         this._firing = false;
-        if (enemyVisible && this.react <= 0 && aimed && inkFrac > 0.02) {
+        // shooting at it: while in sight, plus a short burst into the spot it just ducked out of (no long hosing of the
+        // wall it is behind — and it has to be seen again before the next shot, see _perceive)
+        const inView = enemyVisible && (apex || this.tgtVis || this.t - this._hidT < 0.35);
+        if (inView && this.react <= 0 && aimed && inkFrac > 0.02) {
           if (w.kind === 'charger') {
             it.fire = !(a.weaponRunner.charging && a.weaponRunner.charge >= this.chargeRelease);
             if (a.weaponRunner.charging) move.multiplyScalar(0.3);
@@ -293,7 +296,7 @@ export class BotBrain {
           if (!apex && this._bombOk && sub.id !== 'sprinkler' && this.bombCd <= 0 && this.bombPrep <= 0 && a.ink > sub.inkCost + 8 && dist > (burst ? 3 : 5) && dist < (burst ? 11 : 13)) {
             this._bombOk = false; this._startBomb(t.pos.x, t.pos.y, t.pos.z);
           }
-        } else if ((w.kind === 'charger' || w.kind === 'splatling') && a.weaponRunner.charging && !enemyVisible) {
+        } else if ((w.kind === 'charger' || w.kind === 'splatling') && a.weaponRunner.charging && !inView) {
           it.fire = true; // keep charge while target briefly hidden
         }
         // out of range with own ink underfoot: swim in (fast, hard to hit) instead of walking
