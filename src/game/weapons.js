@@ -268,7 +268,7 @@ export class WeaponRunner {
         this.flick = 0;
         // a brush flicks side to side (alternating backhands); a roller heaves its drum overhead
         if (w.model === 'brush') { this.flickSide = !this.flickSide; a.character.trigger('slash', { flip: this.flickSide }); }
-        else a.character.trigger('flick');
+        else a.character.trigger('flick', { windup: w.flickWindup });
         if (a.isLocal || a._nearCamera()) G.audio?.play('roller_flick', { pos: a.isLocal ? undefined : a.pos, volume: 0.8 });
         return;
       }

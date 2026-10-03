@@ -38,6 +38,20 @@ export const WEAPON_ICONS = {
       <path d="M40 53.5 Q40 57 42 57 Q44 57 44 53.5" fill="currentColor"/>
     </g>
     <path d="M14 40.5 L50 40.5" stroke="#fff" stroke-opacity=".55" stroke-width="3" stroke-linecap="round"/>`),
+  // Dynamo Roller: a fatter drum on a thick handle, with the finned generator can on the shaft
+  dynamo: svg(`<path d="M32 30 L50 5" stroke="${K}" stroke-width="10" stroke-linecap="round"/>
+    <path d="M32 30 L50 5" stroke="${LT}" stroke-width="3.6" stroke-linecap="round"/>
+    <g ${O}>
+      <path d="M36.5 23.5 L44.5 12.5 L51 17 L43 28 Z" fill="${DK}"/>
+      <path d="M39 20 L46.5 25.5 M41.5 16.5 L49 22" fill="none" stroke-width="2"/>
+      <path d="M14 35 L14 28.5 Q14 26.5 16 26.5 L48 26.5 Q50 26.5 50 28.5 L50 35" fill="none" stroke-width="3.6"/>
+      <rect x="3" y="32" width="58" height="24" rx="10" fill="currentColor"/>
+      <rect x="0.5" y="34.5" width="6.5" height="19" rx="2.5" fill="${DK}"/>
+      <rect x="57" y="34.5" width="6.5" height="19" rx="2.5" fill="${DK}"/>
+      <path d="M18 56 Q18 62 21.5 62 Q25 62 25 56" fill="currentColor"/>
+      <path d="M42 56 Q42 59.5 44 59.5 Q46 59.5 46 56" fill="currentColor"/>
+    </g>
+    <path d="M10 38 L54 38" stroke="#fff" stroke-opacity=".55" stroke-width="3" stroke-linecap="round"/>`),
   charger: svg(`<g ${O}>
       <path d="M3.5 29 L15 26 L16.5 40 L7 46.5 Q3.5 47 3.5 43.5 Z" fill="${DK}"/>
       <path d="M22 37.5 L19 50.5 Q18.5 53.5 21.5 53.5 L26.5 53.5 L30 37.5 Z" fill="${DK}"/>

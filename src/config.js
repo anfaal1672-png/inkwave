@@ -225,6 +225,21 @@ Object.assign(WEAPONS, {
     stats: { range: 0.3, damage: 0.75, rate: 0.5, mobility: 0.85, paint: 0.8 },
     special: 'bombrush', specialCost: 170,
   }),
+  // Dynamo Roller: the heavy roller — slow to roll and slow to swing, but the widest stripe and a flick that throws a wall
+  // of ink far and wide (Splatoon's 125 up close)
+  roller_dynamo: variant('roller', {
+    id: 'roller_dynamo', name: 'Dynamo Roller', model: 'dynamo', icon: 'dynamo', skin: { body: '#d9dde3', trim: '#e2a21a' },
+    sub: 'sprinkler',
+    weight: 'heavy',
+    blurb: 'A heavy roller. Slow to roll and slow to swing, but it paints the widest stripe and its flick hurls a huge wave of ink.',
+    rollSpeed: 3.3, rollWidth: 2.6, rollSplat: 0.78, rollInkPerMeter: 1.7, rollDamage: 150,
+    flickInterval: 1.0, flickWindup: 0.42, flickInk: 18, flickDrops: 14, flickDamageNear: 125, flickDamageFar: 25, flickSpeed: 20,
+    flickSpreadDeg: 52, impactRadius: 1.25,
+    moveSpeedFiring: 3.4, footRadius: 1.0,
+    botFlickDist: 8,   // bots: the flick reaches further than a plain roller's
+    stats: { range: 0.5, damage: 1.0, rate: 0.12, mobility: 0.25, paint: 1.0 },
+    special: 'armor', specialCost: 180,
+  }),
   charger_snap: variant('charger', {
     id: 'charger_snap', name: 'Snap Charger', skin: { body: '#e8d9f0', trim: '#8a78a8' },
     sub: 'sprinkler',
@@ -314,7 +329,7 @@ Object.assign(WEAPONS, {
 });
 export const WEAPON_ORDER = [
   'shooter', 'shooter_pro', 'shooter_jr', 'dualies', 'dualies_glide', 'splatling', 'splatling_mini', 'roller',
-  'roller_brisk', 'brush', 'wiper', 'slosher', 'slosher_tri', 'charger', 'charger_snap', 'stringer', 'blaster', 'blaster_rapid',
+  'roller_brisk', 'roller_dynamo', 'brush', 'wiper', 'slosher', 'slosher_tri', 'charger', 'charger_snap', 'stringer', 'blaster', 'blaster_rapid',
   'brella',
 ];
 

@@ -170,6 +170,8 @@ const SPN = _sk * 2;
 // one-shot timers (seconds since trigger)
 let _tk = 0; const TK = () => _tk++;
 const T_SHOOT = TK(), T_FLICK = TK(), T_THROW = TK(), T_LAND = TK(), T_JUMP = TK(), T_HIT = TK(), T_LEAP = TK(), T_SLAM = TK(), T_SPAWN = TK(), T_REL = TK(), T_IMPACT = TK(), T_BRAKE = TK(), T_FORM = TK(), T_STAG = TK();
+// roller flick: seconds from the press to the release in _poseFlick (a Swell Roller's flickWindup)
+const FLICK_REL = 0.22;
 const T_SHOOTL = TK(), T_DODGE = TK(), T_SLOSH = TK(), T_ADMIRE = TK(), T_FLIP = TK(), T_WINK = TK();
 const TN = _tk;
 
@@ -669,10 +671,11 @@ export class Character {
         sp[S_SQ + 1] -= 1.6; sp[S_TANKL + 1] += 1.5; this._hairKick(-x * 2, 1.2, -z * 2);
         break;
       }
-      case 'flick': tr[T_FLICK] = 0; this.lastShot = 0; this.slashing = 0; break;
+      // arg.windup: the weapon's seconds to the release (the Dynamo's heave is twice a Swell's) — see _flickT
+      case 'flick': tr[T_FLICK] = 0; this.lastShot = 0; this.slashing = 0; this.flickWind = (arg && arg.windup) || FLICK_REL; break;
       // wiper: a horizontal cut (arg.heavy = the charged one); shares the flick clock, _poseSlash draws it
       // (arg.flip: mirrored, a backhand from the left — the brush alternates its flicks side to side)
-      case 'slash': tr[T_FLICK] = 0; this.lastShot = 0; this.slashing = arg && arg.heavy ? 2 : 1; this.slashFlip = !!(arg && arg.flip); break;
+      case 'slash': tr[T_FLICK] = 0; this.lastShot = 0; this.slashing = arg && arg.heavy ? 2 : 1; this.slashFlip = !!(arg && arg.flip); this.flickWind = FLICK_REL; break;
       case 'squidroll': this.sqSpin = 0; break;   // Squid Roll: one barrel roll along the flight path (see _updateSquid)
       case 'throw': tr[T_THROW] = 0; this.bombHeld = false; break;
       case 'land': {
@@ -928,7 +931,7 @@ export class Character {
     }
     const aiming = kid && !dance && this.weaponKind !== 'roller' && (!!s.firing || ch > 0.01 || this.lastShot < 0.5 || this.lastRelease < 0.35 || this.lockW > 0.5);
     this.wAim = damp(this.wAim, aiming ? 1 : 0, aiming ? 22 : 4.5, dt);
-    const rolling = kid && !dance && !!s.rolling && this.weaponKind === 'roller' && this.tr[T_FLICK] > 0.6;
+    const rolling = kid && !dance && !!s.rolling && this.weaponKind === 'roller' && this._flickT() > 0.6;
     this.wRoll = damp(this.wRoll, rolling ? 1 : 0, rolling ? 11 : 6, dt);
     this.wAir = damp(this.wAir, this.grounded ? 0 : 1, this.grounded ? 24 : 12, dt);
     this.wDance = damp(this.wDance, dance ? 1 : 0, 5, dt);
@@ -1360,7 +1363,8 @@ export class Character {
     this._poseWeapon(dt, s);
 
     // ---------------- one-shots
-    if (tr[T_FLICK] < 0.7 && this.weaponKind === 'roller') { if (this.slashing) this._poseSlash(P, tr[T_FLICK], this.slashing === 2); else this._poseFlick(P, tr[T_FLICK]); }
+    const ftw = this._flickT();
+    if (ftw < 0.7 && this.weaponKind === 'roller') { if (this.slashing) this._poseSlash(P, ftw, this.slashing === 2); else this._poseFlick(P, ftw); }
     else if (this.weaponKind === 'roller' && (s.charge || 0) > 0.01) this._poseSlash(P, -1, false, s.charge);   // wiper wind-up
     if (this.wSub > 0.001 && tr[T_THROW] > 0.05) this._poseSubAim(P, this.wSub);
     if (tr[T_THROW] < 0.62) this._poseThrow(P, tr[T_THROW]);
@@ -1605,7 +1609,7 @@ export class Character {
     if (this.inWorld && !this.isLocal && G.camera) near = G.camera.position.distanceToSquared(this.root.position) < 15 * 15;
     const st = this._wst;
     st.t = this.t; st.dt = dt; st.color = this.color; st.near = near; st.hand = 0;
-    st.runner = this._runner(s); st.sinceShoot = this.tr[T_SHOOT]; st.sinceFlick = this.tr[T_FLICK]; st.sinceRelease = this.lastRelease;
+    st.runner = this._runner(s); st.sinceShoot = this.tr[T_SHOOT]; st.sinceFlick = this._flickT(); st.sinceRelease = this.lastRelease;
     st.charge = this.charge; st.full = this.fullT > 0; st.chargeFlash = this.chargeFlash; st.lowInk = this.wLow; st.firing = !!s.firing;
     st.rolling = this.wRoll; st.grounded = this.grounded; st.groundSpeed = this.gv;
     st.worldQuat = w.def.kind === 'slosher' && near ? w.off.getWorldQuaternion(this._wq) : null;
@@ -1624,6 +1628,13 @@ export class Character {
   }
 
   // Roller flick: coiled windup over the shoulder → whip (release at the weapon's windup time) → follow-through.
+  // the flick clock on the pose's own timeline: the heave up to the release is stretched (or squeezed) to the weapon's
+  // windup so the drum comes over exactly as the ink leaves; the follow-through then runs at its normal pace
+  _flickT() {
+    const t = this.tr[T_FLICK], w = this.flickWind || FLICK_REL;
+    return t < w ? t * (FLICK_REL / w) : t - w + FLICK_REL;
+  }
+
   _poseFlick(P, ft) {
     const X = this.PX; X.set(P);
     const kUp = ease(ft / 0.15);                 // coil

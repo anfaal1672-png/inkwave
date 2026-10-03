@@ -278,7 +278,7 @@ export class BotBrain {
               it.fire = true; move.set(nx, 0, nz);
             } else { this._tap = !this._tap; it.fire = dist < (w.slash ? 6.5 : 5) && this._tap; if (w.slash && it.fire && dist > 2.5 && Math.random() < 0.12) this._wipeHold = 0.35; }
           } else if (w.kind === 'roller') {
-            it.fire = dist < 5.5 || (a.weaponRunner.rolling && dist < 8);
+            it.fire = dist < (w.botFlickDist || 5.5) || (a.weaponRunner.rolling && dist < 8);
           } else if (w.kind === 'splatling') {
             // spin up (a full charge at range, a quicker partial one up close), release, track while the stream runs
             const wr = a.weaponRunner, want = dist > range * 0.55 ? this.chargeRelease : 0.55 + 0.25 * this.chargeRelease;
