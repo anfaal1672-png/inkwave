@@ -36,7 +36,7 @@ scene.add(c.root);                // root.position = feet, root.rotation.y = fac
 c.setColor(color)                 // team ink colour (hair, tank ink, squid body, weapon ink parts, hurt splotches use enemy colour)
 c.setWeapon('shooter'|'roller'|'charger'|'blaster')
 c.update(dt, s)                   // every frame, s = AnimState below
-c.trigger(name, arg)              // one-shots: 'shoot' | 'flick' | 'throw' | 'land'(arg=impact speed m/s) | 'jump' | 'hit' | 'special_leap' | 'special_slam' | 'spawn' | 'charge_release'
+c.trigger(name, arg)              // one-shots: 'shoot' | 'flick' | 'slash'(arg { heavy }: wiper cut) | 'squidroll' | 'throw' | 'land'(arg=impact speed m/s) | 'jump' | 'hit' | 'special_leap' | 'special_slam' | 'spawn' | 'charge_release'
                                   // 'hit' arg = { x, z, amp }: unit direction TOWARD the attacker in the character's root space
                                   //   (+z = facing, +x = the character's left); valueOf() → amp (0.4..1.2) for old numeric callers
 c.onEvent = (name, data) => {}    // set by actor.js; character.js calls it ('footstep' {foot, pos, speed}) → bus 'actor:<name>'

@@ -680,8 +680,9 @@ function buildWiper() {
 // ---------------------------------------------------------------------------------------------- stringer (charger pose)
 // A bow held flat like the charger: a stock along +Z, limbs sweeping out sideways at the front, the string drawn back
 // to a nocked trio of ink arrows. Charger grip layout (pistol grip + foregrip at z 0.214).
+const STR_TIP = 0.33, STR_TZ = 0.2, STR_NZ = 0.05, STR_Y = 0.06;   // bow tips (±x, z) and the nocking point (z)
 function buildStringer() {
-  const P = new Parts(), I = new Parts(), T = new Parts();
+  const P = new Parts(), I = new Parts(), T = new Parts(), NOCK = new Parts(), NOCKI = new Parts(), SL = new Parts(), SR = new Parts();
   pistolGrip(P, { T });
   P.add(at(superEllipsoid(0.022, 0.03, 0.15, 0.42, 0.56, 12, 8), 0, 0.06, 0.08), C.white, M.satin);              // stock
   P.add(at(superEllipsoid(0.018, 0.01, 0.14, 0.4, 0.5, 10, 5), 0, 0.035, 0.085), C.dark, M.satin);
@@ -691,20 +692,25 @@ function buildStringer() {
       seg: 12, radial: 6, capSteps: 2, radius: (t) => 0.014 - 0.007 * t, flat: 0.45, outward: (Pp, o) => o.set(0, 1, 0),
     });
     P.add(limb.geo, C.cream, M.gloss);
-    I.add(at(superEllipsoid(0.008, 0.008, 0.008, 1, 1, 8, 6), 0.33 * sx, 0.06, 0.2));                            // ink tips
-    const str = sweep([new V3(0.33 * sx, 0.06, 0.2), new V3(0.0, 0.06, 0.05)], { seg: 2, radial: 4, capSteps: 1, radius: () => 0.0016 });
-    P.add(str.geo, C.metal, M.metal);
+    I.add(at(superEllipsoid(0.008, 0.008, 0.008, 1, 1, 8, 6), STR_TIP * sx, STR_Y, STR_TZ));                    // ink tips
+    // each half of the string is its own part hinged at its bow tip, so the draw can swing it back to the nock
+    const str = sweep([new V3(STR_TIP * sx, STR_Y, STR_TZ), new V3(0.0, STR_Y, STR_NZ)], { seg: 2, radial: 4, capSteps: 1, radius: () => 0.0016 });
+    (sx > 0 ? SL : SR).add(str.geo, C.metal, M.metal);
   }
-  for (const a of [-0.12, 0, 0.12]) {                                                                             // three nocked arrows
+  for (const a of [-0.12, 0, 0.12]) {                                                                             // three nocked arrows (slide back on the draw)
     const dir = new V3(Math.sin(a), 0, Math.cos(a));
-    const shaft = sweep([new V3(0, 0.068, 0.05), new V3(dir.x * 0.34, 0.068, 0.05 + dir.z * 0.34)], { seg: 2, radial: 5, capSteps: 1, radius: () => 0.0032 });
-    P.add(shaft.geo, C.dark, M.satin);
-    I.add(at(superEllipsoid(0.007, 0.007, 0.018, 0.8, 0.8, 8, 6), dir.x * 0.35, 0.068, 0.05 + dir.z * 0.35));
+    const shaft = sweep([new V3(0, 0.068, STR_NZ), new V3(dir.x * 0.34, 0.068, STR_NZ + dir.z * 0.34)], { seg: 2, radial: 5, capSteps: 1, radius: () => 0.0032 });
+    NOCK.add(shaft.geo, C.dark, M.satin);
+    NOCKI.add(at(superEllipsoid(0.007, 0.007, 0.018, 0.8, 0.8, 8, 6), dir.x * 0.35, 0.068, STR_NZ + dir.z * 0.35));
   }
   P.add(at(superEllipsoid(0.0118, 0.028, 0.0132, 0.55, 0.65, 10, 8), 0, 0.016, 0.214), C.darker, M.satin);       // foregrip
   return {
     kind: 'stringer', body: P.build(), ink: I.build(),
-    parts: { trigger: part(T, TRIGGER_PIVOT) },
+    parts: {
+      trigger: part(T, TRIGGER_PIVOT),
+      nock: part(NOCK, new V3(0, 0.068, STR_NZ)), nockInk: part(NOCKI, new V3(0, 0.068, STR_NZ), 'ink'),
+      strL: part(SL, new V3(STR_TIP, STR_Y, STR_TZ)), strR: part(SR, new V3(-STR_TIP, STR_Y, STR_TZ)),
+    },
     muzzle: new V3(0, 0.068, 0.42),
     gripR: GRIP_PISTOL,
     gripL: { pos: new V3(0, 0.004, 0.214), handZ: new V3(0, 0, 1), handY: new V3(0.75, -0.62, -0.1) },
@@ -811,8 +817,26 @@ export function animateWeapon(w, st) {
     w.drumA += w.drumW * dt;
     w.drum.rotation.x = w.drumA;
   }
-  // brella canopy: gone while broken (the runner regrows it after canopyCooldown)
-  if (P.canopy) { const up = !(R && R.canopyBroken); P.canopy.visible = up && w.near; if (P.ribs) P.ribs.visible = up && w.near; }
+  // stringer: the draw pulls the nocked arrows back and swings the two string halves round their bow tips to follow;
+  // the release snaps them home
+  if (P.nock) {
+    const c = R ? (R.charging ? R.charge || 0 : 0) : (st.charge || 0);
+    w.draw = c > (w.draw || 0) ? c : dampE(w.draw || 0, c, 40, dt);
+    const d = 0.1 * w.draw, nz = STR_NZ - d;
+    P.nock.position.z = P.nock.userData.rest.z - d; P.nockInk.position.z = P.nockInk.userData.rest.z - d;
+    const a0 = Math.atan2(-STR_TIP, STR_NZ - STR_TZ), a1 = Math.atan2(-STR_TIP, nz - STR_TZ);   // left half, tip → nock
+    P.strL.rotation.y = a1 - a0; P.strR.rotation.y = a0 - a1;
+    const sc = Math.hypot(STR_TIP, nz - STR_TZ) / Math.hypot(STR_TIP, STR_NZ - STR_TZ);   // the string stretches a touch
+    P.strL.scale.setScalar(sc); P.strR.scale.setScalar(sc);
+  }
+  // brella canopy: gone while broken (the runner regrows it after canopyCooldown); held up it spreads full width, at
+  // rest it sits a little furled
+  if (P.canopy) {
+    const up = !(R && R.canopyBroken); P.canopy.visible = up && w.near; if (P.ribs) P.ribs.visible = up && w.near;
+    w.canopyK = dampE(w.canopyK ?? 0, R && R.canopyUp ? 1 : 0, 14, dt);
+    const k = 0.84 + 0.16 * w.canopyK, kz = 1.12 - 0.12 * w.canopyK;   // furled: narrower and deeper
+    P.canopy.scale.set(k, k, kz); if (P.ribs) P.ribs.scale.set(k, k, kz);
+  }
   const u = st.sinceShoot ?? 99;
   if (kind === 'blaster') {   // pump stroke — computed at every distance (the body's left hand rides it)
     let pk = 0;

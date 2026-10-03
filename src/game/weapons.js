@@ -236,7 +236,7 @@ export class WeaponRunner {
     const a = this.a;
     a.ink = Math.max(0, a.ink - (charged ? w.chargedInk : w.slashInk)); a.lastFire = 0;
     G.projectiles.fireSlash(a, w, charged);
-    a.character.trigger('flick');
+    a.character.trigger('slash', { heavy: charged });
     this._footSplat(1, w.footRadius);
     this.cooldown = charged ? w.slashInterval * 1.5 : w.slashInterval;
     this.firingT = 0.25; this.flickRecover = 0.12;
@@ -266,7 +266,9 @@ export class WeaponRunner {
       else {
         a.ink -= w.flickInk; a.lastFire = 0;
         this.flick = 0;
-        a.character.trigger('flick');
+        // a brush flicks side to side (alternating backhands); a roller heaves its drum overhead
+        if (w.model === 'brush') { this.flickSide = !this.flickSide; a.character.trigger('slash', { flip: this.flickSide }); }
+        else a.character.trigger('flick');
         if (a.isLocal || a._nearCamera()) G.audio?.play('roller_flick', { pos: a.isLocal ? undefined : a.pos, volume: 0.8 });
         return;
       }

@@ -272,7 +272,8 @@ class FxHooks {
     if (!this._near(a.pos, 34)) return;
     _v.copy(a.pos); _v.y += 1.05;
     _dir.set(Math.sin(a.yaw), 0, Math.cos(a.yaw));
-    this.fx.flickCurtain?.(_v, _dir, a.color, a.weapon?.flickSpreadDeg || 50);
+    const w = a.weapon;   // a wiper's cut is a flat sheet at chest height, a roller / brush flick a rising curtain
+    this.fx.flickCurtain?.(_v, _dir, a.color, (w && (w.slash ? w.slashSpreadDeg : w.flickSpreadDeg)) || 50, !!(w && w.slash));
     this._bump('flick');
   }
 

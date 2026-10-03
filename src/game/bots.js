@@ -242,7 +242,10 @@ export class BotBrain {
             const wr = a.weaponRunner;
             if (wr.charging) it.fire = wr.charge < 1;
             else if (this._wipeHold > 0) { this._wipeHold -= dt; it.fire = true; }
-            else { this._tap = !this._tap; it.fire = dist < (w.slash ? 6.5 : 5) && this._tap; if (w.slash && it.fire && dist > 2.5 && Math.random() < 0.12) this._wipeHold = 0.35; }
+            else if (!w.slash && dist >= 5 && dist < 14 && a.grounded && a.ink > 20) {
+              // brush: close the gap at full rolling speed (painting a road and hitting what it runs into), then flick
+              it.fire = true; move.set(nx, 0, nz);
+            } else { this._tap = !this._tap; it.fire = dist < (w.slash ? 6.5 : 5) && this._tap; if (w.slash && it.fire && dist > 2.5 && Math.random() < 0.12) this._wipeHold = 0.35; }
           } else if (w.kind === 'roller') {
             it.fire = dist < 5.5 || (a.weaponRunner.rolling && dist < 8);
           } else if (w.kind === 'splatling') {
