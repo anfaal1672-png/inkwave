@@ -84,6 +84,10 @@ export class BotBrain {
     this._tap = false; this._wipeHold = 0;
     this.rollCd = 0; this.rollOn = false; this.rollX = 0; this.rollZ = 0; this.surgePlan = -1;
     this.lookT = 0; this.lookNext = 1 + Math.random() * 3; this.lookOff = 0;
+    // a human's picture of the fight: the target's motion as it was taken in (lags behind the real one), whether it is in
+    // sight right now, and hits that register a beat after they land
+    this.pvX = 0; this.pvZ = 0; this.tgtVis = false; this._hidT = -99;
+    this._prevLD = 99; this._hitPend = -1; this._hitHp = 0; this._hitD = 0; this._hitAt = -99; this.hurt = 99; this.feltHp = PLAYER.hp;
   }
 
   update(dt) {
@@ -116,7 +120,20 @@ export class BotBrain {
     this.think -= dt; this.jumpCd -= dt; this.bombCd -= dt; this.strafeT -= dt; this.paintPause -= dt; this.dodgeCd -= dt;
     this.acqT += dt; this.t += dt;
     this.sqCd -= dt; this.sqDodgeT -= dt; this.rollCd -= dt; this.ambushCd -= dt; this._repCd -= dt; this.lookT -= dt; this.exitPaintT -= dt;
+    this.react -= dt;
     const apex = !!this.diff.apex;
+
+    // ---------------- feeling hits: a hit registers a reaction time after it lands, so the dodge / retreat it sets off
+    // can't start on the very frame (the bot also reads its health as of then). Only the first hit of a burst is timed;
+    // the ones landing while it is still "on its way" are taken in with it.
+    if (a.lastDamage < this._prevLD - 1e-4 && this._hitPend < 0) {
+      this._hitPend = this.t - a.lastDamage; this._hitHp = a.hp;
+      this._hitD = apex ? 0 : Math.max(0.12, this.diff.reaction * (0.6 + Math.random() * 0.5));
+    }
+    this._prevLD = a.lastDamage;
+    if (this._hitPend >= 0 && this.t - this._hitPend >= this._hitD) { this._hitAt = this._hitPend + this._hitD; this.feltHp = this._hitHp; this._hitPend = -1; }
+    else if (this._hitPend < 0) this.feltHp = a.hp;
+    this.hurt = this.t - this._hitAt;
 
     // ---------------- perception
     if (this.think <= 0) {
@@ -138,7 +155,7 @@ export class BotBrain {
 
     // ---------------- mode selection (retreat = break line of sight and heal in own ink when losing a duel)
     const inkFrac = a.ink / PLAYER.inkMax;
-    const hpFrac = a.hp / PLAYER.hp;
+    const hpFrac = this.feltHp / PLAYER.hp;
     const w = a.weapon;
     if (this.mode === 'retreat') {
       this.retreatT -= dt;
@@ -155,7 +172,7 @@ export class BotBrain {
     // ---------------- navigation goal
     this.goalTimer -= dt; this.repath -= dt; this.dwellT -= dt;
     if (this.mode === 'fight' && this.target) {
-      if (this.repath <= 0) this._pathTo(this.target.pos, 0.6);
+      if (this.repath <= 0) this._pathTo(this.tgtVis || apex ? this.target.pos : _v3.set(this.lastSeen.x, this.lastSeen.y, this.lastSeen.z), 0.6);
     } else if (this.mode === 'hunt') {
       if (this.repath <= 0 && this.lastSeen.actor) this._pathTo(_v3.set(this.lastSeen.x, this.lastSeen.y, this.lastSeen.z), 1.2);
     } else if (this.mode === 'ambush') {
@@ -189,14 +206,25 @@ export class BotBrain {
 
     if ((this.mode === 'fight' || this.mode === 'retreat') && this.target) {
       const t = this.target;
-      const dx = t.pos.x - a.pos.x, dz = t.pos.z - a.pos.z;
+      // where the bot thinks it is: in sight → where it is; behind cover → where it was last seen, carried on along
+      // its last known motion for half a second (no tracking through walls)
+      let tx = t.pos.x, ty = t.pos.y + (t.smoothY || 0), tz = t.pos.z;
+      if (apex) { this.pvX = t.vel.x; this.pvZ = t.vel.z; }
+      else if (this.tgtVis) {
+        // motion is read with a lag: a strafe flip takes a moment to show up in the lead
+        const kv = 1 - Math.exp(-dt / (0.08 + 0.5 * this.diff.reaction));
+        this.pvX += (t.vel.x - this.pvX) * kv; this.pvZ += (t.vel.z - this.pvZ) * kv;
+      } else {
+        const ls = this.lastSeen, k = Math.min(this.t - ls.t, 0.5);
+        tx = ls.x + this.pvX * k; ty = ls.y; tz = ls.z + this.pvZ * k;
+      }
+      const dx = tx - a.pos.x, dz = tz - a.pos.z;
       const dist = Math.hypot(dx, dz);
       fightDist = dist;
       const range = this._range();
-      // lead the target a little (projectile flight time)
       // lead the target by the projectile's time to arrive (lobs: the heave windup + a slower, longer arc)
       const lead = w.kind === 'charger' ? 0 : w.kind === 'slosher' ? (w.windup || 0.13) + dist / ((w.projSpeed || 15) * 0.88) : dist / (w.projSpeed || 30);
-      _v.set(t.pos.x + t.vel.x * lead, t.pos.y + (t.smoothY || 0) + (t.form === 'squid' ? 0.3 : 0.85), t.pos.z + t.vel.z * lead);
+      _v.set(tx + this.pvX * lead, ty + (t.form === 'squid' ? 0.3 : 0.85), tz + this.pvZ * lead);
       _v2.copy(_v); _v2.x -= a.pos.x; _v2.y -= a.pos.y + 1.1; _v2.z -= a.pos.z;
       idealYaw = Math.atan2(_v2.x, _v2.z);
       idealPitch = Math.atan2(_v2.y, Math.hypot(_v2.x, _v2.z));
@@ -232,7 +260,10 @@ export class BotBrain {
         const tol = Math.max(0.05, Math.atan2(0.55, dist)) * (this._firing ? 2.4 : 1.5);
         const aimed = off < tol;
         this._firing = false;
-        if (enemyVisible && this.react <= 0 && aimed && inkFrac > 0.02) {
+        // shooting at it: while in sight, plus a short burst into the spot it just ducked out of (no long hosing of the
+        // wall it is behind — and it has to be seen again before the next shot, see _perceive)
+        const inView = enemyVisible && (apex || this.tgtVis || this.t - this._hidT < 0.35);
+        if (inView && this.react <= 0 && aimed && inkFrac > 0.02) {
           if (w.kind === 'charger') {
             it.fire = !(a.weaponRunner.charging && a.weaponRunner.charge >= this.chargeRelease);
             if (a.weaponRunner.charging) move.multiplyScalar(0.3);
@@ -265,14 +296,14 @@ export class BotBrain {
           if (!apex && this._bombOk && sub.id !== 'sprinkler' && this.bombCd <= 0 && this.bombPrep <= 0 && a.ink > sub.inkCost + 8 && dist > (burst ? 3 : 5) && dist < (burst ? 11 : 13)) {
             this._bombOk = false; this._startBomb(t.pos.x, t.pos.y, t.pos.z);
           }
-        } else if ((w.kind === 'charger' || w.kind === 'splatling') && a.weaponRunner.charging && !enemyVisible) {
+        } else if ((w.kind === 'charger' || w.kind === 'splatling') && a.weaponRunner.charging && !inView) {
           it.fire = true; // keep charge while target briefly hidden
         }
         // out of range with own ink underfoot: swim in (fast, hard to hit) instead of walking
         // (a shorter weapon dives in from further out to get inside the other's reach)
         if (!it.fire && !a.weaponRunner.charging && dist > range * (range - this._rangeOf(t.weapon) <= -2 ? 0.85 : 1.15) && a.groundTeam === 1) it.squid = true;
         // squid dodge: hurt in own ink, a quarter second as a squid off to the side, then back to shooting
-        if (!apex && this.sqDodgeT <= 0 && this.sqCd <= 0 && hpFrac <= 0.5 && a.lastDamage < 0.15 && a.groundTeam === 1 && SQUID_DODGERS.has(w.kind)
+        if (!apex && this.sqDodgeT <= 0 && this.sqCd <= 0 && hpFrac <= 0.5 && this.hurt < 0.15 && a.groundTeam === 1 && SQUID_DODGERS.has(w.kind)
             && !a.weaponRunner.charging && Math.random() < 0.7) {
           this.sqDodgeT = 0.25; this.sqCd = 1.6 + Math.random() * 1.4; this.sqSide = Math.random() < 0.5 ? -1 : 1;
         }
@@ -288,11 +319,11 @@ export class BotBrain {
         else if (w.kind === 'dualies') {
           // dodge roll: while firing, roll sideways when hit or when the fight gets close (the runner locks the turret after)
           const wr = a.weaponRunner;
-          if (it.fire && this.dodgeCd <= 0 && a.grounded && !wr.dodge && wr.rollsLeft > 0 && (a.lastDamage < 0.3 || dist < 5.5) && Math.random() < 0.08 * dt * 60) {
+          if (it.fire && this.dodgeCd <= 0 && a.grounded && !wr.dodge && wr.rollsLeft > 0 && (this.hurt < 0.3 || dist < 5.5) && Math.random() < 0.08 * dt * 60) {
             const side = Math.random() < 0.5 ? -1 : 1;
             if (!this._nearWater(a, 3.2)) { move.set(-nz * side, 0, nx * side); it.jump = true; this.dodgeCd = 1.4 + Math.random() * 1.6; }
           }
-        } else if (a.lastDamage < 0.25 && this.dodgeCd <= 0 && a.grounded && w.kind !== 'charger' && Math.random() < 0.3 && !this._nearWater(a, 1.6)) { it.jump = true; this.dodgeCd = 2 + Math.random() * 2.5; }
+        } else if (this.hurt < 0.25 && this.dodgeCd <= 0 && a.grounded && w.kind !== 'charger' && Math.random() < 0.3 && !this._nearWater(a, 1.6)) { it.jump = true; this.dodgeCd = 2 + Math.random() * 2.5; }
         // special
         if (a.specialReady()) {
           const sp = w.special;
@@ -313,7 +344,7 @@ export class BotBrain {
         // retreat: swim away through own ink, keep eyes on the threat; hit on the way out → sometimes a Squid Roll
         // juke ~120° off the swim line (its damage cut soaks the next shots), then carry on
         it.squid = true;
-        if (a.lastDamage < 0.05 && this.rollCd <= 0) { if (Math.random() < 0.5 * this.diff.fireDiscipline) this._planRoll((Math.random() < 0.5 ? -1 : 1) * 2.1); else this.rollCd = 1; }
+        if (this.hurt < 0.05 && this.rollCd <= 0) { if (Math.random() < 0.5 * this.diff.fireDiscipline) this._planRoll((Math.random() < 0.5 ? -1 : 1) * 2.1); else this.rollCd = 1; }
       }
     } else if (this.mode === 'ambush' && this.target) {
       // sit still in own ink (a squid in ink can't be seen from afar), eyes on the enemy walking up
@@ -512,7 +543,7 @@ export class BotBrain {
     // when to back off: a careful bot goes earlier, a hot-headed one later; and anyone outnumbered 2 or more to one gives up
     // a hurt duel unless it is really aggressive
     const p = this.pers, lim = 0.24 + 0.2 * (0.5 * (1 - p.aggro) + 0.5 * p.caution);
-    return (hpFrac < lim && w.kind !== 'roller' && this.a.lastDamage < 0.8) || hpFrac < 0.2 || (this._outnum && hpFrac < 0.7 && p.aggro < 0.7);
+    return (hpFrac < lim && w.kind !== 'roller' && this.hurt < 0.8) || hpFrac < 0.2 || (this._outnum && hpFrac < 0.7 && p.aggro < 0.7);
   }
   _refillWanted(inkFrac, w) { return inkFrac < 0.12 && !(this.target && this.seeTimer > 0 && w.kind !== 'roller' && inkFrac > 0.05); }
   // the distance to fight at: outside the enemy weapon's reach when ours is longer, right up in its face when shorter
@@ -555,7 +586,7 @@ export class BotBrain {
     const eye = _v.copy(a.pos); eye.y += 1.3;
     const aw = d0.awareness, dt = this._thinkDt;
     const sy = Math.sin(this.aimYaw), cy = Math.cos(this.aimYaw), cosFov = Math.cos(d0.fov ?? 1.3);
-    let best = null, bs = Infinity, bd = 0, bSeen = true;
+    let best = null, bs = Infinity, bd = 0, bSeen = true, bCos = 1;
     for (const e of G.actors) {
       if (e.team === a.team || !e.alive) continue;
       const ex = e.pos.x - a.pos.x, ey = e.pos.y - a.pos.y, ez = e.pos.z - a.pos.z;
@@ -566,26 +597,33 @@ export class BotBrain {
       if (swimming && d > 3 && !(hs > 7 && d < 9)) continue;
       const hd = Math.hypot(ex, ez);
       const inFov = hd < 0.5 || ex * sy + ez * cy >= cosFov * hd;
-      if (!inFov && !(d < 5 || (d < 12 && e.lastFire < 0.4) || (a.lastAttacker === e && a.lastDamage < 0.3))) continue;
+      if (!inFov && !(d < 5 || (d < 12 && e.lastFire < 0.4) || (a.lastAttacker === e && this.hurt < 0.3))) continue;
       _v2.copy(e.pos); _v2.y += e.form === 'squid' ? 0.3 : 1.0;
       if (!G.physics.los(eye, _v2)) continue;
       // nearest first, but the wounded, whoever is aiming at me, whoever my mates are on, and the one I'm on all count
       let score = d - (1 - e.hp / PLAYER.hp) * 6 - (e === this.target ? 4 : 0);
       if (d < 25 && Math.abs(angleDiff(e.aimYaw, Math.atan2(-ex, -ez))) < 0.35) score -= 3;
       for (const m of G.actors) if (m !== a && m.team === a.team && m.bot && m.bot.target === e && m.bot.seeTimer > 0) score -= 3 * (d0.team ?? 0.5);
-      if (score < bs) { bs = score; best = e; bd = d; bSeen = inFov; }
+      if (score < bs) { bs = score; best = e; bd = d; bSeen = inFov; bCos = hd < 0.5 ? 1 : (ex * sy + ez * cy) / hd; }
     }
     if (best) {
       const fresh = best !== this.target;
       if (fresh) {
         this.target = best; this.repath = 0; this._prevD = 0; this._huntBomb = false;
-        // noticed by ear or by getting hit: it takes a turn-around to get on it
-        this.react = d0.reaction * (bSeen ? 0.7 + Math.random() * 0.6 : 1.5 * (0.8 + Math.random() * 0.4));
+        // noticed by ear or by getting hit: it takes a turn-around to get on it; off to the side of the view (the corner
+        // of the eye) is slower to register than straight ahead
+        const side = 1 + 0.8 * clamp((Math.acos(clamp(bCos, -1, 1)) - 0.35) / 0.9, 0, 1);
+        this.react = d0.reaction * (bSeen ? (0.7 + Math.random() * 0.6) * side : 1.5 * (0.8 + Math.random() * 0.4));
+        this.pvX = 0; this.pvZ = 0;
         // first look lands a little off (over- or under-shoot) and settles — like a human flick
         this.acqT = 0; this.acqSignY = (Math.random() < 0.5 ? -1 : 1) * (0.5 + Math.random() * 0.5); this.acqSignP = (Math.random() - 0.5) * 1.2;
         const cn = this.pers.caution * 0.75 * (w.kind === 'roller' ? 1.6 : 1);
         this._ambushRoll = Math.random() < Math.min(0.9, cn);
       }
+      // back in sight after ducking out of it: a beat to see it again and get the shot off (less than a fresh one — the
+      // bot was watching for it)
+      else if (!this.tgtVis && this.t - this._hidT > 0.4 && !d0.apex) this.react = Math.max(this.react, d0.reaction * (0.4 + Math.random() * 0.4));
+      this.tgtVis = true;
       const wasSeen = this.seeTimer > 0;
       this.seeTimer = 1.2;
       this.lostTimer = 0;
@@ -595,13 +633,14 @@ export class BotBrain {
       this._fleeing = this._prevD > 0 && bd > this._prevD + 0.5; this._prevD = bd;
       this._ambushCheck(best, bd, w);
     } else {
+      if (this.tgtVis) this._hidT = this.t;
+      this.tgtVis = false;
       this.seeTimer -= 0.2;
       if (this.target) {
         this.lostTimer += dt;
         if (this.lostTimer > this._huntMax() || this.target.pos.distanceTo(a.pos) > aw + 6) { this.target = null; this.lastSeen.actor = null; }
       }
     }
-    this.react -= dt;
   }
 
   // how long a bot keeps chasing an enemy it lost: its memory, cut short if it isn't the chasing type
@@ -663,11 +702,11 @@ export class BotBrain {
     if (this.mode === 'ambush') {
       this.ambushT -= dt;
       const t = this.target, a = this.a;
-      const out = !t || this.ambushT <= 0 || a.lastDamage < 0.25 || a.groundTeam !== 1
+      const out = !t || this.ambushT <= 0 || this.hurt < 0.25 || a.groundTeam !== 1
         || (this.seeTimer > 0 && a.pos.distanceTo(t.pos) < (a.weapon.kind === 'roller' ? 7 : this._range() * 0.7));
       if (!out) return;
       this.ambushCd = 5;
-      if (t) this.react = Math.min(this.react, 0.06);            // sprung: no dawdling
+      if (t) this.react = Math.min(this.react, this.diff.reaction * 0.35);   // sprung: it was waiting for this
       this.mode = t ? 'fight' : 'paint';
       return;
     }
@@ -841,8 +880,10 @@ export class BotBrain {
     return Math.hypot(n.x - this.a.pos.x, n.z - this.a.pos.z);
   }
 
-  // body-width line of sight at knee height (centre + both shoulders) so bots never cut corners they can't fit past
-  _wet(x, z, y) { const gy = G.level.groundHeight(x, z, y + 0.6); return gy === -Infinity || gy < PLAYER.fallDeathY; }
+  // sea underfoot: no ground at all (the same test that splats an actor, actor.js). Solid floor below the waterline is
+  // not sea — Kelpline's sunken trench (y -2) and the Skatepark bowl (y -1.6) are walled dry pits, and treating them as
+  // water froze every bot that walked in (the edge guard turned each step down)
+  _wet(x, z, y) { return G.level.groundHeight(x, z, y + 0.6) === -Infinity; }
   // ground all the way along a straight walk (samples every 0.45 m)
   _dryLine(x0, y0, z0, x1, z1) {
     const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / 0.45);
@@ -867,6 +908,7 @@ export class BotBrain {
     mv.set(0, 0, 0);
   }
 
+  // body-width line of sight at knee height (centre + both shoulders) so bots never cut corners they can't fit past
   _fatLos(ax, ay, az, bx, by, bz) {
     let dx = bx - ax, dz = bz - az;
     const l = Math.hypot(dx, dz) || 1;

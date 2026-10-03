@@ -244,7 +244,6 @@ class Game {
     if (this.decor) { if (this.decor.dispose) this.decor.dispose(); else scene.remove(this.decor.group); }
     this._lightmap?.dispose(); this._lightmap = null;
     if (this.props) { this.props.dispose?.(); this.props = null; }
-    G.paint?.dispose();
     this.layoutId = layoutId;
     this.mapDef = map;
     const q = QUALITY[this.settings.quality] || QUALITY.high;
@@ -264,6 +263,9 @@ class Game {
     const level = (G.level = new Level(MAP_LAYOUTS[layoutId], colliders));
     G.physics = new Physics(level);
     const lightmap = (this._lightmap = await this._loadLightmap(level, layoutId));
+    // the old atlas goes only now, right before its replacement: frames keep running through the lightmap fetch above, and
+    // a splat into a disposed atlas made three.js allocate it again (a 21 MB texture left behind on every stage change)
+    G.paint?.dispose();
     G.paint = new PaintSystem(G.renderer, level, { atlasSize: q.paintAtlas, maxDensity: q.paintAtlas >= 4096 ? 30 : 18 });
     this.levelMat = createLevelMaterial(G.paint.texture, G.paint.size, this.murals, { lightmap, texlib: this.texlib, lite: !!q.lite });
     (this.swimWake || (this.swimWake = new SwimWake())).reset();
