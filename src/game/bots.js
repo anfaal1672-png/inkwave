@@ -880,8 +880,10 @@ export class BotBrain {
     return Math.hypot(n.x - this.a.pos.x, n.z - this.a.pos.z);
   }
 
-  // body-width line of sight at knee height (centre + both shoulders) so bots never cut corners they can't fit past
-  _wet(x, z, y) { const gy = G.level.groundHeight(x, z, y + 0.6); return gy === -Infinity || gy < PLAYER.fallDeathY; }
+  // sea underfoot: no ground at all (the same test that splats an actor, actor.js). Solid floor below the waterline is
+  // not sea — Kelpline's sunken trench (y -2) and the Skatepark bowl (y -1.6) are walled dry pits, and treating them as
+  // water froze every bot that walked in (the edge guard turned each step down)
+  _wet(x, z, y) { return G.level.groundHeight(x, z, y + 0.6) === -Infinity; }
   // ground all the way along a straight walk (samples every 0.45 m)
   _dryLine(x0, y0, z0, x1, z1) {
     const d = Math.hypot(x1 - x0, z1 - z0), n = Math.ceil(d / 0.45);
@@ -906,6 +908,7 @@ export class BotBrain {
     mv.set(0, 0, 0);
   }
 
+  // body-width line of sight at knee height (centre + both shoulders) so bots never cut corners they can't fit past
   _fatLos(ax, ay, az, bx, by, bz) {
     let dx = bx - ax, dz = bz - az;
     const l = Math.hypot(dx, dz) || 1;
