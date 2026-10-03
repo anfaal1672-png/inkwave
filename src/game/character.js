@@ -392,7 +392,7 @@ export class Character {
     this.inkS = 1; this.hurt = 0; this.slosh = 0;
     // squid
     this.hopPhase = 0; this.hopAir = false; this.sqYaw = 0; this.sqPos = new THREE.Vector3(); this.sqQuat = new THREE.Quaternion(); this.sqInit = false;
-    this.sqBlink = 0; this.sqRoll = 0;
+    this.sqBlink = 0; this.sqRoll = 0; this.sqSpin = 9;   // sqSpin: Squid Roll progress (0 → 1, 9 = idle)
     this.drumAngle = 0; this.visible = true; this.ikErr = [0, 0, 0, 0];
     // hair springs
     const n = HAIR_MAX * HAIR_SEGS * 3;
@@ -513,14 +513,24 @@ export class Character {
     for (let s = 0; s < HAIR_MAX; s++) this.hairTips.push(this.bones[`hairTip${s}`] || null);
   }
 
-  _buildBomb() {
-    const d = getSubDef('bomb');
-    const g = new THREE.Group(); g.position.copy(d.inHandL.pos); g.quaternion.copy(d.inHandL.quat);
-    const body = new THREE.Mesh(d.body, getPlasticMaterial()); body.castShadow = true;
-    const ink = new THREE.Mesh(d.ink, getInkMaterial(this.color)); ink.castShadow = true;
-    g.add(body, ink); g.visible = false;
-    this.bones.handL.add(g);
-    this.bomb = { group: g, ink };
+  // the sub-weapon prop in the left hand (config SUB kind: splat / suction / burst bomb, sprinkler); one per kind
+  // this character has held, swapped by setWeapon
+  _buildBomb(kind = 'bomb') {
+    const props = this.subProps || (this.subProps = {});
+    if (this.bomb && this.bomb.kind === kind) return;
+    if (this.bomb) { this.bomb.group.visible = false; this.bones.handL.remove(this.bomb.group); }
+    let pr = props[kind];
+    if (!pr) {
+      const d = getSubDef(kind);
+      const g = new THREE.Group(); g.position.copy(d.inHandL.pos); g.quaternion.copy(d.inHandL.quat);
+      const body = new THREE.Mesh(d.body, getPlasticMaterial()); body.castShadow = true;
+      const ink = new THREE.Mesh(d.ink, getInkMaterial(this.color)); ink.castShadow = true;
+      g.add(body, ink); g.visible = false;
+      pr = props[kind] = { group: g, ink, kind };
+    }
+    pr.ink.material = getInkMaterial(this.color);
+    this.bones.handL.add(pr.group);
+    this.bomb = pr;
   }
 
   _buildTank() {
@@ -624,10 +634,13 @@ export class Character {
     if (id === this.weaponId) return;
     const old = this.weaponId && this.weapons[this.weaponId];
     if (old) { this.bones.handR.remove(old.pivot); if (old.left) this.bones.handL.remove(old.left.pivot); }
-    const w = this._getWeapon(id, kind, skin);
+    // W.model: a weapon built on another kind's mechanics and pose (brush / wiper on the roller, stringer on the charger,
+    // brella on the shooter) still gets its own 3D model
+    const w = this._getWeapon(id, (W && W.model) || kind, skin);
     this.bones.handR.add(w.pivot);
     if (w.left) this.bones.handL.add(w.left.pivot);
     this.weaponId = id; this.weaponKind = kind; this.weapon = w; this.hold = HOLD[kind];
+    this._buildBomb((W && W.sub) || 'bomb');
     this.dual = !!w.left;
   }
 
@@ -657,6 +670,7 @@ export class Character {
         break;
       }
       case 'flick': tr[T_FLICK] = 0; this.lastShot = 0; break;
+      case 'squidroll': this.sqSpin = 0; break;   // Squid Roll: one barrel roll along the flight path (see _updateSquid)
       case 'throw': tr[T_THROW] = 0; this.bombHeld = false; break;
       case 'land': {
         const a = clamp(((arg ?? 8) - 2.5) / 13, 0.12, 1);
@@ -2875,6 +2889,7 @@ export class Character {
     const t = this.t; const v = this.hs;
     this.u.uTime.value = t;
     const p = _v1, q = _q1;
+    if (this.sqSpin < 1) this.sqSpin = Math.min(1, this.sqSpin + dt / 0.42);
     let wigAmp = 0.012, wigFreq = 9;
     let local = false;
     let sy = 1, sxz = 1;
@@ -2894,9 +2909,11 @@ export class Character {
       this.model.matrixWorld.decompose(_v3, _q3, _v4);
       q.copy(_q3).invert().multiply(_q2);
       _v5.copy(this.root.getWorldPosition(_v5)).addScaledVector(UP, 0.26 + 0.025 * Math.sin(t * 14) * climbV).addScaledVector(n, -this.climbInset - 0.07);
-      _v5.addScaledVector(_bx, 0.022 * Math.sin(t * 5.5) * climbV);
+      // Squid Surge charge: the squid squats against the wall and shivers as it winds up
+      const su = s.surge || 0;
+      _v5.addScaledVector(_bx, 0.022 * Math.sin(t * 5.5) * climbV + 0.014 * Math.sin(t * 47) * su);
       this.model.worldToLocal(p.copy(_v5));
-      sy = 1 + 0.1 * climbV + 0.05 * Math.sin(t * 14) * climbV; sxz = 1 / Math.sqrt(sy);
+      sy = (1 + 0.1 * climbV + 0.05 * Math.sin(t * 14) * climbV) * (1 - 0.3 * su); sxz = 1 / Math.sqrt(sy);
       wigAmp = 0.014 + 0.022 * climbV; wigFreq = 10 + 8 * climbV;
       local = true;
     } else if (form === 'swim' && !airborne) {
@@ -2913,8 +2930,10 @@ export class Character {
     } else if (airborne && (this.hs > 3 || form === 'swim' || this.formPrev === 'climb')) {
       // dolphin arc: mantle follows the flight path (nose up rising, nose down falling), stretched along it
       const pit = Math.atan2(this.vyS, Math.max(this.hs, 0.5));
-      if (v > 0.3) this.sqYaw = dampAngle(this.sqYaw, Math.atan2(this.mdx, this.mdz), 8, dt);
-      _e1.set(Math.PI / 2 - pit, this.sqYaw, 0, 'YXZ'); q.setFromEuler(_e1);
+      // (a Squid Roll swings round to the new heading fast and barrel-rolls once about the body axis)
+      const rolling = this.sqSpin < 1;
+      if (v > 0.3) this.sqYaw = dampAngle(this.sqYaw, Math.atan2(this.mdx, this.mdz), rolling ? 24 : 8, dt);
+      _e1.set(Math.PI / 2 - pit, this.sqYaw, rolling ? Math.PI * 2 * easeOut(this.sqSpin) : 0, 'YXZ'); q.setFromEuler(_e1);
       p.set(0, 0.22, 0);
       const sv = Math.min(1, Math.hypot(this.hs, this.vyS) / 10);
       sy = 1 + 0.22 * sv; sxz = 1 / Math.sqrt(sy);

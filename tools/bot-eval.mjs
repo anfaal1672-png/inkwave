@@ -7,7 +7,7 @@
 //   ms/bot     mean CPU time of one bot's update() (performance.now around it)
 // usage: node tools/bot-eval.mjs [--runs 3] [--maps tidewater,kelpline] [--difficulty hard] [--duration 90]
 //                                [--fps 30] [--port 8490] [--url http://localhost:8493/] [--parallel 2] [--json]
-//                                [--weapons random] [--out per-weapon.json] [--chunk 3]
+//                                [--weapons random] [--focus brush,wiper] [--out per-weapon.json] [--chunk 3]
 //   --url points at another checkout (python3 tools/serve.py 8493 in a git worktree) for a before / after comparison.
 //   --weapons random prints a per-weapon table (kills, deaths, K/D, turf/min, win%, modes) instead of the per-map one,
 //   for weapon balance; --chunk N restarts the browser every N matches of a map so --parallel can split one map.
@@ -29,6 +29,12 @@ const asJson = args.includes('--json');
 // --weapons random: all 8 bots get random weapons (distinct kinds within a team, least-used first so every weapon appears
 // about equally often) and the run prints a per-weapon table; --out <file> also writes it as JSON.
 const randomWeapons = opt('weapons', '') === 'random';
+// --focus brush,wiper: with --weapons random, every match puts these weapons on the teams (team t gets focus[t]) so a
+// few runs are enough to judge them; the rest of each team is drawn as usual
+const focus = opt('focus', '') ? opt('focus', '').split(',') : [];
+// frames stepped per page.evaluate: short batches hand control back to the browser between them (long ones have
+// made SwiftShader drop the WebGL context mid-run)
+const STEP = 60;
 const outFile = opt('out', '');
 const chunk = Math.max(1, +opt('chunk', runs));
 const used = Object.fromEntries(WEAPON_ORDER.map((id) => [id, 0]));
@@ -36,9 +42,11 @@ const pickWeapons = () => {
   const teams = [];
   for (let t = 0; t < 2; t++) {
     const kinds = new Set(), out = [];
+    const kindOf = (id) => WEAPONS[id].icon || WEAPONS[id].kind;   // brush / wiper / … count as their own kind
+    if (focus.length) { const id = focus[t % focus.length]; out.push(id); kinds.add(kindOf(id)); used[id]++; }
     while (out.length < 4) {
-      const pool = WEAPON_ORDER.filter((id) => !kinds.has(WEAPONS[id].kind)).sort((a, b) => used[a] - used[b] + (Math.random() - 0.5) * 0.9);
-      const id = pool[0]; out.push(id); kinds.add(WEAPONS[id].kind); used[id]++;
+      const pool = WEAPON_ORDER.filter((id) => !kinds.has(kindOf(id))).sort((a, b) => used[a] - used[b] + (Math.random() - 0.5) * 0.9);
+      const id = pool[0]; out.push(id); kinds.add(kindOf(id)); used[id]++;
     }
     teams.push(out);
   }
@@ -57,7 +65,9 @@ async function evalMap(map, runs) {
   await page.waitForFunction('window.__inkwave && __inkwave.api && __inkwave.debug', { timeout: 900000, polling: 250 });
   await page.evaluate(() => window.__inkwave.debug.freeze());
   const rows = [];
+  let lost = 0;
   for (let r = 0; r < runs; r++) {
+   try {
     const t0 = Date.now();
     await page.evaluate((o) => window.__inkwave.api.startMatch({ mapId: o.map, difficulty: o.difficulty, duration: o.duration }), { map, difficulty, duration });
     await page.waitForFunction('__inkwave.match && !__inkwave.match.attract && __inkwave.match.state !== "init"', { timeout: 600000, polling: 100 });
@@ -80,11 +90,15 @@ async function evalMap(map, runs) {
       }
     });
     const total = Math.ceil((duration + 12) * fps);
-    for (let done = 0; done < total; done += 300) {
+    for (let done = 0; done < total; done += STEP) {
       const fin = await page.evaluate((k, fps) => {
         const g = window.__inkwave; g._skipRender = true;
         const S = window.__bs;
+        // paint splats are GPU draws: with rendering skipped nothing else flushes them, and 300 frames of queued ink
+        // (sprinklers, brushes…) has made SwiftShader drop the WebGL context mid-run — drain the queue every 30 frames
+        const gl = window.__G.renderer.getContext();
         for (let i = 0; i < k; i++) {
+          if (i % 30 === 29) gl.finish();
           g._frame(1 / fps);
           if (g.match.state === 'playing') {
             for (const a of g.match.actors) {
@@ -101,7 +115,7 @@ async function evalMap(map, runs) {
         }
         g._skipRender = false;
         return g.match.state === 'judge' || g.match.state === 'results';
-      }, 300, fps);
+      }, STEP, fps);
       if (fin) break;
     }
     const res = await page.evaluate(() => {
@@ -116,6 +130,16 @@ async function evalMap(map, runs) {
     if (res.state !== 'judge' && res.state !== 'results') console.error(`${map} #${r}: match did not finish (state ${res.state})`);
     rows.push({ ...res, map });
     console.error(`  ${map} #${r + 1}: painted ${((res.cov0 + res.cov1) * 100).toFixed(0)}%  kills ${res.kills}  eff ${(res.turf / Math.max(1, res.S.ink) * 100).toFixed(1)}  (${((Date.now() - t0) / 1000).toFixed(0)} s)`);
+   } catch (e) {
+    // software WebGL (SwiftShader) now and then drops the context in long headless runs; the game reloads itself
+    // on context restore — wait for it and replay this match (a few times at most)
+    if (!/destroyed|navigation/i.test(e.message) || lost >= 3) throw e;
+    lost++;
+    console.error(`  ${map} #${r + 1}: page reloaded (WebGL context lost) — replaying the match`);
+    await page.waitForFunction('window.__inkwave && __inkwave.api && __inkwave.debug', { timeout: 900000, polling: 250 });
+    await page.evaluate(() => window.__inkwave.debug.freeze());
+    r--;
+   }
   }
   if (errors.length) console.error(`${map} page errors:`, [...new Set(errors)].slice(0, 5));
   await browser.close();

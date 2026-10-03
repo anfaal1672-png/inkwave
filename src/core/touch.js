@@ -127,10 +127,11 @@ export class TouchControls {
   }
 
   /** Per-frame HUD mirror: special ready glow, bomb affordable, squid latch state, map open. */
-  sync({ specialReady = false, canSub = true, mapOpen = false } = {}) {
+  sync({ specialReady = false, canSub = true, mapOpen = false, subId = 'bomb' } = {}) {
     const L = this._l || (this._l = {});
     if (L.sp !== specialReady) { L.sp = specialReady; this.btns.special.classList.toggle('is-ready', specialReady); }
     if (L.sub !== canSub) { L.sub = canSub; this.btns.sub.classList.toggle('is-off', !canSub); }
+    if (L.subId !== subId) { L.subId = subId; this.btns.sub.querySelector('.iw-tbtn__icon').innerHTML = SUB_ICONS[subId] || SUB_ICONS.bomb; }
     const sq = this.held.squid;
     if (L.sq !== sq) { L.sq = sq; this.btns.squid.classList.toggle('is-latched', this.toggleSquid && sq); }
     if (L.map !== mapOpen) { L.map = mapOpen; this.el.classList.toggle('is-map', mapOpen); }

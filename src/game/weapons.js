@@ -7,7 +7,7 @@
 // blooms with sustained fire, recovers when you let go). Hit tests use the victim's visual (smoothed) body.
 import * as THREE from 'three';
 import { G, emit, clamp, lerp, smoothstep } from '../core/ctx.js';
-import { WEAPONS, SUB, SPECIALS, PLAYER } from '../config.js';
+import { WEAPONS, SUB, SPECIALS, PLAYER, WEIGHT } from '../config.js';
 import { Physics, Hit } from './physics.js';
 import { CHEATS, cheatMove } from './cheats.js';
 import { lockDir, aimLockFor } from './aimbot.js';
@@ -24,6 +24,7 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vect
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const _hit = new Hit(), _hit2 = new Hit();
 const _foot = new THREE.Vector3();
+const _UP = new THREE.Vector3(0, 1, 0), _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3();
 const _res = { t: 0, dist: 0 };
 const DEG = Math.PI / 180;
 const HAND_R = Object.freeze({ hand: 0, valueOf() { return 1; } }), HAND_L = Object.freeze({ hand: 1, valueOf() { return 1; } });
@@ -49,6 +50,10 @@ export class WeaponRunner {
     // slosher windup · splatling stream
     this.slosh = -1; this.streaming = false; this.burstT = 0; this.burstDur = 0; this.burstFrac = 0;
     this.spinLoop?.stop(0.08); this.spinLoop = null;
+    // wiper: seconds the trigger has been held since the last slash (-1 = not holding) · brella canopy
+    this.slashHold = -1;
+    if (this.canopyUp) G.projectiles?.setCanopy(this.a, false);
+    this.canopyUp = false; this.canopyBroken = false; this.canopyCd = 0; this.canopyHp = this.a?.weapon?.canopyHp || 0;
   }
   onDeath() { this.reset(); }
   busy() { return this.charging || this.flick >= 0 || this.slosh >= 0 || this.streaming || !!this.dodge || this.lockT > 0; }
@@ -65,7 +70,7 @@ export class WeaponRunner {
     if (this.flickRecover > 0) return lerp(PLAYER.runSpeed, w.moveSpeedFiring * 0.6, this.flickRecover / 0.18);
     if (this.charging) return lerp(PLAYER.runSpeed * 0.7, w.moveSpeedFiring, Math.min(1, this.charge * 3));
     if (this.firingT > 0) return w.moveSpeedFiring;
-    return PLAYER.runSpeed;
+    return PLAYER.runSpeed * (WEIGHT[w.weight] || WEIGHT.mid).run;   // light weapons run faster, heavy ones slower
   }
 
   // current shot cone half-angle in degrees (HUD crosshair should use this)
@@ -90,6 +95,7 @@ export class WeaponRunner {
     if (!inp.fire) this.bloom = Math.max(0, this.bloom - dt / (w.bloomRecover ?? 0.28));
     this.spread = this._spreadDeg(w);
     this.sinceHand[0] += dt; this.sinceHand[1] += dt;
+    if (w.canopyHp) this._canopy(dt, inp, w);
     switch (w.kind) {
       case 'shooter': case 'blaster': this._auto(dt, inp, w); break;
       case 'charger': this._charger(dt, inp, w); break;
@@ -98,8 +104,8 @@ export class WeaponRunner {
       case 'slosher': this._slosher(dt, inp, w); break;
       case 'splatling': this._splatling(dt, inp, w); break;
     }
-    // ---- sub weapon (splat bomb)
-    const bomb = SUB.bomb;
+    // ---- sub weapon (config SUB: splat / suction / burst bomb, sprinkler)
+    const bomb = SUB[w.sub] || SUB.bomb;
     if (inp.sub && !this.aimingSub) {
       this.aimingSub = true;
       if (a.ink < bomb.inkCost && a.isLocal) { G.audio?.play('low_ink'); emit('lowink', { actor: a, need: bomb.inkCost }); }
@@ -111,7 +117,7 @@ export class WeaponRunner {
         a.ink -= bomb.inkCost;
         a.lastFire = 0;
         a.character.trigger('throw');
-        G.projectiles.throwBomb(a);
+        G.projectiles.throwBomb(a, bomb);
         rumble(a, 0.08, 0.22, 70);
       }
     }
@@ -151,7 +157,8 @@ export class WeaponRunner {
       a.ink -= w.inkPerShot;
       a.lastFire = 0;
       this.spread = this._spreadDeg(w);
-      if (w.kind === 'shooter') G.projectiles.fireShooter(a, w, this.spread);
+      if (w.pellets) G.projectiles.firePellets(a, w);
+      else if (w.kind === 'shooter') G.projectiles.fireShooter(a, w, this.spread);
       else G.projectiles.fireBlaster(a, w, this.spread);
       this._footSplat(w.footEvery, w.footRadius);
       this.bloom = Math.min(1, this.bloom + (w.bloomPerShot ?? 0.3));
@@ -186,7 +193,8 @@ export class WeaponRunner {
       const c = Math.max(0.12, this.charge);
       a.ink = Math.max(0, a.ink - w.inkFull * c);
       a.lastFire = 0;
-      G.projectiles.fireCharger(a, w, c);
+      if (w.arrows) G.projectiles.fireArrows(a, w, c);
+      else G.projectiles.fireCharger(a, w, c);
       this._footSplat(1, w.footRadius + 0.35 * c);
       a.character.trigger('charge_release');
       this.charge = 0; this.chargeT = 0;
@@ -195,8 +203,50 @@ export class WeaponRunner {
     }
   }
 
+  // brella: holding fire keeps the canopy up (it soaks enemy rounds from the front, Projectiles._hitCanopy); once broken
+  // it regrows after canopyCooldown
+  _canopy(dt, inp, w) {
+    if (this.canopyBroken && (this.canopyCd -= dt) <= 0) { this.canopyBroken = false; this.canopyHp = w.canopyHp; }
+    const up = !!inp.fire && !this.canopyBroken;
+    if (up !== this.canopyUp) { this.canopyUp = up; G.projectiles.setCanopy(this.a, up); }
+  }
+
+  // ---- wiper (roller family, w.slash): a press slashes a sheet of ink sideways at once; keep holding to charge, and let
+  // go of a full charge for a wide, heavy cut
+  _wiper(dt, inp, w) {
+    const a = this.a;
+    if (inp.firePressed) {
+      this.slashHold = 0;
+      if (this.cooldown <= 0) { if (a.ink < w.slashInk) this._empty(); else this._slash(w, false); }
+    }
+    if (inp.fire && this.slashHold >= 0) {
+      this.slashHold += dt;
+      if (this.slashHold > 0.2 && a.ink >= w.chargedInk) {
+        if (!this.charging) { this.charging = true; this.charge = 0; this.chargeDinged = false; }
+        this.charge = Math.min(1, (this.slashHold - 0.2) / w.chargeTime);
+        a.fireFacing = 0.4;
+        if (this.charge >= 1 && !this.chargeDinged) { this.chargeDinged = true; if (a.isLocal) G.audio?.play('charger_full', { volume: 0.6, pitch: 1.2 }); rumble(a, 0.05, 0.3, 60); }
+      }
+    } else {
+      if (this.charging) { this.charging = false; if (this.charge >= 1 && this.cooldown <= 0.15) this._slash(w, true); this.charge = 0; }
+      this.slashHold = -1;
+    }
+  }
+  _slash(w, charged) {
+    const a = this.a;
+    a.ink = Math.max(0, a.ink - (charged ? w.chargedInk : w.slashInk)); a.lastFire = 0;
+    G.projectiles.fireSlash(a, w, charged);
+    a.character.trigger('flick');
+    this._footSplat(1, w.footRadius);
+    this.cooldown = charged ? w.slashInterval * 1.5 : w.slashInterval;
+    this.firingT = 0.25; this.flickRecover = 0.12;
+    if (a.isLocal || a._nearCamera()) G.audio?.play('roller_flick', { pos: a.isLocal ? undefined : a.pos, volume: charged ? 0.9 : 0.65, pitch: charged ? 0.95 : 1.45 });
+    rumble(a, charged ? 0.3 : 0.1, charged ? 0.35 : 0.15, charged ? 120 : 60);
+  }
+
   _roller(dt, inp, w) {
     const a = this.a;
+    if (w.slash) { this._wiper(dt, inp, w); return; }
     // flick wind-up → release
     if (this.flick >= 0) {
       this.flick += dt;
@@ -257,7 +307,7 @@ export class WeaponRunner {
     for (let i = -1; i <= 1; i++) {
       const off = i * w.rollWidth * 0.33;
       _v.set(a.pos.x + fx * 0.75 + rx * off, a.pos.y + 0.35, a.pos.z + fz * 0.75 + rz * off);
-      area += G.paint.splat(_v, 0.62, a.team, { seed: Math.random(), kind: 'roll', stretch: _fwd });
+      area += G.paint.splat(_v, w.rollSplat || 0.62, a.team, { seed: Math.random(), kind: 'roll', stretch: _fwd });
     }
     a.addTurf(area);
     emit('weapon:impact', { pos: _v.set(a.pos.x + fx * 0.75, a.pos.y + 0.02, a.pos.z + fz * 0.75).clone(), normal: a.groundN ? a.groundN.clone() : UP.clone(), team: a.team, kind: 'roll', radius: w.rollWidth / 2 });
@@ -554,6 +604,8 @@ export class Projectiles {
     this.clouds = [];
     this.beams = [];
     this.barriers = [];          // Bubble Barrier domes
+    this.sprinklers = [];        // stuck, spraying sprinklers (also in bombs): what enemy shots test against
+    this.canopies = [];          // actors holding a brella canopy up (WeaponRunner._canopy)
     // glossy ink teardrops (+ satellite droplets), one instanced draw
     const geo = new THREE.SphereGeometry(1, 14, 12).rotateX(Math.PI / 2);
     this.blobShape = new THREE.InstancedBufferAttribute(new Float32Array(MAX_BLOBS * 4), 4);
@@ -571,6 +623,14 @@ export class Projectiles {
     this.bombGeo = new THREE.SphereGeometry(0.2, 20, 14);
     this.bombCapGeo = new THREE.CylinderGeometry(0.07, 0.09, 0.12, 12);
     this.bombMatCache = new Map();
+    this.capMat = new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.4, metalness: 0.6 });   // shared dark fittings
+    // sub shapes (built once; origin = where the cup / base meets the surface once it sticks)
+    this.suctionGeo = new THREE.CylinderGeometry(0.075, 0.14, 0.34, 14).translate(0, 0.22, 0);
+    this.cupGeo = new THREE.CylinderGeometry(0.15, 0.12, 0.05, 16).translate(0, 0.025, 0);
+    this.burstGeo = new THREE.SphereGeometry(0.14, 16, 12);
+    this.sprBaseGeo = new THREE.CylinderGeometry(0.15, 0.19, 0.12, 14).translate(0, 0.06, 0);
+    this.sprColGeo = new THREE.CylinderGeometry(0.06, 0.07, 0.2, 10).translate(0, 0.1, 0);
+    this.sprArmGeo = new THREE.CylinderGeometry(0.03, 0.03, 0.36, 8).rotateZ(Math.PI / 2).translate(0, 0.17, 0);
     // missiles + barrier domes: shared geometry, per-team shared materials
     this.missileGeo = new THREE.CylinderGeometry(0.06, 0.1, 0.8, 10);
     this.domeGeo = new THREE.SphereGeometry(1, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2);
@@ -601,8 +661,10 @@ export class Projectiles {
   clear() {
     for (const p of this.list) this.pool.push(p);
     this.list.length = 0;
-    for (const b of this.bombs) this.scene.remove(b.mesh);
+    for (const b of this.bombs) { this.scene.remove(b.mesh); if (b.mat) b.mat.dispose(); }
     this.bombs.length = 0;
+    this.sprinklers.length = 0;
+    this.canopies.length = 0;
     for (const c of this.clouds) this.scene.remove(c.group);
     this.clouds.length = 0;
     for (const br of this.barriers) this.scene.remove(br.mesh);
@@ -616,7 +678,7 @@ export class Projectiles {
 
   _new() {
     const p = this.pool.pop() || { pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(), start: new THREE.Vector3() };
-    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.vol = null;   // optional fields never leak between recycled rounds
+    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.vol = null; p.arrow = null;   // optional fields never leak between recycled rounds
     return p;
   }
 
@@ -694,6 +756,134 @@ export class Projectiles {
     if (Math.abs(e1) > 0.25 || Math.abs(p1 - Math.atan2(dir.y, hdir)) > 0.35) return dir;   // unreachable: leave it
     const cp = Math.cos(p1);
     return dir.set((dir.x / hdir) * cp, Math.sin(p1), (dir.z / hdir) * cp);
+  }
+
+  // ---- brella: one shotgun blast of `pellets` rounds in a cone (no bloom); each round is an ordinary shot
+  firePellets(a, w) {
+    const m = this._muzzle(a, _v.set(0, 0, 0));
+    const lk = lockDir(a, m);
+    const base = lk ? _fwd.copy(lk.dir) : this._aimFrom(a, m, _fwd);
+    if (!lk) this._ballistic(m, base, a.aimPoint, w.projSpeed, w.straightTime, 28, 0.8, w.range);
+    for (let i = 0; i < w.pellets; i++) {
+      const dir = this._spread(_dir.copy(base), w.pelletSpreadDeg * (i === 0 ? 0.3 : 1));
+      const p = this._new();
+      Object.assign(p, { type: 'shot', wid: w.id, owner: a, team: a.team, age: 0, life: 0.9, straight: w.straightTime, radius: w.impactRadius, damage: w.damage, size: 0.13, trail: -(1.5 - w.trailEvery), trailEvery: w.trailEvery, trailRadius: w.trailRadius, grav: 28, drag: 0.8, seed: Math.random(),
+        vis: 0.075 + Math.random() * 0.015, tail0: 0.6, tailK: 1.2, wob: 0.03, wobF: 26, nose: 0.3, sats: 1 });
+      p.pos.copy(m); p.prev.copy(m); p.start.copy(m);
+      p.vel.copy(dir).multiplyScalar(w.projSpeed * (0.92 + Math.random() * 0.12));
+      this.list.push(p);
+    }
+    if (a.isLocal || a._nearCamera()) {
+      G.audio?.play('shoot_blaster', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.7 : 0.5, pitch: 1.35 });
+      G.fx?.muzzle(m, base, a.color, 'blaster');
+    }
+    if (a.isLocal) emit('recoil', { amount: 0.012 });
+    emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: base.clone() });
+    rumble(a, 0.12, 0.22, 70);
+  }
+
+  // ---- stringer: a fan of arrows (straight, fast, then dropping); a full draw tags each one to burst after it lands
+  fireArrows(a, w, charge) {
+    const m = this._muzzle(a, _v.set(0, 0, 0));
+    const lk = lockDir(a, m);
+    const base = lk ? _fwd.copy(lk.dir) : this._aimFrom(a, m, _fwd);
+    const range = lerp(w.rangeMin, w.rangeMax, charge), straight = range / w.arrowSpeed;
+    const dmg = lerp(w.damageMin, w.damageMax, charge), full = charge >= 0.999;
+    const n = w.arrows;
+    for (let i = 0; i < n; i++) {
+      const off = (i - (n - 1) / 2) * w.arrowSpreadDeg * DEG;
+      const c = Math.cos(off), sn = Math.sin(off);
+      _dir.set(base.x * c + base.z * sn, base.y, -base.x * sn + base.z * c).normalize();
+      const p = this._new();
+      Object.assign(p, { type: 'shot', wid: w.id, owner: a, team: a.team, age: 0, life: straight + 0.8, straight, radius: w.impactRadius, damage: dmg, size: 0.12, trail: -1, trailEvery: 1.4, trailRadius: 0.32, grav: 30, drag: 0.4, seed: Math.random(),
+        vis: 0.065, tail0: 1.8, tailK: 2.2, wob: 0, wobF: 1, nose: 0.7, sats: 1 });
+      if (full) p.arrow = w.arrowBlast;
+      p.pos.copy(m); p.prev.copy(m); p.start.copy(m);
+      p.vel.copy(_dir).multiplyScalar(w.arrowSpeed);
+      this.list.push(p);
+    }
+    if (a.isLocal || a._nearCamera()) G.audio?.play('shoot_charger', { pos: a.isLocal ? undefined : m, volume: a.isLocal ? 0.6 : 0.45, pitch: 1.35 + 0.2 * (1 - charge) });
+    if (a.isLocal) emit('recoil', { amount: 0.008 + 0.01 * charge });
+    emit('weapon:fire', { actor: a, weapon: w.id, muzzle: m.clone(), dir: base.clone(), charge });
+    rumble(a, 0.1 + 0.2 * charge, 0.2 + 0.2 * charge, 80);
+  }
+
+  // a fully drawn arrow landed: a small blast a beat later (a stuck record in this.bombs, see _updateStuck)
+  _arrowBurst(p, at, normal) {
+    const s = p.arrow, group = new THREE.Group();
+    const mat = this._bombMat(p.team).clone();
+    const body = new THREE.Mesh(this.burstGeo, mat); body.scale.setScalar(0.45);
+    group.add(body); group.position.copy(at);
+    this.scene.add(group);
+    this.bombs.push({ kind: 'arrow', s, owner: p.owner, team: p.team, wid: p.wid, mesh: group, body, head: null, mat, pos: at.clone(), vel: new THREE.Vector3(), fuse: (WEAPONS[p.wid] || {}).blastDelay || 0.35, age: 0,
+      spin: new THREE.Vector3(), beepT: 0, stuck: true, normal: normal.clone(), hp: 0, life: 0, sprT: 0, sprA: 0 });
+  }
+
+  // ---- wiper: a horizontal sheet of drops at chest height (wider + heavier when charged), plus the blade itself
+  // striking whatever stands within reach in front
+  fireSlash(a, w, charged) {
+    let yaw0 = a.aimYaw, up = clamp(a.aimPitch, -0.35, 0.5) + 0.04;
+    const L = aimLockFor(a);
+    if (L) { const lk = lockDir(a, _v2.set(a.pos.x, a.pos.y + 1.0, a.pos.z)); if (lk) { yaw0 = lk.yaw; up = lk.pitch; } }
+    const fx = Math.sin(yaw0), fz = Math.cos(yaw0);
+    const n = charged ? w.chargedDrops : w.slashDrops, spread = (charged ? w.chargedSpreadDeg : w.slashSpreadDeg) * DEG;
+    const near = charged ? w.chargedDamageNear : w.slashDamageNear, far = charged ? w.chargedDamageFar : w.slashDamageFar;
+    const ox = a.pos.x + fx * 0.5, oy = a.pos.y + 1.0, oz = a.pos.z + fz * 0.5;
+    for (let i = 0; i < n; i++) {
+      const t = (i / (n - 1)) * 2 - 1;
+      const ang = yaw0 + t * spread * 0.5 + (Math.random() - 0.5) * 0.04;
+      const sp = w.slashSpeed * (charged ? 1.12 : 1) * (0.9 + 0.15 * (1 - Math.abs(t)) + Math.random() * 0.06);
+      const p = this._new();
+      Object.assign(p, { type: 'drop', wid: w.id, owner: a, team: a.team, age: 0, life: 0.9, straight: 0.08, radius: w.impactRadius * (charged ? 1.15 : 1), damage: near, dmgFar: far, size: 0.14, trail: 0, trailEvery: 1.6, trailRadius: 0.42, grav: 22, drag: 0.5, seed: Math.random(),
+        vis: (charged ? 0.11 : 0.09) + Math.random() * 0.02, tail0: 0.7, tailK: 1.2, wob: 0.08, wobF: 20, nose: 0.2, sats: 1 });
+      p.pos.set(ox, oy, oz); p.prev.copy(p.pos); p.start.copy(p.pos);
+      const cu = Math.cos(up);
+      p.vel.set(Math.sin(ang) * cu * sp, Math.sin(up) * sp, Math.cos(ang) * cu * sp);
+      this.list.push(p);
+    }
+    // the blade: foes within reach and in front take the cut directly
+    const reach = w.bladeReach, dmg = charged ? w.chargedBladeDamage : w.bladeDamage;
+    for (const e of G.actors) {
+      if (e.team === a.team || !e.alive) continue;
+      const dx = e.pos.x - a.pos.x, dz = e.pos.z - a.pos.z, dy = e.pos.y - a.pos.y;
+      const fwd = dx * fx + dz * fz;
+      if (fwd < 0 || fwd > reach || Math.abs(dx * fz - dz * fx) > reach * 0.8 || Math.abs(dy) > 1.3) continue;
+      this.applyHit(a, e, dmg, w.id);
+    }
+    if (a.isLocal) emit('recoil', { amount: charged ? 0.012 : 0.006 });
+    emit('weapon:fire', { actor: a, weapon: w.id, muzzle: new THREE.Vector3(ox, oy, oz), dir: new THREE.Vector3(fx, Math.sin(up), fz).normalize(), charge: charged ? 1 : 0 });
+  }
+
+  // brella canopies (WeaponRunner._canopy): the list Projectiles.update tests enemy rounds against
+  setCanopy(a, on) {
+    const i = this.canopies.indexOf(a);
+    if (on && i < 0) this.canopies.push(a);
+    else if (!on && i >= 0) this.canopies.splice(i, 1);
+  }
+
+  // an enemy round crossing the front face of a raised canopy (a disc 0.55 m ahead of the holder) is soaked up
+  _hitCanopy(p) {
+    for (const a of this.canopies) {
+      if (a.team === p.team || !a.alive) continue;
+      const fx = Math.sin(a.aimYaw), fz = Math.cos(a.aimYaw);
+      const cx = a.pos.x + fx * 0.55, cy = a.pos.y + 1.0, cz = a.pos.z + fz * 0.55;
+      const d0 = (p.prev.x - cx) * fx + (p.prev.z - cz) * fz, d1 = (p.pos.x - cx) * fx + (p.pos.z - cz) * fz;
+      if (!(d0 > 0 && d1 <= 0)) continue;
+      const t = d0 / (d0 - d1);
+      const hx = p.prev.x + (p.pos.x - p.prev.x) * t, hy = p.prev.y + (p.pos.y - p.prev.y) * t, hz = p.prev.z + (p.pos.z - p.prev.z) * t;
+      if ((hx - cx) ** 2 + (hy - cy) ** 2 + (hz - cz) ** 2 > 0.8 * 0.8) continue;
+      const wr = a.weaponRunner;
+      wr.canopyHp -= p.damage || 20;
+      _v3.set(hx, hy, hz);
+      G.fx?.burst(_v3, _v2.set(fx, 0, fz), p.owner.color, { count: 5, speed: 2.5, size: 0.06, paint: false });
+      if (wr.canopyHp <= 0) {
+        wr.canopyBroken = true; wr.canopyCd = a.weapon.canopyCooldown || 5; wr.canopyUp = false; this.setCanopy(a, false);
+        G.fx?.burst(_v3, _v2.set(fx, 0.4, fz), a.color, { count: 14, speed: 4, size: 0.09, paint: false });
+        if (a.isLocal || a._nearCamera()) G.audio?.play('splat_big', { pos: a.isLocal ? undefined : _v3, volume: 0.7, pitch: 1.3 });
+      } else if (a.isLocal || a._nearCamera()) G.audio?.play('ink_hit_wall', { pos: _v3, volume: 0.4 });
+      return true;
+    }
+    return false;
   }
 
   fireShooter(a, w, spreadDeg) {
@@ -994,21 +1184,152 @@ export class Projectiles {
     return out.set(Math.sin(a.aimYaw) * cp * speed + a.vel.x * 0.4, Math.sin(pitch) * speed + 1.5, Math.cos(a.aimYaw) * cp * speed + a.vel.z * 0.4);
   }
 
-  throwBomb(a) {
-    const b = SUB.bomb;
+  // Sub weapons (config SUB) and Bomb Rush's splat bombs: one record in this.bombs per throw. The body material is a
+  // per-bomb clone (its fuse flash is its own) and is disposed with the bomb (_removeBomb).
+  throwBomb(a, s = SUB.bomb) {
+    const kind = s.id;
     const group = new THREE.Group();
-    const body = new THREE.Mesh(this.bombGeo, this._bombMat(a.team).clone());
+    const mat = this._bombMat(a.team).clone();
+    let body, head = null;
+    if (kind === 'suction') {
+      body = new THREE.Mesh(this.suctionGeo, mat);
+      const cup = new THREE.Mesh(this.cupGeo, this.capMat);
+      const knob = new THREE.Mesh(this.bombCapGeo, this.capMat); knob.position.y = 0.42; knob.scale.setScalar(0.7);
+      group.add(body, cup, knob);
+    } else if (kind === 'burst') {
+      body = new THREE.Mesh(this.burstGeo, mat);
+      const cap = new THREE.Mesh(this.bombCapGeo, this.capMat); cap.position.y = 0.14; cap.scale.setScalar(0.6);
+      group.add(body, cap);
+    } else if (kind === 'sprinkler') {
+      const base = new THREE.Mesh(this.sprBaseGeo, this.capMat);
+      head = new THREE.Group(); head.position.y = 0.1;
+      body = new THREE.Mesh(this.sprColGeo, mat);
+      head.add(body, new THREE.Mesh(this.sprArmGeo, mat));
+      group.add(base, head);
+    } else {
+      body = new THREE.Mesh(this.bombGeo, mat);
+      const cap = new THREE.Mesh(this.bombCapGeo, this.capMat); cap.position.y = 0.2;
+      group.add(body, cap);
+    }
     body.castShadow = true;
-    const cap = new THREE.Mesh(this.bombCapGeo, new THREE.MeshStandardMaterial({ color: 0x2a2a30, roughness: 0.4, metalness: 0.6 }));
-    cap.position.y = 0.2;
-    group.add(body, cap);
     const pos = _v.copy(a.pos); pos.y += 1.35;
     group.position.copy(pos);
     this.scene.add(group);
-    const vel = this.throwVelocity(a, b.throwSpeed, new THREE.Vector3());
-    this.bombs.push({ kind: 'bomb', owner: a, team: a.team, mesh: group, body, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(Math.random() * 8, Math.random() * 8, 0), beepT: 0 });
-    if (a.isLocal || a._nearCamera()) G.audio?.play('bomb_throw', { pos: a.isLocal ? undefined : a.pos, volume: 0.7 });
-    emit('bomb:throw', { actor: a, pos: pos.clone(), team: a.team, radius: SUB.bomb.radius });
+    const vel = this.throwVelocity(a, s.throwSpeed, new THREE.Vector3());
+    this.bombs.push({ kind, s, owner: a, team: a.team, mesh: group, body, head, mat, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(Math.random() * 8, Math.random() * 8, 0), beepT: 0,
+      stuck: false, normal: null, hp: s.hp || 0, life: 0, sprT: 0, sprA: Math.random() * 6 });
+    if (a.isLocal || a._nearCamera()) G.audio?.play('bomb_throw', { pos: a.isLocal ? undefined : a.pos, volume: 0.7, pitch: kind === 'burst' ? 1.25 : kind === 'sprinkler' ? 0.85 : 1 });
+    emit('bomb:throw', { actor: a, pos: pos.clone(), team: a.team, radius: s.radius || 0, kind });
+  }
+
+  _removeBomb(i) {
+    const b = this.bombs[i];
+    this.scene.remove(b.mesh);
+    if (b.mat) b.mat.dispose();
+    if (b.kind === 'sprinkler') { const k = this.sprinklers.indexOf(b); if (k >= 0) this.sprinklers.splice(k, 1); }
+    this.bombs.splice(i, 1);
+  }
+
+  // suction bomb / sprinkler: cling where it landed, base flat on the surface
+  _stick(b, hit) {
+    b.stuck = true; b.vel.set(0, 0, 0);
+    b.normal = hit.normal.clone();
+    b.pos.copy(hit.point).addScaledVector(hit.normal, 0.03);
+    b.mesh.position.copy(b.pos);
+    b.mesh.quaternion.setFromUnitVectors(_UP, hit.normal);
+    const near = G.camera.position.distanceToSquared(b.pos) < 30 * 30;
+    if (b.kind === 'suction') {
+      b.fuse = b.s.fuse;
+      if (near) G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.6, pitch: 0.85 });
+      emit('bomb:arm', { actor: b.owner, pos: b.pos.clone(), team: b.team, radius: b.s.radius });
+    } else {
+      // one sprinkler per player: the new one retires the old
+      for (const o of this.sprinklers) if (o.owner === b.owner) o.life = 0;
+      b.life = b.s.life; b.sprT = 0.25;
+      this.sprinklers.push(b);
+      if (near) G.audio?.play('sprinkler_set', { pos: b.pos, volume: 0.7 });
+    }
+  }
+
+  // a stuck sub's frame; true = remove it
+  _updateStuck(b, dt) {
+    b.age += dt;
+    if (b.kind === 'arrow') {
+      b.fuse -= dt;
+      b.body.material.emissiveIntensity = 0.5 + 2 * (0.5 + 0.5 * Math.sin(b.age * 40));
+      if (b.fuse <= 0) { this._explodeBomb(b, b.s, b.wid); return true; }
+      return false;
+    }
+    if (b.kind === 'suction') {
+      b.fuse -= dt; b.beepT -= dt;
+      const k = 1 - b.fuse / b.s.fuse;
+      b.body.material.emissiveIntensity = (Math.sin(b.age * (10 + k * 30)) * 0.5 + 0.5) * (0.4 + k * 1.8);
+      b.mesh.scale.setScalar(1 + k * 0.3 + Math.sin(b.age * 40) * 0.03 * k);
+      if (b.beepT <= 0) {
+        b.beepT = 0.32 - k * 0.2;
+        if (G.camera.position.distanceToSquared(b.pos) < 30 * 30) G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.35 + k * 0.4, pitch: 0.9 + k * 0.25 });
+      }
+      if (b.fuse <= 0) { this._explodeBomb(b, b.s, 'suction'); return true; }
+      return false;
+    }
+    // sprinkler: spins and sprays, fast at first, until its life runs out or foes break it
+    if (b.hp <= 0) {
+      G.fx?.burst(b.pos, b.normal, G.teamColors[b.team], { count: 12, speed: 4, size: 0.08, paint: false });
+      if (G.camera.position.distanceToSquared(b.pos) < 30 * 30) G.audio?.play('splat_small', { pos: b.pos, volume: 0.7, pitch: 1.3 });
+      return true;
+    }
+    if ((b.life -= dt) <= 0) return true;
+    const fast = b.s.life - b.life < b.s.burstTime;
+    b.head.rotation.y += dt * (fast ? 13 : 5);
+    if ((b.sprT -= dt) <= 0) { b.sprT = fast ? b.s.interval : b.s.slowInterval; this._spray(b); }
+    return false;
+  }
+
+  // two drops out of the spinning arms, flung outward along the surface and away from it
+  _spray(b) {
+    const s = b.s, n = b.normal;
+    _t1.set(1, 0, 0); if (Math.abs(n.x) > 0.9) _t1.set(0, 0, 1);
+    _t1.addScaledVector(n, -_t1.dot(n)).normalize(); _t2.crossVectors(n, _t1);
+    b.sprA += 2.2;
+    for (let k = 0; k < 2; k++) {
+      const ang = b.sprA + k * Math.PI, c = Math.cos(ang), si = Math.sin(ang);
+      const p = this._new();
+      Object.assign(p, { type: 'drop', wid: 'sprinkler', owner: b.owner, team: b.team, age: 0, life: 1.4, straight: 0, radius: 0.7, damage: s.damage, dmgFar: s.damage, size: 0.12,
+        trail: 0, trailEvery: 0, trailRadius: 0.4, grav: 24, drag: 0.3, seed: Math.random(), vis: 0.085 + Math.random() * 0.02, tail0: 0.4, tailK: 1.0, wob: 0.1, wobF: 19, nose: 0, sats: 1 });
+      p.pos.copy(b.pos).addScaledVector(n, 0.28); p.prev.copy(p.pos); p.start.copy(p.pos);
+      const sp = s.spraySpeed * (0.8 + Math.random() * 0.4);
+      p.vel.set(0, 1.2, 0).addScaledVector(_t1, c * 0.85 * sp).addScaledVector(_t2, si * 0.85 * sp).addScaledVector(n, 0.5 * sp);
+      this.list.push(p);
+    }
+  }
+
+  // an enemy round reaching a sprinkler chips it (true = the round is spent)
+  _hitSprinkler(p) {
+    for (const b of this.sprinklers) {
+      if (b.team === p.team || b.hp <= 0) continue;
+      // closest point of this frame's segment to the sprinkler head
+      _v.subVectors(p.pos, p.prev); const L2 = _v.lengthSq();
+      _v2.subVectors(b.pos, p.prev);
+      const t = L2 > 1e-8 ? clamp(_v2.dot(_v) / L2, 0, 1) : 0;
+      _v3.copy(p.prev).addScaledVector(_v, t);
+      if (_v3.distanceToSquared(b.pos) > (0.38 + p.size) * (0.38 + p.size)) continue;
+      b.hp -= p.damage || 25;
+      G.fx?.burst(_v3, b.normal, p.owner.color, { count: 5, speed: 2.5, size: 0.06, paint: false });
+      return true;
+    }
+    return false;
+  }
+
+  // burst bomb in flight: a foe's body pops it
+  _bombTouchesFoe(b) {
+    for (const e of G.actors) {
+      if (e.team === b.team || !e.alive) continue;
+      const dy = b.pos.y - e.pos.y;
+      if (dy < -0.2 || dy > (e.form === 'squid' ? PLAYER.squidHeight : PLAYER.height) + 0.2) continue;
+      const dx = b.pos.x - e.pos.x, dz = b.pos.z - e.pos.z;
+      if (dx * dx + dz * dz < (PLAYER.radius + 0.2) * (PLAYER.radius + 0.2)) return true;
+    }
+    return false;
   }
 
   throwStorm(a) {
@@ -1021,7 +1342,7 @@ export class Projectiles {
     group.position.copy(pos);
     this.scene.add(group);
     const vel = this.throwVelocity(a, sp.throwSpeed, new THREE.Vector3());
-    this.bombs.push({ kind: 'storm', owner: a, team: a.team, mesh: group, body, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(4, 6, 0), beepT: 0, dir: new THREE.Vector3(vel.x, 0, vel.z).normalize() });
+    this.bombs.push({ kind: 'storm', owner: a, team: a.team, mesh: group, body, mat: body.material, pos: pos.clone(), vel, fuse: -1, age: 0, spin: new THREE.Vector3(4, 6, 0), beepT: 0, dir: new THREE.Vector3(vel.x, 0, vel.z).normalize() });
   }
 
   // ---- Missile Salvo: up to `count` enemies in range, one missile each on a fixed lobbed arc (walls don't stop them)
@@ -1161,18 +1482,21 @@ export class Projectiles {
 
   _explodeBomb(b, s = SUB.bomb, cause = 'bomb') {
     const c = b.pos;
+    // small blasts (burst bombs, stringer arrows) paint, sound and shake in proportion: three arrows at once must not
+    // read like three splat bombs
+    const big = clamp(s.radius / 3, 0.35, 1);
     let area = G.paint.splat(_v.copy(c).setY(c.y + 0.2), s.paintRadius, b.team, { seed: Math.random() });
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0, n = big > 0.6 ? 5 : 2; i < n; i++) {
       const a = Math.random() * Math.PI * 2, r = s.paintRadius * (0.6 + Math.random() * 0.4);
       area += G.paint.splat(_v.set(c.x + Math.cos(a) * r, c.y + 0.5, c.z + Math.sin(a) * r), 0.7 + Math.random() * 0.5, b.team, { seed: Math.random() });
     }
     b.owner.addTurf(area);
     G.fx?.explosion(c, G.teamColors[b.team], s.radius);
-    G.audio?.play('bomb_explode', { pos: c });
-    emit('shake', { pos: c.clone(), amount: 0.6 });
+    G.audio?.play('bomb_explode', { pos: c, volume: big, pitch: 1 + (1 - big) * 0.6 });
+    emit('shake', { pos: c.clone(), amount: 0.6 * big });
     emit('bomb:explode', { actor: b.owner, pos: c.clone(), team: b.team, radius: s.radius });
     const loc = G.local;
-    if (loc && loc.alive) { const d = loc.pos.distanceTo(c); if (d < 14) rumble(loc, clamp(1 - d / 14, 0, 1) * 0.6, clamp(1 - d / 14, 0, 1) * 0.5, 160); }
+    if (loc && loc.alive) { const d = loc.pos.distanceTo(c); if (d < 14) rumble(loc, clamp(1 - d / 14, 0, 1) * 0.6 * big, clamp(1 - d / 14, 0, 1) * 0.5 * big, 160); }
     for (const e of G.actors) {
       if (e.team === b.team || !e.alive) continue;
       _v.copy(e.pos); _v.y += 0.7;
@@ -1183,6 +1507,8 @@ export class Projectiles {
       const k = 1 - clamp((d - 0.8) / (s.radius - 0.8), 0, 1);
       this.applyHit(b.owner, e, lerp(s.damageMin, s.damageMax, k * k), cause);
     }
+    // a blast in range breaks enemy sprinklers outright
+    for (const sp of this.sprinklers) if (sp.team !== b.team && sp.pos.distanceToSquared(c) < s.radius * s.radius) sp.hp = 0;
   }
 
   _spawnCloud(b) {
@@ -1254,7 +1580,8 @@ export class Projectiles {
           continue;
         }
       }
-      // actors
+      // raised brella canopies, then actors
+      if (this.canopies.length && this._hitCanopy(p)) { list[i] = list[list.length - 1]; list.pop(); this.pool.push(p); continue; }
       for (const e of G.actors) {
         if (e.team === p.team || !e.alive) continue;
         const h = e.form === 'squid' ? PLAYER.squidHeight : PLAYER.height;
@@ -1265,16 +1592,22 @@ export class Projectiles {
           _v.copy(p.prev).lerp(p.pos, _res.t);
           let dmg = p.damage;
           if (p.type === 'drop') dmg = lerp(p.damage, p.dmgFar, clamp(p.start.distanceTo(_v) / 7, 0, 1));
+          // shooter / splatling rounds: full damage along the straight part of the flight; once the round has been
+          // falling a while the damage tapers to half (Splatoon's distance falloff — a long-range tap no longer splats
+          // in as few hits)
+          else if (p.type === 'shot' && p.age > p.straight * 1.6) dmg *= lerp(1, 0.5, clamp((p.age - p.straight * 1.6) / 0.16, 0, 1));
           if (p.vol) { if (p.vol.hits.includes(e)) dmg = 0; else p.vol.hits.push(e); }
           if (dmg > 0) this.applyHit(p.owner, e, dmg, p.wid || p.type);
           G.fx?.burst(_v, _v2.copy(p.vel).normalize().negate(), p.owner.color, { count: 6, speed: 3, size: 0.07 });
           if (p.type !== 'blast') emit('weapon:impact', { pos: _v.clone(), normal: _v2.clone(), team: p.team, kind: p.type === 'drop' || p.type === 'slosh' ? 'drop' : 'shot', radius: p.radius * 0.5, victim: e });
           if (p.type === 'blast') this._blastBurst(p, _v, e);
           if (p.type === 'slosh' && p.head) this._sloshSplash(p, _v, e);
+          if (p.arrow) this._arrowBurst(p, _v, _v2.set(0, 1, 0));
           dead = true; break;
         }
       }
-      // world
+      // enemy sprinklers, then the world
+      if (!dead && this.sprinklers.length && this._hitSprinkler(p)) dead = true;
       if (!dead) {
         const hit = G.physics.segment(p.prev, p.pos, _hit, true);
         if (hit.hit) {
@@ -1321,9 +1654,10 @@ export class Projectiles {
     const near = p.owner.isLocal || G.camera.position.distanceToSquared(hit.point) < 22 * 22;
     if (near) {
       G.fx?.burst(hit.point, hit.normal, p.owner.color, { count: p.type === 'blast' ? 14 : 5, speed: p.type === 'blast' ? 5 : 3, size: 0.07, paint: false });
-      if (Math.random() < (p.type === 'shot' ? 0.45 : 1)) G.audio?.play(p.type === 'blast' ? 'splat_big' : 'splat_small', { pos: hit.point, volume: p.type === 'shot' ? 0.35 : 0.6 });
+      if (Math.random() < (p.type === 'shot' ? 0.45 : p.wid === 'sprinkler' ? 0.2 : 1)) G.audio?.play(p.type === 'blast' ? 'splat_big' : 'splat_small', { pos: hit.point, volume: p.type === 'shot' ? 0.35 : 0.6 });
     }
     if (p.type === 'blast') this._blastBurst(p, hit.point, null);
+    if (p.arrow) this._arrowBurst(p, _v, hit.normal);
   }
 
   _blastBurst(p, at, direct) {
@@ -1351,11 +1685,12 @@ export class Projectiles {
       if (b.kind === 'missile') {
         if (this.barriers.length && b.launched) {
           const br = this._barrierCross(b.prev, b.pos, b.team);
-          if (br) { this._barrierDamage(br, SPECIALS.missiles.damageMax, b.prev); b.pos.copy(b.prev); this._explodeBomb(b, SPECIALS.missiles, 'missiles'); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+          if (br) { this._barrierDamage(br, SPECIALS.missiles.damageMax, b.prev); b.pos.copy(b.prev); this._explodeBomb(b, SPECIALS.missiles, 'missiles'); this._removeBomb(i); continue; }
         }
-        if (this._updateMissile(b, dt)) { this.scene.remove(b.mesh); this.bombs.splice(i, 1); }
+        if (this._updateMissile(b, dt)) this._removeBomb(i);
         continue;
       }
+      if (b.stuck) { if (this._updateStuck(b, dt)) this._removeBomb(i); continue; }
       b.age += dt;
       b.vel.y -= 24 * dt;
       _v.copy(b.pos);
@@ -1363,39 +1698,43 @@ export class Projectiles {
       if (this.barriers.length) {
         const br = this._barrierCross(_v, b.pos, b.team);
         if (br) {
-          // stopped at the shell: detonate outside (a storm just fizzles)
-          this._barrierDamage(br, b.kind === 'storm' ? 40 : SUB.bomb.damageMax * 0.5, _v);
-          if (b.kind !== 'storm') { b.pos.copy(_v); this._explodeBomb(b); }
-          this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue;
+          // stopped at the shell: bombs detonate outside (a storm or a sprinkler just fizzles)
+          const fizzle = b.kind === 'storm' || b.kind === 'sprinkler';
+          this._barrierDamage(br, fizzle ? 40 : b.s.damageMax * 0.5, _v);
+          if (!fizzle) { b.pos.copy(_v); this._explodeBomb(b, b.s, b.kind); }
+          this._removeBomb(i); continue;
         }
       }
+      if (b.kind === 'burst' && this._bombTouchesFoe(b)) { this._explodeBomb(b, b.s, 'burst'); this._removeBomb(i); continue; }
       const hit = G.physics.segment(_v, b.pos, _hit);
       if (hit.hit) {
-        if (b.kind === 'storm') { this._spawnCloud(b); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+        if (b.kind === 'storm') { this._spawnCloud(b); this._removeBomb(i); continue; }
+        if (b.kind === 'burst') { b.pos.copy(hit.point).addScaledVector(hit.normal, 0.15); this._explodeBomb(b, b.s, 'burst'); this._removeBomb(i); continue; }
+        if (b.s.stick) { this._stick(b, hit); continue; }
         b.pos.copy(hit.point).addScaledVector(hit.normal, 0.21);
         const vn = b.vel.dot(hit.normal);
         b.vel.addScaledVector(hit.normal, -vn * 1.35);
         b.vel.multiplyScalar(hit.normal.y > 0.6 ? 0.45 : 0.6);
         if (hit.normal.y > 0.6 && b.fuse < 0) {
-          b.fuse = SUB.bomb.fuse;
+          b.fuse = b.s.fuse;
           G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.6 });
-          emit('bomb:arm', { actor: b.owner, pos: b.pos.clone(), team: b.team, radius: SUB.bomb.radius });
+          emit('bomb:arm', { actor: b.owner, pos: b.pos.clone(), team: b.team, radius: b.s.radius });
         }
       }
-      if (b.kind === 'storm' && b.age > 1.1) { this._spawnCloud(b); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+      if (b.kind === 'storm' && b.age > 1.1) { this._spawnCloud(b); this._removeBomb(i); continue; }
       if (b.fuse >= 0) {
         b.fuse -= dt;
         b.beepT -= dt;
-        const k = 1 - b.fuse / SUB.bomb.fuse;
+        const k = 1 - b.fuse / b.s.fuse;
         b.body.material.emissiveIntensity = (Math.sin(b.age * (10 + k * 30)) * 0.5 + 0.5) * (0.4 + k * 1.8);
         b.mesh.scale.setScalar(1 + k * 0.35 + Math.sin(b.age * 40) * 0.03 * k);
         if (b.beepT <= 0) {
           b.beepT = 0.3 - k * 0.2;
           if (G.camera.position.distanceToSquared(b.pos) < 30 * 30) G.audio?.play('bomb_beep', { pos: b.pos, volume: 0.35 + k * 0.4, pitch: 1 + k * 0.25 });
         }
-        if (b.fuse <= 0) { this._explodeBomb(b); this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+        if (b.fuse <= 0) { this._explodeBomb(b, b.s); this._removeBomb(i); continue; }
       }
-      if (b.pos.y < PLAYER.waterY - 1.8) { this.scene.remove(b.mesh); this.bombs.splice(i, 1); continue; }
+      if (b.pos.y < PLAYER.waterY - 1.8) { this._removeBomb(i); continue; }
       b.mesh.position.copy(b.pos);
       b.mesh.rotation.x += b.spin.x * dt * (b.fuse < 0 ? 1 : 0.2);
       b.mesh.rotation.z += b.spin.y * dt * (b.fuse < 0 ? 1 : 0.2);
@@ -1483,7 +1822,9 @@ export class Projectiles {
   updateArc(a, show) {
     if (!show || !a || !a.alive) { this.arcLine.visible = false; this.arcRing.visible = false; return; }
     const vel = this._arcVel || (this._arcVel = new THREE.Vector3());
-    this.throwVelocity(a, SUB.bomb.throwSpeed, vel);
+    const rush = a.specialBuff && a.specialBuff.id === 'bombrush';   // Bomb Rush throws free splat bombs
+    const sub = rush ? SUB.bomb : SUB[a.weapon.sub] || SUB.bomb;
+    this.throwVelocity(a, sub.throwSpeed, vel);
     const p = _v.copy(a.pos); p.y += 1.35;
     const pos = this.arcGeo.attributes.position;
     let n = 0, landed = false;
@@ -1503,7 +1844,7 @@ export class Projectiles {
     pos.needsUpdate = true;
     this.arcGeo.setDrawRange(0, n);
     this.arcLine.computeLineDistances();
-    const col = a.ink >= SUB.bomb.inkCost ? a.color : new THREE.Color(0.6, 0.6, 0.6);
+    const col = rush || a.ink >= sub.inkCost ? a.color : _c.setRGB(0.6, 0.6, 0.6);
     this.arcLine.material.color.copy(col).multiplyScalar(1.4);
     this.arcRing.material.color.copy(col).multiplyScalar(1.4);
     this.arcLine.visible = true;

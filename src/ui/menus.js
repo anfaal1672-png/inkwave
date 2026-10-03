@@ -48,6 +48,8 @@ const TIPS = [
   N_('Hold [SHIFT] to dive into your ink — you are nearly invisible while swimming.'),
   N_('Enemy ink slows you down and chips away at your health. Paint over it!'),
   N_('Swim up any wall you have inked to reach high ground.'),
+  N_('Swimming fast? Flip the stick back and jump for a Squid Roll — you take less damage mid-roll.'),
+  N_('Hold jump while climbing a wall to charge a Squid Surge, then let go to fly up and over the top.'),
   N_('Only turf counts when time runs out. Splats just buy you space.'),
   N_('Your special gauge fills as you ink. Press [F] when it glows!'),
   N_('A Splat Bomb costs most of your tank — throw it where it claims the most turf.'),
@@ -61,6 +63,8 @@ const DIFF_INFO = {
   normal: { pips: 2, text: N_('Balanced bots that push turf and fight back.') },
   hard: { pips: 3, text: N_('Sharp, aggressive bots that punish mistakes. Bring your A-game.') },
 };
+// Splatoon's weight classes (config.js WEIGHT): run / swim speed of the weapon's holder
+const WEIGHT_LABELS = { light: N_('Lightweight'), mid: N_('Middleweight'), heavy: N_('Heavyweight') };
 const STAT_LABELS = [['range', N_('Range')], ['damage', N_('Damage')], ['rate', N_('Fire rate')], ['mobility', N_('Mobility')], ['paint', N_('Ink coverage')]];
 const KIND_LABEL = { shooter: N_('Shooter'), roller: N_('Roller'), charger: N_('Charger'), blaster: N_('Blaster'), dualies: N_('Dualies'), slosher: N_('Slosher'), splatling: N_('Splatling') };
 const STAT_ICONS = { range: GLYPHS.target, damage: GLYPHS.bolt, rate: GLYPHS.clock, mobility: GLYPHS.feather, paint: GLYPHS.drop };
@@ -798,10 +802,10 @@ export class Menus {
     const lo = this._loadout();
     const W = this._weapons()[lo.weapon];
     const sp = this._specials()[W.special] || Object.values(this._specials())[0];
-    const sub = this._sub();
+    const sub = (W.sub && (this.api.subs || SUB)[W.sub]) || this._sub();
     const items = [
       { id: 'play', label: 'PLAY', sub: 'Turf War · 4 v 4', icon: GLYPHS.play, cls: 'iw-btn--menu iw-btn--xl iw-btn--primary', accept: () => this._go('setup'), sound: 'ui_confirm' },
-      { id: 'loadout', label: 'LOADOUT', icon: weaponIcon(W.kind || lo.weapon), cls: 'iw-btn--menu', accept: () => this._go('loadout') },
+      { id: 'loadout', label: 'LOADOUT', icon: weaponIcon(W.icon || W.kind || lo.weapon), cls: 'iw-btn--menu', accept: () => this._go('loadout') },
       { id: 'locker', label: 'LOCKER', icon: GLYPHS.hanger, cls: 'iw-btn--menu', accept: () => this._go('locker') },
       { id: 'settings', label: 'SETTINGS', icon: GLYPHS.gear, cls: 'iw-btn--menu', accept: () => this._go('settings') },
       { id: 'howto', label: 'HOW TO PLAY', icon: GLYPHS.question, cls: 'iw-btn--menu', accept: () => this._go('howto') },
@@ -834,10 +838,10 @@ export class Menus {
     const kit = this._panel('iw-kitcard iw-in iw-in--right',
       h('div', { class: 'iw-kitcard__label' }, tr('CURRENT LOADOUT')),
       h('div', { class: 'iw-kitcard__main' },
-        h('span', { class: 'iw-kitcard__icon', html: weaponIcon(W.kind || lo.weapon) }),
+        h('span', { class: 'iw-kitcard__icon', html: weaponIcon(W.icon || W.kind || lo.weapon) }),
         h('div', null, h('div', { class: 'iw-kitcard__name' }, tr(W.name)), h('div', { class: 'iw-kitcard__kind' }, tr(W.class || KIND_LABEL[W.kind] || '')))),
       h('div', { class: 'iw-kitcard__chips' },
-        h('span', { class: 'iw-chip' }, h('i', { html: SUB_ICONS.bomb }), tr(sub.name)),
+        h('span', { class: 'iw-chip' }, h('i', { html: SUB_ICONS[sub.id] || SUB_ICONS.bomb }), tr(sub.name)),
         h('span', { class: 'iw-chip' }, h('i', { html: specialIcon(sp.id) }), tr(sp.name))));
     const el = h('div', { class: 'iw-screen iw-main' },
       h('div', { class: 'iw-scrim-left' }),
@@ -1074,7 +1078,7 @@ export class Menus {
     const lo = this._loadout();
     const W = this._weapons()[lo.weapon];
     const weaponChip = h('button', { class: 'iw-wchip iw-in' },
-      h('span', { class: 'iw-wchip__icon', html: weaponIcon(W.kind || lo.weapon) }),
+      h('span', { class: 'iw-wchip__icon', html: weaponIcon(W.icon || W.kind || lo.weapon) }),
       h('span', { class: 'iw-wchip__text' }, h('small', null, tr('WEAPON')), h('b', null, tr(W.name))),
       h('span', { class: 'iw-wchip__edit' }, h('i', { html: GLYPHS.pencil })));
     this._fx(weaponChip);
@@ -1557,7 +1561,7 @@ export class Menus {
       const c = h('button', { class: 'iw-wcard iw-in iw-in--pop' + (id === equipped ? ' is-equipped' : '') + (isNew ? ' is-new' : ''), style: { '--tilt': `${[-1.5, 1, -0.8, 1.4, -1.1][i % 5]}deg` } },
         h('span', { class: 'iw-wcard__ink' }),
         h('span', { class: 'iw-wcard__blob', html: splatSVG({ seed: 40 + i * 3, cls: 'iw-fa', r: 58, arms: 8, drops: 0 }) }),
-        h('span', { class: 'iw-wcard__icon', html: weaponIcon(w.kind || id) }),
+        h('span', { class: 'iw-wcard__icon', html: weaponIcon(w.icon || w.kind || id) }),
         h('span', { class: 'iw-wcard__name' }, tr(w.name)),
         h('span', { class: 'iw-wcard__kind' }, classOf(w)),
         h('span', { class: 'iw-wcard__eq', html: GLYPHS.check }),
@@ -1610,7 +1614,7 @@ export class Menus {
       const first = shown === id && !entered;
       shown = id;
       const w = Ws[id], eqW = Ws[equipped];
-      kind.textContent = classOf(w).toUpperCase();
+      kind.textContent = classOf(w).toUpperCase() + ' · ' + tr(WEIGHT_LABELS[w.weight] || WEIGHT_LABELS.mid);
       nm.textContent = tr(w.name);
       blurb.textContent = tr(w.blurb || '');
       detail.classList.toggle('is-equipped', id === equipped);
@@ -1632,7 +1636,7 @@ export class Menus {
       const sub = subOf(w);
       subIcon.innerHTML = SUB_ICONS[sub.id] || SUB_ICONS.bomb;
       subName.textContent = tr(sub.name);
-      subText.textContent = tr('Costs {n}% of your ink tank. Hold to aim, release to throw.', { n: Math.round(sub.inkCost || 70) });
+      subText.textContent = (sub.blurb ? tr(sub.blurb) + ' ' : '') + tr('Costs {n}% of your ink tank. Hold to aim, release to throw.', { n: Math.round(sub.inkCost || 70) });
       const sp = specials[w.special] || Object.values(specials)[0];
       spIcon.innerHTML = specialIcon(sp.id);
       spName.textContent = tr(sp.name);
@@ -1972,6 +1976,8 @@ export class Menus {
       ['Fire', null, K('LMB'), padGlyph('RT'), T(N_('Shoot button · drag it to keep aiming'))],
       ['Swim · squid form', 'hold', K('SHIFT'), padGlyph('LT'), T(N_('Squid button'))],
       ['Jump', null, K('SPACE'), padGlyph('A'), T(N_('Jump button'))],
+      ['Squid Roll', 'swim · flip back', K('SPACE'), padGlyph('A'), T(N_('While swimming fast, flip the stick back and Jump'))],
+      ['Squid Surge', 'hold on a wall', K('SPACE'), padGlyph('A'), T(N_('Hold Jump while climbing, then let go'))],
       ['Aim bomb · release to throw', 'hold', K('RMB', 'or', 'E'), padGlyph('RB'), T(N_('Bomb button'))],
       ['Special', null, K('F', 'or', 'Q'), padGlyph('Y'), T(N_('Special button'))],
       ['Map', 'hold', K('TAB'), padGlyph('View'), T(N_('Map button · tap a pin to Super Jump'))],
@@ -2155,7 +2161,7 @@ export class Menus {
         list.map((p) => {
           const st = h('span', { class: 'iw-rrow__st' });
           const row = h('div', { class: 'iw-rrow' + (p.isSelf ? ' is-self' : '') },
-            h('span', { class: 'iw-rrow__w', html: weaponIcon((this._weapons()[p.weapon] || {}).kind || p.weapon) }),
+            h('span', { class: 'iw-rrow__w', html: weaponIcon(p.weapon) }),
             h('span', { class: 'iw-rrow__name' }, p.name, p.isSelf ? h('em', null, tr('YOU')) : null),
             st);
           rosterRows.push({ row, st, name: p.name, team: p.team, sig: '' });
@@ -2285,7 +2291,7 @@ export class Menus {
           const badges = h('span', { class: 'iw-prow__aw' });
           const isMvp = p._aw.some((a) => a.id === 'mvp');
           const row = h('div', { class: 'iw-prow iw-in iw-in--left' + (p.isSelf ? ' is-self' : '') + (isMvp ? ' is-mvp' : '') },
-            h('span', { class: 'iw-prow__w', html: weaponIcon((this._weapons()[p.weapon] || {}).kind || p.weapon) }),
+            h('span', { class: 'iw-prow__w', html: weaponIcon(p.weapon) }),
             h('span', { class: 'iw-prow__name' }, h('span', { class: 'iw-prow__nm' }, p.name), p.isSelf ? h('em', null, tr('YOU')) : null, badges),
             h('span', { class: 'iw-prow__turf' }, turfBar, turfNum, h('small', null, 'p')),
             nSplat, nDeath);

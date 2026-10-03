@@ -630,7 +630,121 @@ function buildSplatling() {
 }
 
 const _cache = new Map();
-const BUILDERS = { shooter: buildShooter, roller: buildRoller, charger: buildCharger, blaster: buildBlaster, dualies: buildDualies, slosher: buildSlosher, splatling: buildSplatling };
+// ---------------------------------------------------------------------------------------------- brush (roller pose)
+// Same two-hand grip layout as the roller (top grip = right hand, mid grip = left hand) so the roller pose fits it.
+function buildBrush() {
+  const P = new Parts(), I = new Parts();
+  P.add(latheZ([[0, -0.072], [0.0105, -0.072], [0.0118, 0.3], [0.0128, 0.6], [0, 0.6]], 10), C.bone, M.satin);       // tapered handle
+  P.add(latheZ(smoothProfile([[0, -0.094], [0.0118, -0.094], [0.0152, -0.084], [0.0146, -0.03], [0.0146, 0.05], [0.0122, 0.066]], 8), 12), C.rubber, M.rubber);
+  P.add(latheZ(smoothProfile([[0.0108, 0.13], [0.0142, 0.138], [0.0146, 0.24], [0.011, 0.256]], 6), 10), C.rubber, M.rubber);
+  P.add(latheZ([[0, -0.1], [0.012, -0.0985], [0.0145, -0.094], [0, -0.094]], 12), C.dark, M.gloss);
+  for (let k = 0; k < 3; k++) P.add(latheZ([[0.0122, 0], [0.0122, 0.007]], 10).translate(0, 0, 0.42 + k * 0.03), k % 2 ? C.dark : C.hazard, M.print);
+  // ferrule (metal collar crimped round the bristles) and the ink-soaked bristle head, splayed at the tip
+  P.add(latheZ(smoothProfile([[0.0128, 0.585], [0.03, 0.6], [0.046, 0.63], [0.05, 0.69], [0.046, 0.7], [0.0128, 0.7]], 8), 16).scale(1.45, 0.62, 1), C.metal, M.metal);
+  for (let k = 0; k < 3; k++) P.add(at(torus(0.05, 0.0025, 4, 18), 0, 0, 0).rotateX(Math.PI / 2).scale(1.45, 0.62, 1).translate(0, 0, 0.64 + k * 0.022), C.gunmetal, M.metal);
+  I.add(at(superEllipsoid(0.074, 0.034, 0.11, 0.55, 0.7, 16, 10, (q) => {
+    if (q.z > 0) { const f = q.z / 0.11; q.x *= 1 + 0.25 * f; q.y *= 1 - 0.35 * f * f; }
+    q.x += 0.003 * Math.sin(q.z * 160 + q.y * 90);   // clumped bristles
+  }), 0, -0.004, 0.79));
+  return {
+    kind: 'brush', body: P.build(), ink: I.build(),
+    muzzle: new V3(0, -0.01, 0.9),
+    gripR: { pos: new V3(0, 0, -0.022), handZ: new V3(0, 0, 1), handY: new V3(-0.3, 1, 0) },
+    gripL: { pos: new V3(0, 0, 0.19), handZ: new V3(0, 0, 1), handY: new V3(0.5, 1, 0) },
+    twirl: new V3(0, 0, 0),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------- wiper (roller pose)
+// A two-handed blade: long wrapped hilt (roller grip layout), a wide guard, a flat blade with a team-ink edge.
+function buildWiper() {
+  const P = new Parts(), I = new Parts();
+  P.add(latheZ([[0, -0.08], [0.0112, -0.08], [0.0112, 0.27], [0, 0.27]], 10), C.dark, M.satin);
+  for (let k = 0; k < 9; k++) P.add(at(torus(0.0124, 0.0026, 4, 12), 0, 0, -0.06 + k * 0.034), C.rubber, M.rubber);   // grip wrap
+  P.add(latheZ([[0, -0.1], [0.016, -0.098], [0.018, -0.088], [0.0, -0.084]], 12), C.metal, M.metal);                  // pommel
+  P.add(at(rbox(0.13, 0.024, 0.026, 0.35, 12, 6), 0, 0, 0.285), C.cream, M.gloss);                                    // guard
+  for (const sx of [1, -1]) I.add(at(superEllipsoid(0.012, 0.012, 0.012, 1, 1, 8, 6), sx * 0.066, 0, 0.285));
+  P.add(at(rbox(0.012, 0.058, 0.56, 0.25, 6, 10, (q) => { if (q.z > 0.2) q.y *= 1 - (q.z - 0.2) / 0.09 * 0.7; }), 0, 0.004, 0.58), C.white, M.satin);
+  I.add(at(rbox(0.016, 0.014, 0.5, 0.4, 6, 10, (q) => { if (q.z > 0.19) q.y *= 1 - (q.z - 0.19) / 0.06 * 0.6; }), 0, 0.034, 0.56));   // ink edge
+  P.add(at(rbox(0.014, 0.008, 0.46, 0.4, 4, 8), 0, -0.014, 0.55), C.gray, M.metal);                                    // fuller
+  const sq = decal(squidShape(0.03)); placeXY(sq, new V3(0, 0, 1), new V3(0, 1, 0), new V3(0.0064, 0.0, 0.38)); P.add(sq, C.decal, M.print);
+  return {
+    kind: 'wiper', body: P.build(), ink: I.build(),
+    muzzle: new V3(0, 0.01, 0.86),
+    gripR: { pos: new V3(0, 0, -0.022), handZ: new V3(0, 0, 1), handY: new V3(-0.3, 1, 0) },
+    gripL: { pos: new V3(0, 0, 0.19), handZ: new V3(0, 0, 1), handY: new V3(0.5, 1, 0) },
+    twirl: new V3(0, 0, 0.1),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------- stringer (charger pose)
+// A bow held flat like the charger: a stock along +Z, limbs sweeping out sideways at the front, the string drawn back
+// to a nocked trio of ink arrows. Charger grip layout (pistol grip + foregrip at z 0.214).
+function buildStringer() {
+  const P = new Parts(), I = new Parts(), T = new Parts();
+  pistolGrip(P, { T });
+  P.add(at(superEllipsoid(0.022, 0.03, 0.15, 0.42, 0.56, 12, 8), 0, 0.06, 0.08), C.white, M.satin);              // stock
+  P.add(at(superEllipsoid(0.018, 0.01, 0.14, 0.4, 0.5, 10, 5), 0, 0.035, 0.085), C.dark, M.satin);
+  P.add(at(superEllipsoid(0.03, 0.022, 0.03, 0.5, 0.6, 10, 6), 0, 0.06, 0.3), C.dark, M.gloss);                 // riser hub
+  for (const sx of [1, -1]) {
+    const limb = sweep([new V3(0.02 * sx, 0.06, 0.3), new V3(0.14 * sx, 0.06, 0.32), new V3(0.26 * sx, 0.06, 0.28), new V3(0.33 * sx, 0.06, 0.2)], {
+      seg: 12, radial: 6, capSteps: 2, radius: (t) => 0.014 - 0.007 * t, flat: 0.45, outward: (Pp, o) => o.set(0, 1, 0),
+    });
+    P.add(limb.geo, C.cream, M.gloss);
+    I.add(at(superEllipsoid(0.008, 0.008, 0.008, 1, 1, 8, 6), 0.33 * sx, 0.06, 0.2));                            // ink tips
+    const str = sweep([new V3(0.33 * sx, 0.06, 0.2), new V3(0.0, 0.06, 0.05)], { seg: 2, radial: 4, capSteps: 1, radius: () => 0.0016 });
+    P.add(str.geo, C.metal, M.metal);
+  }
+  for (const a of [-0.12, 0, 0.12]) {                                                                             // three nocked arrows
+    const dir = new V3(Math.sin(a), 0, Math.cos(a));
+    const shaft = sweep([new V3(0, 0.068, 0.05), new V3(dir.x * 0.34, 0.068, 0.05 + dir.z * 0.34)], { seg: 2, radial: 5, capSteps: 1, radius: () => 0.0032 });
+    P.add(shaft.geo, C.dark, M.satin);
+    I.add(at(superEllipsoid(0.007, 0.007, 0.018, 0.8, 0.8, 8, 6), dir.x * 0.35, 0.068, 0.05 + dir.z * 0.35));
+  }
+  P.add(at(superEllipsoid(0.0118, 0.028, 0.0132, 0.55, 0.65, 10, 8), 0, 0.016, 0.214), C.darker, M.satin);       // foregrip
+  return {
+    kind: 'stringer', body: P.build(), ink: I.build(),
+    parts: { trigger: part(T, TRIGGER_PIVOT) },
+    muzzle: new V3(0, 0.068, 0.42),
+    gripR: GRIP_PISTOL,
+    gripL: { pos: new V3(0, 0.004, 0.214), handZ: new V3(0, 0, 1), handY: new V3(0.75, -0.62, -0.1) },
+    twirl: new V3(0, 0.03, 0.06),
+  };
+}
+
+// ---------------------------------------------------------------------------------------------- brella (shooter pose)
+// A short shotgun under an ink canopy. The canopy is its own part (team ink) so a broken one can be hidden.
+function buildBrella() {
+  const P = new Parts(), I = new Parts(), T = new Parts(), CAN = new Parts();
+  pistolGrip(P, { T });
+  P.add(at(superEllipsoid(0.026, 0.032, 0.085, 0.42, 0.56, 12, 8), 0, 0.066, 0.02), C.cream, M.satin);           // receiver
+  P.add(at(superEllipsoid(0.022, 0.011, 0.08, 0.4, 0.5, 10, 5), 0, 0.04, 0.025), C.dark, M.satin);
+  I.add(at(superEllipsoid(0.015, 0.006, 0.07, 0.5, 0.6, 10, 5), 0, 0.097, 0.015));
+  P.add(latheZ([[0, 0.09], [0.012, 0.09], [0.012, 0.3], [0.016, 0.31], [0.016, 0.33], [0, 0.33]], 10).translate(0, 0.066, 0), C.gunmetal, M.metal);   // shaft + muzzle
+  // canopy: a thick dome opening toward the holder, dark rim and ribs, a cap at the crown
+  const dome = latheZ([[0, 0.295], [0.1, 0.287], [0.2, 0.258], [0.28, 0.214], [0.335, 0.162], [0.33, 0.152], [0.272, 0.2], [0.19, 0.24], [0.096, 0.267], [0, 0.275]], 24);
+  CAN.add(dome.translate(0, 0.066, 0));
+  const ribs = new Parts();
+  for (let k = 0; k < 8; k++) {
+    const a = (k / 8) * Math.PI * 2, c = Math.cos(a), sn = Math.sin(a);
+    const pts = [[0.02, 0.297], [0.1, 0.29], [0.2, 0.261], [0.28, 0.217], [0.336, 0.164]].map(([r, z]) => new V3(c * r, 0.066 + sn * r, z));
+    ribs.add(sweep(pts, { seg: 8, radial: 4, capSteps: 1, radius: () => 0.0042 }).geo, C.dark, M.satin);
+  }
+  ribs.add(at(torus(0.334, 0.0045, 4, 40), 0, 0, 0).translate(0, 0.066, 0.162), C.dark, M.gloss);
+  ribs.add(latheZ([[0, 0.29], [0.018, 0.292], [0.016, 0.304], [0, 0.306]], 10).translate(0, 0.066, 0), C.dark, M.gloss);
+  P.add(at(superEllipsoid(0.0118, 0.028, 0.0132, 0.55, 0.65, 10, 8), 0, 0.016, 0.0705), C.darker, M.satin);    // foregrip
+  return {
+    kind: 'brella', body: P.build(), ink: I.build(),
+    parts: { trigger: part(T, TRIGGER_PIVOT), canopy: part(CAN, new V3(0, 0.066, 0.22), 'ink'), ribs: part(ribs, new V3(0, 0.066, 0.22)) },
+    muzzle: new V3(0, 0.066, 0.335),
+    gripR: GRIP_PISTOL,
+    gripL: { pos: new V3(0, 0.02, 0.0705), handZ: new V3(0, 1, -0.12), handY: new V3(0.45, -0.05, -1) },
+    twirl: new V3(0, 0.03, 0.03),
+  };
+}
+
+const BUILDERS = { shooter: buildShooter, roller: buildRoller, charger: buildCharger, blaster: buildBlaster, dualies: buildDualies, slosher: buildSlosher, splatling: buildSplatling,
+  brush: buildBrush, wiper: buildWiper, stringer: buildStringer, brella: buildBrella };
 export const WEAPON_KINDS = Object.keys(BUILDERS);
 
 /** Hand bone frame (wrist origin) expressed in weapon space, from a grip spec and that hand's grip-hole offset. */
@@ -697,6 +811,8 @@ export function animateWeapon(w, st) {
     w.drumA += w.drumW * dt;
     w.drum.rotation.x = w.drumA;
   }
+  // brella canopy: gone while broken (the runner regrows it after canopyCooldown)
+  if (P.canopy) { const up = !(R && R.canopyBroken); P.canopy.visible = up && w.near; if (P.ribs) P.ribs.visible = up && w.near; }
   const u = st.sinceShoot ?? 99;
   if (kind === 'blaster') {   // pump stroke — computed at every distance (the body's left hand rides it)
     let pk = 0;
@@ -809,12 +925,44 @@ function buildBomb() {
   const sq = decal(squidShape(0.026)); placeXY(sq, new V3(1, 0, 0), new V3(0, 1, 0), new V3(0, -0.075, 0.0548)); P.add(sq, C.decal, M.print);
   return { kind: 'bomb', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
 }
+// Suction bomb: a knurled knob on top (the grip), a tapered ink body, a rubber suction cup at the bottom
+function buildSuction() {
+  const P = new Parts(), I = new Parts();
+  P.add(lathe(smoothProfile([[0, -0.012], [0.0105, -0.012], [0.0115, -0.006], [0.0115, 0.008], [0.009, 0.013], [0, 0.014]], 8), 14), C.rubber, M.rubber);
+  P.add(lathe(smoothProfile([[0, -0.02], [0.017, -0.019], [0.017, -0.013], [0, -0.012]], 4), 14), C.dark, M.gloss);
+  I.add(lathe(smoothProfile([[0, -0.098], [0.036, -0.096], [0.034, -0.07], [0.026, -0.04], [0.018, -0.022], [0, -0.019]], 12), 18));
+  P.add(lathe(smoothProfile([[0, -0.112], [0.047, -0.111], [0.044, -0.104], [0.03, -0.097], [0, -0.096]], 6), 18), C.rubber, M.rubber);
+  P.add(at(torus(0.0335, 0.0035, 5, 18), 0, 0, 0).rotateX(Math.PI / 2).translate(0, -0.074, 0), C.cream, M.gloss);
+  const led = superEllipsoid(0.0026, 0.0026, 0.0026, 1, 1, 8, 5); P.add(at(led, 0, -0.017, 0.016), C.red, M.led);
+  return { kind: 'suction', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
+}
+// Burst bomb: a small ink ball under a short cap, banded so it reads at a glance
+function buildBurst() {
+  const P = new Parts(), I = new Parts();
+  P.add(lathe(smoothProfile([[0, -0.012], [0.0095, -0.012], [0.0102, -0.006], [0.0102, 0.007], [0.008, 0.011], [0, 0.012]], 8), 14), C.rubber, M.rubber);
+  P.add(lathe(smoothProfile([[0, -0.021], [0.016, -0.02], [0.0155, -0.013], [0, -0.012]], 4), 14), C.dark, M.gloss);
+  I.add(at(superEllipsoid(0.034, 0.033, 0.034, 1, 1, 18, 12), 0, -0.052, 0));
+  P.add(at(torus(0.0345, 0.0038, 5, 20), 0, 0, 0).rotateX(Math.PI / 2).translate(0, -0.052, 0), C.cream, M.gloss);
+  for (let k = 0; k < 4; k++) { const a = (k / 4) * Math.PI * 2; P.add(at(superEllipsoid(0.004, 0.004, 0.004, 1, 1, 6, 4), Math.sin(a) * 0.026, -0.08, Math.cos(a) * 0.026), C.cream, M.gloss); }
+  return { kind: 'burst', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
+}
+// Sprinkler: held by its spinning head (an ink column with a nozzle bar); the dark clamp base hangs below
+function buildSprinkler() {
+  const P = new Parts(), I = new Parts();
+  I.add(lathe(smoothProfile([[0, -0.08], [0.017, -0.079], [0.016, -0.01], [0.012, 0.004], [0, 0.006]], 8), 14));
+  P.add(at(rbox(0.074, 0.011, 0.011, 0.5, 10, 6), 0, -0.012, 0), C.metal, M.metal);
+  for (const sx of [-1, 1]) P.add(at(rbox(0.008, 0.014, 0.008, 0.5, 6, 6), sx * 0.037, -0.006, 0), C.dark, M.gloss);
+  P.add(lathe(smoothProfile([[0, -0.106], [0.042, -0.105], [0.04, -0.088], [0.024, -0.08], [0, -0.079]], 6), 18), C.dark, M.gloss);
+  P.add(at(torus(0.033, 0.003, 5, 18), 0, 0, 0).rotateX(Math.PI / 2).translate(0, -0.097, 0), C.hazard, M.gloss);
+  return { kind: 'sprinkler', body: P.build(), ink: I.build(), grip: { pos: new V3(0, 0, 0), handZ: new V3(0, 1, 0), handY: new V3(0.3, 0.1, -1) } };
+}
+const SUB_BUILDERS = { bomb: buildBomb, suction: buildSuction, burst: buildBurst, sprinkler: buildSprinkler };
 const _subCache = new Map();
 /** Sub-weapon prop for the LEFT hand: { body, ink, handL:{pos,quat} (hand in prop space), inHandL:{pos,quat} (prop in hand space) }.
  *  Attach like a weapon: prop group under handL at inHandL (plastic body + team ink material). */
 export function getSubDef(kind = 'bomb') {
   if (!_subCache.has(kind)) {
-    const d = buildBomb();
+    const d = (SUB_BUILDERS[kind] || buildBomb)();
     d.handL = handInWeapon(d.grip, GRIP_HOLE_L);
     const inv = new THREE.Matrix4().compose(d.handL.pos, d.handL.quat, new V3(1, 1, 1)).invert();
     d.inHandL = { pos: new V3(), quat: new THREE.Quaternion() };

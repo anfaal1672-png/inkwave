@@ -206,15 +206,18 @@ export class ApexBrain extends BotBrain {
   _bomb(t, fighting, dist, it) {
     const a = this.a;
     it.sub = false; this._bombAim = this._releaseBomb = false;
-    if (!fighting || this.bombT > 0 || a.ink < SUB.bomb.inkCost + 15 || !a.grounded || a.weaponRunner.charging || dist < 5 || dist > 9.5) return;
+    // (the weapon's own sub: a burst bomb is thrown closer, a sprinkler is never thrown at a foe)
+    const sub = SUB[a.weapon.sub] || SUB.bomb, burst = sub.id === 'burst';
+    if (sub.id === 'sprinkler') return;
+    if (!fighting || this.bombT > 0 || a.ink < sub.inkCost + 15 || !a.grounded || a.weaponRunner.charging || dist < (burst ? 3 : 5) || dist > (burst ? 10 : 9.5)) return;
     let bunched = 0;
     for (const e of G.actors) {
       if (e.team === a.team || !e.alive || e === t) continue;
       if (e.pos.distanceToSquared(t.pos) < 9) bunched++;
     }
-    if (this.los && bunched === 0) return;
-    const p = this._bombSolve(t);
-    this.bombT = p === null ? 0.5 : 3;
+    if (this.los && bunched === 0 && !(burst && t.hp < 70)) return;   // a burst bomb also finishes a hurt foe in the open
+    const p = this._bombSolve(t, sub.throwSpeed);
+    this.bombT = p === null ? 0.5 : burst ? 1.5 : 3;
     if (p === null) return;
     this.bombPitch = p;
     this.bombPhase = 1;
@@ -223,10 +226,10 @@ export class ApexBrain extends BotBrain {
   }
 
   // launch pitch that lands a thrown bomb on the target's ground point, or null
-  _bombSolve(t) {
+  _bombSolve(t, v = SUB.bomb.throwSpeed) {
     const a = this.a;
     const hd = Math.hypot(t.pos.x - a.pos.x, t.pos.z - a.pos.z);
-    const y0 = a.pos.y + 1.35, ty = t.pos.y + 0.2, v = SUB.bomb.throwSpeed;
+    const y0 = a.pos.y + 1.35, ty = t.pos.y + 0.2;
     let best = null, bestErr = 0.6;
     for (let p = -0.3; p <= 1.1; p += 0.05) {
       let x = 0, y = y0, vh = Math.cos(p) * v, vy = Math.sin(p) * v + 1.5;

@@ -131,7 +131,9 @@ function model(w) {
     case 'shooter': case 'dualies': case 'splatling':
       return { speed: w.projSpeed, straight: w.straightTime, grav: SHOT_GRAV, drag: SHOT_DRAG, life: 1.2 };
     case 'slosher': return { speed: w.projSpeed, straight: 0, grav: w.grav, drag: 0, life: 2.4 };
-    case 'roller': return { speed: w.flickSpeed * 1.14, straight: 0, grav: FLICK_GRAV, drag: FLICK_DRAG, life: 1.4 };
+    case 'roller': return w.slash ? { speed: w.slashSpeed, straight: 0.08, grav: 22, drag: 0.5, life: 0.9 }   // wiper sheet
+      : { speed: w.flickSpeed * 1.14, straight: 0, grav: FLICK_GRAV, drag: FLICK_DRAG, life: 1.4 };
+    case 'charger': return w.arrows ? { speed: w.arrowSpeed, straight: w.rangeMax / w.arrowSpeed, grav: 30, drag: 0.4, life: 1.2 } : null;   // stringer arrows
     case 'blaster': return { speed: w.projSpeed, straight: 99, grav: 0, drag: 0, life: w.range / w.projSpeed };
     default: return null;   // charger: hitscan
   }

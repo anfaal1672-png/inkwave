@@ -37,12 +37,14 @@ export class Match {
     // weapons: each team gets a balanced mix
     const pickTeam = (first) => {
       // one weapon per kind on a team where possible (variants of a kind are alternatives, not extra picks)
+      // (brush / wiper / stringer / brella run on another kind's mechanics but are their own kind to the player: icon)
       const out = [];
       const kinds = new Set();
-      const take = (id) => { out.push(id); kinds.add(WEAPONS[id].kind); };
+      const kindOf = (id) => WEAPONS[id].icon || WEAPONS[id].kind;
+      const take = (id) => { out.push(id); kinds.add(kindOf(id)); };
       if (first) take(first);
       while (out.length < MATCH.teamSize) {
-        let pool = WEAPON_ORDER.filter((id) => !kinds.has(WEAPONS[id].kind));
+        let pool = WEAPON_ORDER.filter((id) => !kinds.has(kindOf(id)));
         if (!pool.length) pool = WEAPON_ORDER;
         take(pool[(Math.random() * pool.length) | 0]);
       }

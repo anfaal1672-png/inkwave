@@ -29,5 +29,25 @@
       "sm": "assets/stages/halyard-dusk-sm.webp"
     }
   },
-  "generated": "2026-09-26T02:38:48.032Z"
+  "skatepark": {
+    "day": {
+      "src": "assets/stages/skatepark-day.webp",
+      "sm": "assets/stages/skatepark-day-sm.webp"
+    },
+    "dusk": {
+      "src": "assets/stages/skatepark-dusk.webp",
+      "sm": "assets/stages/skatepark-dusk-sm.webp"
+    }
+  },
+  "rooftops": {
+    "day": {
+      "src": "assets/stages/rooftops-day.webp",
+      "sm": "assets/stages/rooftops-day-sm.webp"
+    },
+    "dusk": {
+      "src": "assets/stages/rooftops-dusk.webp",
+      "sm": "assets/stages/rooftops-dusk-sm.webp"
+    }
+  },
+  "generated": "2026-10-02T18:52:22.092Z"
 }

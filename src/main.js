@@ -664,7 +664,7 @@ class Game {
     m.setup();
     this._applyQuality();   // the new match's characters and props carry the full materials
     this.minimap.setViewerTeam(0);
-    { const w = WEAPONS[this.profile.weapon] || WEAPONS.shooter; this.touch?.setLoadout(w.kind, w.special); this.touch?.setColor(G.teamHex[0]); }
+    { const w = WEAPONS[this.profile.weapon] || WEAPONS.shooter; this.touch?.setLoadout(w.icon || w.kind, w.special); this.touch?.setColor(G.teamHex[0]); }
     G.mode = 'match';
     this.hud?.setVisible(false);
     this.hudPrompt = null; this._hintT = 0; this._hints = {};
@@ -1062,7 +1062,8 @@ class Game {
     this._hintT += dt;
     let prompt = null;
     const inkF = a.ink / PLAYER.inkMax;
-    this.touch?.sync({ specialReady: a.specialReady(), canSub: a.ink >= SUB.bomb.inkCost, mapOpen: this.rig.mapK > 0.3 });
+    const sub = SUB[a.weapon.sub] || SUB.bomb;
+    this.touch?.sync({ specialReady: a.specialReady(), canSub: a.ink >= sub.inkCost, mapOpen: this.rig.mapK > 0.3, subId: sub.id });
     if (m.state === 'playing' && a.alive) {
       if (m.controller?.mapHeld) prompt = null;   // the map diorama carries its own super-jump hints
       else if (a.superJumpState) prompt = null;
@@ -1076,7 +1077,7 @@ class Game {
     const frame = {
       time: m.time,
       teams: m.teamSummary(),
-      ink: a.ink / PLAYER.inkMax, inkLow: a.ink < 18 || (this._lowInkFlash > 0), subCost: SUB.bomb.inkCost / PLAYER.inkMax,
+      ink: a.ink / PLAYER.inkMax, inkLow: a.ink < 18 || (this._lowInkFlash > 0), subCost: sub.inkCost / PLAYER.inkMax, sub: sub.id,
       special: a.specialBuff ? clamp(a.specialBuff.t / a.specialBuff.dur, 0, 1) : a.specialFrac(), specialReady: a.specialReady(), specialActive: !!(a.specialActive || a.specialBuff),
       hp: a.hp / PLAYER.hp,
       weapon: a.weaponId, charge: a.weaponRunner.charge,

@@ -25,8 +25,8 @@ export const PLAYER = {
   squidHeight: 0.55,
   runSpeed: 6.0,
   squidDrySpeed: 2.9,    // squid hopping on unpainted ground
-  swimSpeed: 11.8,       // squid submerged in own ink
-  enemyInkSpeed: 1.9,
+  swimSpeed: 12.0,       // squid submerged in own ink (Splatoon: swim ≈ 2 × run)
+  enemyInkSpeed: 1.5,    // wading in enemy ink (Splatoon: ≈ ¼ of the run speed)
   climbSpeed: 7.5,
   accelGround: 42,
   accelAir: 14,
@@ -36,15 +36,15 @@ export const PLAYER = {
   gravity: 25,
   maxFall: 40,
   inkMax: 100,
-  inkRefillSwim: 42,     // per second while submerged
-  inkRefillKid: 9,       // per second in kid form after idle delay
+  inkRefillSwim: 34,     // per second while submerged (Splatoon: an empty tank fills in ~3 s)
+  inkRefillKid: 10,      // per second in kid form after idle delay (Splatoon: ~10 s)
   inkRefillDelay: 0.9,
   enemyInkDps: 20,       // damage/s while standing in enemy ink ...
   enemyInkDamageCap: 40, // ... never takes you below (hp - cap) from ink alone
   regenDelay: 1.3,
   regenRate: 22,
   regenRateSwim: 60,
-  respawnTime: 5.5,
+  respawnTime: 7.0,      // Splatoon: ~8.5 s from the splat to the spawn pad; a little shorter keeps 3-min rounds busy
   spawnInvuln: 1.6,
   fallDeathY: -1.45,  // touching the sea (surface y = -1.6) splats you
   waterY: -1.6,
@@ -81,15 +81,34 @@ export const PLAYER = {
   climbAccel: 46, climbSideSpeed: 5.2, climbAttachDot: 0.5, climbDetachDot: -0.45,
   ledgePopClear: 0.42,    // apex this far above the ledge top when popping over it
   ledgePopCarry: 2.5,     // forward speed onto the ledge
+  // Squid Roll (Splatoon 3): swimming near full speed, flip the stick back and jump → leap out the new way, spinning,
+  // with a brief damage cut. The fast heading is remembered for rollWindow s because the plant-and-reverse brake
+  // starts the moment the stick flips, a frame or two before the jump press lands.
+  rollMinSpeed: 0.7,      // × the swim speed
+  rollCos: -0.34,         // stick vs. swim heading: more than ~110° apart
+  rollWindow: 0.2, rollVel: 7.2, rollCarry: 0.8, rollSpeedMin: 6.5, rollCooldown: 0.45,
+  rollArmorTime: 0.32, rollArmorMul: 0.7,
+  // Squid Surge (Splatoon 3): hold jump while climbing to cling and charge, let go to shoot up the wall and well over
+  // the top. A short hold does nothing (a tap of jump on a wall stays harmless).
+  surgeCharge: 0.75, surgeMin: 0.22, surgeSpeedMin: 10, surgeSpeed: 16, surgePopMax: 12.5,
   emergeDelay: 0.07,      // squid → kid before the first shot can leave the barrel (the shot is buffered, not lost)
   fireBuffer: 0.16,
+};
+
+// Weapon weight (Splatoon's light / middle / heavy classes): scales the plain run speed and the swim speed only —
+// each weapon's firing / charging speeds are its own. Ratios from Splatoon 3 (run 1.04 / 0.96 / 0.88, swim 2.02 /
+// 1.92 / 1.728 distance units per frame).
+export const WEIGHT = {
+  light: { run: 1.083, swim: 1.052 },
+  mid: { run: 1, swim: 1 },
+  heavy: { run: 0.917, swim: 0.9 },
 };
 
 // ---- Weapons ----
 // stats.* are 0..1 display bars for the loadout screen.
 export const WEAPONS = {
   shooter: {
-    id: 'shooter', name: 'Spritzer', kind: 'shooter', class: 'Shooter', sub: 'bomb',
+    id: 'shooter', name: 'Spritzer', kind: 'shooter', class: 'Shooter', sub: 'suction',
     blurb: 'Rapid-fire all-rounder. Sprays a steady stream of ink blobs.',
     stats: { range: 0.5, damage: 0.45, rate: 0.78, mobility: 0.7, paint: 0.6 },
     fireInterval: 0.11, damage: 36, inkPerShot: 0.95,
@@ -123,7 +142,7 @@ export const WEAPONS = {
     special: 'storm', specialCost: 180,
   },
   blaster: {
-    id: 'blaster', name: 'Popper Blaster', kind: 'blaster', class: 'Blaster', sub: 'bomb',
+    id: 'blaster', name: 'Popper Blaster', kind: 'blaster', class: 'Blaster', sub: 'suction',
     blurb: 'Slow shots that burst mid-air. Direct hits splat instantly.',
     stats: { range: 0.55, damage: 0.9, rate: 0.3, mobility: 0.6, paint: 0.5 },
     fireInterval: 0.78, directDamage: 125, splashDamageMax: 70, splashDamageMin: 30,
@@ -134,7 +153,7 @@ export const WEAPONS = {
     special: 'storm', specialCost: 180,
   },
   dualies: {
-    id: 'dualies', name: 'Twinfin Dualies', kind: 'dualies', class: 'Dualies', sub: 'bomb',
+    id: 'dualies', name: 'Twinfin Dualies', kind: 'dualies', class: 'Dualies', sub: 'suction',
     blurb: 'Twin pistols, alternating fire. Jump while firing to dodge-roll, then plant and unload.',
     stats: { range: 0.42, damage: 0.4, rate: 0.95, mobility: 0.95, paint: 0.55 },
     fireInterval: 0.083, damage: 30, inkPerShot: 0.85,        // hands alternate: 12 shots/s, 4 hits to splat
@@ -159,10 +178,11 @@ export const WEAPONS = {
     special: 'slam', specialCost: 175,
   },
   splatling: {
-    id: 'splatling', name: 'Gyre Splatling', kind: 'splatling', class: 'Splatling', sub: 'bomb',
+    id: 'splatling', name: 'Gyre Splatling', kind: 'splatling', class: 'Splatling', sub: 'sprinkler',
+    weight: 'heavy',   // WEIGHT (default 'mid'); variants inherit it
     blurb: 'Hold to spin up, release for a long high-speed stream. The more charge, the longer it lasts.',
     stats: { range: 0.78, damage: 0.55, rate: 1.0, mobility: 0.38, paint: 0.7 },
-    chargeTime: 0.95, burstMin: 0.3, burstMax: 1.7, fireInterval: 0.066, damage: 28, inkPerShot: 0.6,
+    chargeTime: 0.95, burstMin: 0.3, burstMax: 1.45, fireInterval: 0.066, damage: 28, inkPerShot: 0.6,
     projSpeed: 40, straightTime: 0.16, range: 15,
     spreadGround: 3.2, spreadAir: 7, spreadFirst: 0.6, bloomPerShot: 0.05,
     impactRadius: 0.75, trailRadius: 0.42, trailEvery: 1.2,
@@ -177,6 +197,7 @@ const variant = (base, o) => ({ ...WEAPONS[base], ...o, stats: { ...WEAPONS[base
 Object.assign(WEAPONS, {
   shooter_pro: variant('shooter', {
     id: 'shooter_pro', name: 'Tidal Pro', skin: { body: '#3a3f4a', trim: '#c9a45c' },
+    sub: 'bomb',
     blurb: 'Slower, harder-hitting shooter. Two hits splat, at a longer reach.',
     fireInterval: 0.2, damage: 52, range: 13, spreadGround: 8.5, spreadAir: 14, inkPerShot: 1.3, impactRadius: 0.95,
     stats: { range: 0.58, damage: 0.75, rate: 0.45, mobility: 0.65, paint: 0.55 },
@@ -185,6 +206,8 @@ Object.assign(WEAPONS, {
   }),
   shooter_jr: variant('shooter', {
     id: 'shooter_jr', name: 'Sprinkle Jr.', skin: { body: '#bfe8d8', trim: '#7fb8a8' },
+    sub: 'bomb',
+    weight: 'light',
     blurb: 'A light, thrifty sprayer. Weak shots, but it paints fast and moves easily.',
     fireInterval: 0.085, damage: 28, range: 11.5, spreadGround: 11, spreadAir: 14, inkPerShot: 0.55,
     impactRadius: 0.9, trailRadius: 0.46, moveSpeedFiring: 5.0,
@@ -193,6 +216,8 @@ Object.assign(WEAPONS, {
   }),
   roller_brisk: variant('roller', {
     id: 'roller_brisk', name: 'Brisk Roller', skin: { body: '#2f3a4f', trim: '#9fb4d0' },
+    sub: 'burst',
+    weight: 'light',
     blurb: 'A narrow, quick roller. Sprints across the turf and flicks fast.',
     rollSpeed: 5.4, rollWidth: 1.4, rollInkPerMeter: 0.8, rollDamage: 125,
     flickInterval: 0.45, flickWindup: 0.14, flickDamageNear: 100, flickDamageFar: 25, flickSpeed: 15, flickDrops: 7,
@@ -202,6 +227,8 @@ Object.assign(WEAPONS, {
   }),
   charger_snap: variant('charger', {
     id: 'charger_snap', name: 'Snap Charger', skin: { body: '#e8d9f0', trim: '#8a78a8' },
+    sub: 'sprinkler',
+    weight: 'light',
     blurb: 'Charges fast for a shorter line. Quick to aim, easy on the ink.',
     chargeTime: 0.85, rangeMin: 9, rangeMax: 19, damageMin: 40, damageMax: 140, inkFull: 12, moveSpeedFiring: 2.6,
     stats: { range: 0.72, damage: 0.9, rate: 0.38, mobility: 0.55, paint: 0.4 },
@@ -209,6 +236,7 @@ Object.assign(WEAPONS, {
   }),
   blaster_rapid: variant('blaster', {
     id: 'blaster_rapid', name: 'Rapid Blaster', skin: { body: '#f0d7b0', trim: '#a8784c' },
+    sub: 'sprinkler',
     blurb: 'Fires bursts faster, with smaller blasts and a longer reach.',
     fireInterval: 0.55, directDamage: 85, splashDamageMax: 50, splashDamageMin: 25, splashRadius: 2.1,
     inkPerShot: 7, projSpeed: 25, range: 11.5, burstRadius: 1.6,
@@ -217,6 +245,8 @@ Object.assign(WEAPONS, {
   }),
   dualies_glide: variant('dualies', {
     id: 'dualies_glide', name: 'Glide Dualies', skin: { body: '#d8e6f2', trim: '#5c7896' },
+    sub: 'burst',
+    weight: 'light',
     blurb: 'Faster pistols with a short, nimble dodge-roll. Four rolls before you run dry.',
     fireInterval: 0.068, damage: 28, range: 11, rolls: 4, rollTime: 0.25, rollDist: 2.4, rollInk: 5, lockTime: 0.35,
     stats: { range: 0.42, damage: 0.38, rate: 1.0, mobility: 1.0, paint: 0.5 },
@@ -224,6 +254,7 @@ Object.assign(WEAPONS, {
   }),
   slosher_tri: variant('slosher', {
     id: 'slosher_tri', name: 'Tri-Slosher', skin: { body: '#e6e0c8', trim: '#7a8a5c' },
+    sub: 'burst',
     blurb: 'Lobs quicker, shorter waves that leave a thick trail of ink.',
     fireInterval: 0.38, inkPerShot: 6, projSpeed: 13, range: 8.3, damageHead: 62, damageTail: 30, drops: 10, splashRadius: 1.25,
     stats: { range: 0.44, damage: 0.75, rate: 0.66, mobility: 0.7, paint: 0.85 },
@@ -231,21 +262,82 @@ Object.assign(WEAPONS, {
   }),
   splatling_mini: variant('splatling', {
     id: 'splatling_mini', name: 'Mini Splatling', skin: { body: '#f2c9c9', trim: '#a86060' },
+    sub: 'burst',
+    weight: 'mid',
     blurb: 'Spins up fast and moves lightly, but its bursts are short.',
     chargeTime: 0.5, burstMin: 0.25, burstMax: 1.0, range: 11.5, moveSpeedCharging: 3.4, moveSpeedFiring: 4.2,
     stats: { range: 0.56, damage: 0.5, rate: 0.9, mobility: 0.62, paint: 0.6 },
     special: 'barrier', specialCost: 185,
   }),
+  // ---- new kinds, each built on the closest existing mechanics (kind = runner, bots, pose) with its own model / icon
+  brush: variant('roller', {
+    id: 'brush', name: 'Inkbrush', class: 'Brush', model: 'brush', icon: 'brush', skin: null, sub: 'sprinkler', weight: 'light',
+    blurb: 'Hold to dash along painting a narrow trail. Tap for rapid flicks that pepper foes up close.',
+    rollSpeed: 7.4, rollWidth: 1.2, rollSplat: 0.55, rollInkPerMeter: 0.36, rollDamage: 25,
+    flickInterval: 0.17, flickWindup: 0.05, flickInk: 2, flickDrops: 5, flickDamageNear: 36, flickDamageFar: 14, flickSpeed: 14, flickSpreadDeg: 26,
+    impactRadius: 0.7, moveSpeedFiring: 5.2, footRadius: 0.55,
+    stats: { range: 0.22, damage: 0.35, rate: 1.0, mobility: 1.0, paint: 0.72 },
+    special: 'storm', specialCost: 170,
+  }),
+  // Wiper: the roller family with w.slash — a press slashes a sheet of ink sideways at once, holding charges a heavy cut
+  wiper: variant('roller', {
+    id: 'wiper', name: 'Splat Wiper', class: 'Wiper', model: 'wiper', icon: 'wiper', skin: null, sub: 'burst', weight: 'light', slash: true,
+    blurb: 'Tap to slash a sheet of ink sideways. Hold to charge, release for a wide, heavy cut.',
+    slashInterval: 0.32, slashInk: 2.5, slashDrops: 5, slashSpreadDeg: 60, slashSpeed: 16, slashDamageNear: 32, slashDamageFar: 16,
+    chargeTime: 0.55, chargedInk: 6, chargedDrops: 7, chargedSpreadDeg: 80, chargedDamageNear: 80, chargedDamageFar: 30,
+    bladeDamage: 30, chargedBladeDamage: 60, bladeReach: 1.7,
+    impactRadius: 0.8, moveSpeedFiring: 4.8, footRadius: 0.6,
+    stats: { range: 0.4, damage: 0.7, rate: 0.75, mobility: 0.9, paint: 0.45 },
+    special: 'slam', specialCost: 180,
+  }),
+  // Stringer: the charger family with w.arrows — loose a fan of arrows; a full draw makes them burst where they land
+  stringer: variant('charger', {
+    id: 'stringer', name: 'Tri-Stringer', class: 'Stringer', model: 'stringer', icon: 'stringer', skin: null, sub: 'bomb', weight: 'mid',
+    blurb: 'Draw and loose three arrows in a fan. At full draw they burst a moment after they land.',
+    arrows: 3, arrowSpreadDeg: 6, arrowSpeed: 58, chargeTime: 0.9, rangeMin: 9, rangeMax: 21, damageMin: 30, damageMax: 45,
+    blastDelay: 0.35, arrowBlast: { id: 'arrow', radius: 1.4, damageMax: 30, damageMin: 30, paintRadius: 1.2 },
+    inkFull: 14, impactRadius: 0.9, moveSpeedFiring: 2.8,
+    stats: { range: 0.82, damage: 0.8, rate: 0.35, mobility: 0.5, paint: 0.6 },
+    special: 'missiles', specialCost: 190,
+  }),
+  // Brella: the shooter family with w.pellets (a shotgun) and w.canopyHp — holding fire keeps the canopy up in front
+  brella: variant('shooter', {
+    id: 'brella', name: 'Splat Brella', class: 'Brella', model: 'brella', icon: 'brella', skin: null, sub: 'sprinkler', weight: 'mid',
+    blurb: 'A shotgun blast of ink. Hold fire to keep the canopy up: it blocks shots from the front until it breaks.',
+    pellets: 8, pelletSpreadDeg: 10, fireInterval: 0.6, damage: 18, inkPerShot: 6, projSpeed: 27, straightTime: 0.12, range: 8.5,
+    spreadGround: 7, spreadAir: 9, bloomPerShot: 0,   // (crosshair size only: the pellets fan out by pelletSpreadDeg)
+    canopyHp: 260, canopyCooldown: 5,
+    impactRadius: 0.7, trailRadius: 0.36, trailEvery: 1.6, moveSpeedFiring: 3.8, footEvery: 1, footRadius: 0.75,
+    stats: { range: 0.38, damage: 0.85, rate: 0.35, mobility: 0.55, paint: 0.55 },
+    special: 'barrier', specialCost: 190,
+  }),
 });
 export const WEAPON_ORDER = [
   'shooter', 'shooter_pro', 'shooter_jr', 'dualies', 'dualies_glide', 'splatling', 'splatling_mini', 'roller',
-  'roller_brisk', 'slosher', 'slosher_tri', 'charger', 'charger_snap', 'blaster', 'blaster_rapid',
+  'roller_brisk', 'brush', 'wiper', 'slosher', 'slosher_tri', 'charger', 'charger_snap', 'stringer', 'blaster', 'blaster_rapid',
+  'brella',
 ];
 
 export const SUB = {
+  // kind: 'bomb' bounces and arms when it settles · stick: clings to the first wall / floor it touches · impact: bursts
+  // on the first thing it touches (a foe included)
   bomb: {
-    id: 'bomb', name: 'Splat Bomb', inkCost: 70, throwSpeed: 13.5, fuse: 0.95,
+    id: 'bomb', name: 'Splat Bomb', blurb: 'Bounces, settles, then bursts in a wide splash.', inkCost: 70, throwSpeed: 13.5, fuse: 0.95,
     radius: 3.1, damageMax: 180, damageMin: 35, paintRadius: 2.7,
+  },
+  suction: {
+    id: 'suction', name: 'Suction Bomb', blurb: 'Sticks to any wall or floor, then bursts in a huge splash a moment later.', stick: true,
+    inkCost: 70, throwSpeed: 13.5, fuse: 1.35, radius: 3.7, damageMax: 180, damageMin: 35, paintRadius: 3.3,
+  },
+  burst: {
+    id: 'burst', name: 'Burst Bomb', blurb: 'Pops the moment it touches anything. Cheap and quick: soften foes up or finish them off.', impact: true,
+    inkCost: 40, throwSpeed: 15, radius: 2.1, damageMax: 60, damageMin: 35, paintRadius: 1.6,
+  },
+  // Sprinkler: sticks anywhere and sprays drops around itself (fast for burstTime, then slower) until life runs out or
+  // foes shoot it down (hp). One per player: a new one replaces the old.
+  sprinkler: {
+    id: 'sprinkler', name: 'Sprinkler', blurb: 'Sticks anywhere and keeps spraying ink around it. Only one at a time.', stick: true,
+    inkCost: 60, throwSpeed: 12, life: 24, burstTime: 6, interval: 0.15, slowInterval: 0.42, spraySpeed: 7.5, damage: 20, hp: 60,
   },
 };
 
@@ -294,6 +386,8 @@ export const MAPS = [
   { id: 'tidewater', name: 'Tidewater Plaza', blurb: 'A sun-bleached harbor plaza on the edge of the sea.', theme: 'day', times: { day: 'day', dusk: 'sunset' } },
   { id: 'kelpline', name: 'Kelpline Terminal', blurb: 'Container yard with grate catwalks, a sunken trench and a steel gantry deck.', theme: 'day', times: { day: 'day', dusk: 'sunset' } },
   { id: 'halyard', name: 'Halyard Marina', blurb: 'Floating docks, a tug on blocks and a car ferry moored across the middle. Mind the water.', theme: 'golden', times: { day: 'golden', dusk: 'sunset' } },
+  { id: 'skatepark', name: 'Coral Skatepark', blurb: 'A seaside skatepark: a funbox to fight over, a bowl to drop into and a deck to hold.', theme: 'day', times: { day: 'day', dusk: 'sunset' } },
+  { id: 'rooftops', name: 'Gull Rooftops', blurb: 'Two warehouse roofs over the harbour, joined by three bridges. Mind the gap.', theme: 'golden', times: { day: 'golden', dusk: 'sunset' } },
 ];
 
 export const BOT_NAMES = [

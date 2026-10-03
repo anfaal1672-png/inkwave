@@ -272,6 +272,65 @@ export const DRESSING = {
     { type: 'stickers', pos: [16.3, 0.9, -8], rotY: 0, count: 5, width: 0.6, height: 1.2 },
     { type: 'hosereel', pos: [17.3, 1.1, -30.56], rotY: 0 },
   ],
+  skatepark: [
+    // spawn deck
+    { type: 'banner', pos: [-9.4, 2.4, -37.4], team: 0 },
+    { type: 'banner', pos: [9.4, 2.4, -37.4], team: 0 },
+    { type: 'speaker', pos: [-7.8, 2.4, -42.6], rotY: 0.3 },
+    { type: 'speaker', pos: [7.8, 2.4, -42.6], rotY: -0.3 },
+    { type: 'bunting', pos: [-9, 5.0, -43.2], rotY: 0, length: 18, team: 0 },
+    { type: 'stringlights', pos: [-8.6, 3.2, -36.8], length: 17.2, height: 2.7, sag: 0.75, posts: true },
+    // back wall: posters, cable run; a market stall and picnic corner either side of the spawn ramps
+    { type: 'poster', pos: [-20.5, 1.4, -43.4], count: 4, variant: 3 },
+    { type: 'poster', pos: [12.5, 1.4, -43.4], count: 3, variant: 9 },
+    { type: 'cable', pos: [-22.8, 0, -43.4], variant: 1, length: 12, height: 3.3 },
+    { type: 'stall', pos: [18.6, 0, -42.3], width: 2.4, variant: 2 },
+    { type: 'picnic', pos: [-19.2, 0, -38.6], variant: 0 },
+    { type: 'surfrack', pos: [-21.4, 0, -42.4], count: 3 },
+    // skate furniture: quarter-pipes on the railings, a kicker and a rail by the base, a grind box in the centre lane
+    { type: 'skateramp', pos: [-21.4, 0, -24], rotY: P / 2, variant: 0, width: 3.2 },
+    { type: 'skateramp', pos: [21.4, 0, -33], rotY: -P / 2, variant: 0, width: 3 },
+    { type: 'skateramp', pos: [-8, 0, -33.5], rotY: 0, variant: 1 },
+    { type: 'skateramp', pos: [-1, 0, -17], rotY: 0, variant: 2 },
+    { type: 'skaterail', pos: [6, 0, -35.2], length: 3 },
+    { type: 'skateboard', pos: [-13.8, 0, -30.2], rotY: 0.6, variant: 0 },
+    { type: 'skateboard', pos: [15.2, 1.8, -12.4], rotY: -0.4, variant: 2 },
+    // park furniture
+    { type: 'bench', pos: [22.1, 0, -38.2], rotY: -P / 2 },
+    { type: 'bench', pos: [-22.1, 0, -5.6], rotY: P / 2 },
+    { type: 'trashbin', pos: [21.9, 0, -40.6] },
+    { type: 'bush', pos: [-0.8, 0.8, -26], scale: 0.7 },
+    { type: 'lightpole', pos: [-22.7, 1.05, -30], rotY: P / 2 },
+    { type: 'lightpole', pos: [22.7, 1.05, -4], rotY: -P / 2 },
+    { type: 'cone', pos: [9.2, 0, -27.2] }, { type: 'cone', pos: [9.9, 0, -27.7] },
+  ],
+  rooftops: [
+    // spawn deck
+    { type: 'banner', pos: [-9.4, 2.6, -37.4], team: 0 },
+    { type: 'banner', pos: [9.4, 2.6, -37.4], team: 0 },
+    { type: 'speaker', pos: [-7.8, 2.6, -42.6], rotY: 0.3 },
+    { type: 'speaker', pos: [7.8, 2.6, -42.6], rotY: -0.3 },
+    { type: 'bunting', pos: [-9, 5.2, -43.2], rotY: 0, length: 18, team: 0 },
+    { type: 'stringlights', pos: [-8.6, 3.4, -36.8], length: 17.2, height: 2.7, sag: 0.75, posts: true },
+    // the next building up: posters, pipes, a cable run
+    { type: 'poster', pos: [-19.5, 1.4, -43.4], count: 3, variant: 6 },
+    { type: 'pipes', pos: [10.5, 0, -43.4], length: 6, height: 2.6 },
+    { type: 'cable', pos: [-21.8, 0, -43.4], variant: 1, length: 10, height: 3.6 },
+    // roof kit: vents, a dish, an antenna mast on the penthouse, a ladder up the water tower
+    { type: 'vent', pos: [-3.5, 0, -32], variant: 1 },
+    { type: 'vent', pos: [3.2, 0, -33.4], variant: 0 },
+    { type: 'vent', pos: [19.6, 0, -24.5], variant: 2 },
+    { type: 'vent', pos: [-12.5, 0, -20.4], variant: 3 },
+    { type: 'dish', pos: [19.8, 0, -40.2], variant: 0, rotY: -0.6 },
+    { type: 'dish', pos: [-20, 3.4, -30.5], variant: 1 },
+    { type: 'ladder', pos: [13, 0, -28], rotY: -P / 2, height: 4.6 },
+    // crates + drums in the corners, a bench on the walkway, lamps on the parapets
+    { type: 'crates', pos: [-18.2, 0, -40.6], variant: 1 },
+    { type: 'barrel', pos: [19.6, 0, -34.6] }, { type: 'barrel', pos: [20.4, 0, -35.5], variant: 1 },
+    { type: 'bench', pos: [20.8, 1.6, -12.5], rotY: -P / 2 },
+    { type: 'lightpole', pos: [-21.7, 1.0, -18], rotY: P / 2 },
+    { type: 'lightpole', pos: [21.7, 1.0, -30], rotY: -P / 2 },
+  ],
 };
 
 // stage packs that own their own placement lists
