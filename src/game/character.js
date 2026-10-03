@@ -669,7 +669,10 @@ export class Character {
         sp[S_SQ + 1] -= 1.6; sp[S_TANKL + 1] += 1.5; this._hairKick(-x * 2, 1.2, -z * 2);
         break;
       }
-      case 'flick': tr[T_FLICK] = 0; this.lastShot = 0; break;
+      case 'flick': tr[T_FLICK] = 0; this.lastShot = 0; this.slashing = 0; break;
+      // wiper: a horizontal cut (arg.heavy = the charged one); shares the flick clock, _poseSlash draws it
+      // (arg.flip: mirrored, a backhand from the left — the brush alternates its flicks side to side)
+      case 'slash': tr[T_FLICK] = 0; this.lastShot = 0; this.slashing = arg && arg.heavy ? 2 : 1; this.slashFlip = !!(arg && arg.flip); break;
       case 'squidroll': this.sqSpin = 0; break;   // Squid Roll: one barrel roll along the flight path (see _updateSquid)
       case 'throw': tr[T_THROW] = 0; this.bombHeld = false; break;
       case 'land': {
@@ -1357,7 +1360,8 @@ export class Character {
     this._poseWeapon(dt, s);
 
     // ---------------- one-shots
-    if (tr[T_FLICK] < 0.7 && this.weaponKind === 'roller') this._poseFlick(P, tr[T_FLICK]);
+    if (tr[T_FLICK] < 0.7 && this.weaponKind === 'roller') { if (this.slashing) this._poseSlash(P, tr[T_FLICK], this.slashing === 2); else this._poseFlick(P, tr[T_FLICK]); }
+    else if (this.weaponKind === 'roller' && (s.charge || 0) > 0.01) this._poseSlash(P, -1, false, s.charge);   // wiper wind-up
     if (this.wSub > 0.001 && tr[T_THROW] > 0.05) this._poseSubAim(P, this.wSub);
     if (tr[T_THROW] < 0.62) this._poseThrow(P, tr[T_THROW]);
     if (tr[T_SPAWN] < 1.4) this._poseSpawn(P, tr[T_SPAWN]);
@@ -1640,6 +1644,39 @@ export class Character {
     X[HLP] += 0.06 * coil - 0.1 * whip;
     lerpE(X, POLER, -0.8, 0.1, -0.3, coil); lerpE(X, POLEL, 0.8, 0.1, -0.3, coil);
     this._effort = Math.max(this._effort || 0, coil + whip * 0.7);
+    poseLerp(P, P, X, 1);
+  }
+
+  // Wiper cut (trigger 'slash'): the blade is drawn back level beside the right hip, the hips and chest wind up, then it
+  // sweeps flat across the body to the left at chest height and follows through; the heavy (charged) cut winds further
+  // and sweeps wider. ft < 0 = holding a charge: the wind-up held, deeper as `charge` builds.
+  _poseSlash(P, ft, heavy, charge = 0) {
+    const X = this.PX; X.set(P);
+    const big = heavy ? 1 : 0, m = ft >= 0 && this.slashFlip ? -1 : 1;   // m = -1: mirrored backhand
+    let kUp, kWhip, kFol, kRec;
+    if (ft < 0) { kUp = 0.55 + 0.45 * ease(charge); kWhip = 0; kFol = 0; kRec = 0; }
+    else {
+      kUp = ease(ft / (heavy ? 0.06 : 0.05));
+      kWhip = ease((ft - (heavy ? 0.06 : 0.05)) / 0.09);
+      kFol = easeOut((ft - 0.14) / 0.16);
+      kRec = ease((ft - 0.36) / 0.3);
+    }
+    // weapon anchor (kid space, right hand) + its rotation: level blade, yawing from the right-back round to the left
+    let ax = -0.11, ay = 0.84, az = 0.18, rx = 0.8, ry = 0.1, rz = 0;
+    ax = lerp(ax, -0.11 - 0.25 * m, kUp); ay = lerp(ay, 0.95, kUp); az = lerp(az, -0.02, kUp); rx = lerp(rx, -0.05, kUp); ry = lerp(ry, (-1.35 - 0.25 * big) * m, kUp); rz = lerp(rz, 0.15 * m, kUp);
+    ax = lerp(ax, -0.11 + 0.27 * m, kWhip); ay = lerp(ay, 1.0, kWhip); az = lerp(az, 0.34, kWhip); ry = lerp(ry, 0.55 * m, kWhip); rz = lerp(rz, -0.1 * m, kWhip);
+    ax = lerp(ax, -0.11 + (0.37 + 0.06 * big) * m, kFol); ay = lerp(ay, 0.92, kFol); az = lerp(az, 0.14, kFol); ry = lerp(ry, (1.35 + 0.25 * big) * m, kFol);
+    const w = 1 - kRec;
+    lerpE(X, ANC, ax, ay, az, w); lerpE(X, ANCR, rx, ry, rz, w);
+    X[AFOLT] = lerp(X[AFOLT], 0.7, w); X[AFOLR] = lerp(X[AFOLR], 0.3, w);
+    // body: twist away on the wind-up, unwind hard through the cut, a low lunge on the heavy one
+    const coil = kUp * (1 - kWhip), cut = kWhip * (1 - kRec), lunge = big * cut;
+    X[SPINE + 1] -= (0.16 * coil - 0.22 * cut) * m; X[CHEST + 1] -= (0.14 * coil - 0.18 * cut) * m;
+    X[HIPS + 1] -= (0.05 * coil - 0.08 * cut) * m;
+    X[SPINE] += 0.06 * coil + 0.12 * lunge; X[HIPS_P + 1] -= 0.03 * coil + 0.06 * lunge;
+    X[HLY] += (0.15 * coil - 0.12 * cut) * m;
+    lerpE(X, POLER, -0.9, -0.2, -0.2, coil); lerpE(X, POLEL, 0.9, -0.2, -0.2, coil);
+    this._effort = Math.max(this._effort || 0, coil * (ft < 0 ? 0.6 : 1) + cut * 0.8);
     poseLerp(P, P, X, 1);
   }
 

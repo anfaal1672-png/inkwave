@@ -15,7 +15,7 @@
 //   hitSplash(pos, dir, color, amount, killed)   mist(pos, vel, color, size, alpha)   shotTrail(pos, vel, color, big)
 //   muzzle(pos, dir, color, kind 'shooter'|'blaster'|'charger')   dryFire(pos, dir)
 //   chargeGlow(pos, color, k)   chargeFull(pos, color)   laserDot(pos, normal, color, k)   beamImpact(pos, normal, color, charge)
-//   beamTrail(from, to, color, charge)   rollerSpray(pos, fwd, width, color, k)   flickCurtain(pos, dir, color, spreadDeg)
+//   beamTrail(from, to, color, charge)   rollerSpray(pos, fwd, width, color, k)   flickCurtain(pos, dir, color, spreadDeg, flat)
 //   dangerRing(pos, normal, color, radius, k)   beepPulse(bombPos, groundPos, normal, color, radius, k)   bombTrail(pos, vel, color)
 //   bounceSplash(pos, normal, color)   slamLaunch(pos, color)   slamCharge(pos, color, k)   slamFall(pos, color)   slamWave(pos, color, radius)
 //   stormStart(pos, color, radius)   stormPuddle(pos, normal, color)   stormFlash(pos, color, radius)
@@ -1776,7 +1776,7 @@ export class FX {
     }
   }
   // roller flick: a wide curtain of spray (droplets that paint where they land)
-  flickCurtain(pos, dir, color, spreadDeg = 50) {
+  flickCurtain(pos, dir, color, spreadDeg = 50, flat = false) {
     const col = this._color(color, this._col);
     const paint = this.paintEffects ? F_PAINT : 0;
     const yaw = Math.atan2(dir.x, dir.z), spread = spreadDeg * Math.PI / 180;
@@ -1784,7 +1784,7 @@ export class FX {
     for (let i = 0; i < n; i++) {
       const t = (i / (n - 1)) * 2 - 1;
       const a = yaw + t * spread * 0.55 + (rand() - 0.5) * 0.08;
-      const up = 0.35 + rand() * 0.35, sp = 6 + rand() * 5 * (1 - 0.4 * Math.abs(t));
+      const up = flat ? 0.03 + rand() * 0.12 : 0.35 + rand() * 0.35, sp = (flat ? 8 : 6) + rand() * 5 * (1 - 0.4 * Math.abs(t));
       const cu = Math.cos(up);
       const sz = 0.03 + rand() * 0.04;
       this._spawnDrop(pos.x + Math.sin(a) * 0.4, pos.y + (rand() - 0.3) * 0.4, pos.z + Math.cos(a) * 0.4, Math.sin(a) * cu * sp, Math.sin(up) * sp, Math.cos(a) * cu * sp, col, sz, 1.4, 1, 1.2, sz > 0.055 ? paint : 0);
