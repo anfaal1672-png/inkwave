@@ -24,6 +24,9 @@ const _m = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vect
 const UP = new THREE.Vector3(0, 1, 0), DOWN = new THREE.Vector3(0, -1, 0), ZAX = new THREE.Vector3(0, 0, 1);
 const _hit = new Hit(), _hit2 = new Hit();
 const _foot = new THREE.Vector3();
+// hit size (m, added to the body radius) of a slosh wave's globs: slow, lobbed ink is easy to sidestep, so — like the
+// big hitboxes Splatoon gives sloshers and roller flicks — a glob catches anyone it passes close to (visuals use p.vis)
+const SLOSH_HIT_HEAD = 0.45, SLOSH_HIT_TAIL = 0.3;
 const _UP = new THREE.Vector3(0, 1, 0), _t1 = new THREE.Vector3(), _t2 = new THREE.Vector3();
 const _res = { t: 0, dist: 0 };
 const DEG = Math.PI / 180;
@@ -640,9 +643,10 @@ export class Projectiles {
     // charger beams + laser sights: camera-facing ribbons, pooled (no per-shot geometry/material allocation)
     this.ribbonGeo = ribbonGeometry(16);
     this.beamPool = [];
-    // slosher volleys: every glob of one throw shares a record, so a throw lands ONE direct hit (+ splash on others)
-    // per victim — two clean throws to splat, like a heavy bucket should be. A reused ring: no per-shot allocation.
-    this.vols = Array.from({ length: 32 }, () => ({ hits: [] }));
+    // slosher volleys: every glob of one throw shares a record, so a throw lands at most its heaviest hit on each victim
+    // (dealt[i] = what hits[i] has taken from it so far) — two clean throws to splat, like a heavy bucket should be.
+    // A reused ring: no per-shot allocation.
+    this.vols = Array.from({ length: 32 }, () => ({ hits: [], dealt: [] }));
     this.volI = 0;
     // laser sight lines for charging chargers
     this.sights = new Map();
@@ -680,7 +684,7 @@ export class Projectiles {
 
   _new() {
     const p = this.pool.pop() || { pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(), start: new THREE.Vector3() };
-    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.vol = null; p.arrow = null;   // optional fields never leak between recycled rounds
+    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.fullD = 0; p.farD = 7; p.vol = null; p.arrow = null;   // optional fields never leak between recycled rounds
     return p;
   }
 
@@ -996,7 +1000,7 @@ export class Projectiles {
     if (lk) { v = w.projSpeed; pitch = lk.pitch; yawL = lk.yaw; halfStep = 0; }
     const n = w.drops;
     const vol = this.vols[this.volI = (this.volI + 1) % this.vols.length];
-    vol.hits.length = 0;
+    vol.hits.length = 0; vol.dealt.length = 0;
     for (let i = 0; i < n; i++) {
       const k = i / (n - 1);
       const sp = v * (1 - 0.18 * k), pt = pitch - 0.04 * k;
@@ -1004,7 +1008,7 @@ export class Projectiles {
       const p = this._new();
       Object.assign(p, { type: 'slosh', wid: w.id, owner: a, team: a.team, age: 0, life: 2.4, straight: 0, delay: i * 0.012,
         radius: w.impactRadius * (i === 0 ? 1 : 0.78 - 0.22 * k), damage: i === 0 ? w.damageHead : w.damageTail, head: i === 0,
-        size: i === 0 ? 0.2 : 0.14, trail: -0.8, trailEvery: i < 3 ? w.trailEvery : 0, trailRadius: w.trailRadius,
+        size: i === 0 ? SLOSH_HIT_HEAD : SLOSH_HIT_TAIL, trail: -0.8, trailEvery: i < 3 ? w.trailEvery : 0, trailRadius: w.trailRadius,
         grav: g, drag: 0, seed: Math.random(),
         vis: i === 0 ? 0.19 : 0.155 - 0.075 * k, tail0: 0.7, tailK: 1.5, wob: 0.12, wobF: 15, nose: 0.1, sats: i < 2 ? 2 : 1 });
       p.vol = vol;
@@ -1021,16 +1025,26 @@ export class Projectiles {
     rumble(a, 0.18, 0.3, 90);
   }
 
+  // damage a slosh glob still owes victim e: a throw tops up to its heaviest hit instead of stopping at the first one
+  // (a tail bead grazing first no longer robs the head glob of its 70)
+  _volDmg(vol, e, dmg) {
+    const i = vol.hits.indexOf(e);
+    if (i < 0) { vol.hits.push(e); vol.dealt.push(dmg); return dmg; }
+    const add = Math.max(0, dmg - vol.dealt[i]);
+    vol.dealt[i] += add;
+    return add;
+  }
+
   // head glob landing: a heavy splash that also catches anyone standing next to where it lands
   _sloshSplash(p, at, direct) {
     const w = WEAPONS[p.wid] || WEAPONS.slosher;
     for (const e of G.actors) {
-      if (e.team === p.team || !e.alive || e === direct || (p.vol && p.vol.hits.includes(e))) continue;
+      if (e.team === p.team || !e.alive || e === direct) continue;
       _v3.copy(e.pos); _v3.y += 0.6;
       if (_v3.distanceTo(at) > w.splashRadius + 0.3) continue;
       if (!G.physics.los(_v2.copy(at).setY(at.y + 0.25), _v3)) continue;
-      if (p.vol) p.vol.hits.push(e);
-      this.applyHit(p.owner, e, w.splashDamage, p.wid || 'slosher');
+      const dmg = p.vol ? this._volDmg(p.vol, e, w.splashDamage) : w.splashDamage;
+      if (dmg > 0) this.applyHit(p.owner, e, dmg, p.wid || 'slosher');
     }
     if (p.owner.isLocal || G.camera.position.distanceToSquared(at) < 26 * 26) {
       G.fx?.burst(at, UP, p.owner.color, { count: 16, speed: 4.2, size: 0.09 });
@@ -1079,7 +1093,8 @@ export class Projectiles {
       const p = this._new();
       // big globs in the middle of the sheet, smaller beads toward the edges (visual only: the hit size is unchanged)
       const mid = 1 - Math.abs(t);
-      Object.assign(p, { type: 'drop', owner: a, team: a.team, age: 0, life: 1.4, straight: 0, radius: 0.85 + Math.random() * 0.3, damage: w.flickDamageNear, dmgFar: w.flickDamageFar, size: 0.15, trail: 0, trailEvery: 1.8, trailRadius: 0.45, grav: 26, drag: 0.4, seed: Math.random(),
+      Object.assign(p, { type: 'drop', owner: a, team: a.team, age: 0, life: 1.4, straight: 0, radius: 0.85 + Math.random() * 0.3, damage: w.flickDamageNear, dmgFar: w.flickDamageFar,
+        fullD: w.flickFullDist ?? 0, farD: w.flickFarDist ?? 7, size: w.flickHit ?? 0.15, trail: 0, trailEvery: 1.8, trailRadius: 0.45, grav: 26, drag: 0.4, seed: Math.random(),
         vis: 0.1 + 0.085 * mid + Math.random() * 0.03, tail0: 0.4, tailK: 1.0, wob: 0.1, wobF: 19, nose: 0, sats: mid > 0.45 ? 2 : 1 });
       p.pos.set(m.x + fx * 0.6, m.y + 0.3, m.z + fz * 0.6); p.prev.copy(p.pos); p.start.copy(p.pos);
       const cu = Math.cos(up + (Math.random() - 0.5) * 0.12);
@@ -1593,12 +1608,14 @@ export class Projectiles {
         if (_res.dist < PLAYER.radius * 0.95 + p.size) {
           _v.copy(p.prev).lerp(p.pos, _res.t);
           let dmg = p.damage;
-          if (p.type === 'drop') dmg = lerp(p.damage, p.dmgFar, clamp(p.start.distanceTo(_v) / 7, 0, 1));
+          // drops: full damage out to fullD (a roller's flick is lethal at its own reach, not only point-blank), then down
+          // to dmgFar at farD
+          if (p.type === 'drop') { const fd = p.fullD || 0; dmg = lerp(p.damage, p.dmgFar, clamp((p.start.distanceTo(_v) - fd) / Math.max(0.5, (p.farD || 7) - fd), 0, 1)); }
           // shooter / splatling rounds: full damage along the straight part of the flight; once the round has been
           // falling a while the damage tapers to half (Splatoon's distance falloff — a long-range tap no longer splats
           // in as few hits)
           else if (p.type === 'shot' && p.age > p.straight * 1.6) dmg *= lerp(1, 0.5, clamp((p.age - p.straight * 1.6) / 0.16, 0, 1));
-          if (p.vol) { if (p.vol.hits.includes(e)) dmg = 0; else p.vol.hits.push(e); }
+          if (p.vol) dmg = this._volDmg(p.vol, e, dmg);
           if (dmg > 0) this.applyHit(p.owner, e, dmg, p.wid || p.type);
           G.fx?.burst(_v, _v2.copy(p.vel).normalize().negate(), p.owner.color, { count: 6, speed: 3, size: 0.07 });
           if (p.type !== 'blast') emit('weapon:impact', { pos: _v.clone(), normal: _v2.clone(), team: p.team, kind: p.type === 'drop' || p.type === 'slosh' ? 'drop' : 'shot', radius: p.radius * 0.5, victim: e });
