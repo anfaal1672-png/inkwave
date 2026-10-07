@@ -684,7 +684,7 @@ export class Projectiles {
 
   _new() {
     const p = this.pool.pop() || { pos: new THREE.Vector3(), prev: new THREE.Vector3(), vel: new THREE.Vector3(), start: new THREE.Vector3() };
-    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.fullD = 0; p.farD = 7; p.vol = null; p.arrow = null;   // optional fields never leak between recycled rounds
+    p.delay = 0; p.head = false; p.wid = null; p.dmgFar = undefined; p.fullD = 0; p.farD = 7; p.vol = null; p.fvol = null; p.arrow = null;   // optional fields never leak between recycled rounds
     return p;
   }
 
@@ -1035,6 +1035,36 @@ export class Projectiles {
     return add;
   }
 
+  // record a hit that stacks (roller flick drops: each drop deals its own damage)
+  _volAdd(vol, e, dmg) {
+    const i = vol.hits.indexOf(e);
+    if (i < 0) { vol.hits.push(e); vol.dealt.push(dmg); } else vol.dealt[i] += dmg;
+  }
+
+  // roller / brush flick drop landing: the whole splat it paints hurts, not only the drop's own flight path — anyone
+  // standing in it (or against the wall it splashed) takes the drop's damage at that range, topped up against what the
+  // same flick already dealt them (so the sheet still kills the way its drops do, never twice over)
+  _flickSplash(p, at, n, rad) {
+    const fd = p.fullD || 0;
+    const dmg = lerp(p.damage, p.dmgFar, clamp((p.start.distanceTo(at) - fd) / Math.max(0.5, (p.farD || 7) - fd), 0, 1));
+    const reach = rad + PLAYER.radius;
+    for (const e of G.actors) {
+      if (e.team === p.team || !e.alive) continue;
+      const dx = e.pos.x - at.x, dz = e.pos.z - at.z;
+      if (dx * dx + dz * dz > reach * reach) continue;
+      const h = e.form === 'squid' ? PLAYER.squidHeight : PLAYER.height;
+      if (at.y < e.pos.y - 0.35 || at.y > e.pos.y + h + 0.2) continue;
+      const i = p.fvol.hits.indexOf(e), got = i < 0 ? 0 : p.fvol.dealt[i];
+      const add = dmg - got;
+      if (add <= 0.5) continue;
+      // not through the wall a drop splashed against (or the ledge it landed on)
+      _v3.copy(e.pos); _v3.y += Math.min(0.6, h * 0.5);
+      if (!G.physics.los(_v2.copy(at).addScaledVector(n, 0.15), _v3)) continue;
+      if (i < 0) { p.fvol.hits.push(e); p.fvol.dealt.push(dmg); } else p.fvol.dealt[i] = dmg;
+      this.applyHit(p.owner, e, add, p.wid || p.type);
+    }
+  }
+
   // head glob landing: a heavy splash that also catches anyone standing next to where it lands
   _sloshSplash(p, at, direct) {
     const w = WEAPONS[p.wid] || WEAPONS.slosher;
@@ -1086,6 +1116,10 @@ export class Projectiles {
       if (lk) { yaw0 = lk.yaw; up = lk.pitch; }
     }
     const fx = Math.sin(yaw0), fz = Math.cos(yaw0);
+    // one record per flick (the slosh ring): what each victim has taken from this sheet, so the splash where its drops
+    // land (_flickSplash) tops a victim up rather than stacking on the direct hits
+    const fvol = this.vols[this.volI = (this.volI + 1) % this.vols.length];
+    fvol.hits.length = 0; fvol.dealt.length = 0;
     for (let i = 0; i < w.flickDrops; i++) {
       const t = (i / (w.flickDrops - 1)) * 2 - 1;
       const ang = yaw0 + t * w.flickSpreadDeg * DEG * 0.5 + (Math.random() - 0.5) * 0.05;
@@ -1097,6 +1131,7 @@ export class Projectiles {
         fullD: w.flickFullDist ?? 0, farD: w.flickFarDist ?? 7, size: w.flickHit ?? 0.15, trail: 0, trailEvery: 1.8, trailRadius: 0.45, grav: 26, drag: 0.4, seed: Math.random(),
         vis: 0.1 + 0.085 * mid + Math.random() * 0.03, tail0: 0.4, tailK: 1.0, wob: 0.1, wobF: 19, nose: 0, sats: mid > 0.45 ? 2 : 1 });
       p.pos.set(m.x + fx * 0.6, m.y + 0.3, m.z + fz * 0.6); p.prev.copy(p.pos); p.start.copy(p.pos);
+      p.fvol = fvol;
       const cu = Math.cos(up + (Math.random() - 0.5) * 0.12);
       p.vel.set(Math.sin(ang) * cu * sp, Math.sin(up) * sp, Math.cos(ang) * cu * sp);
       this.list.push(p);
@@ -1616,6 +1651,7 @@ export class Projectiles {
           // in as few hits)
           else if (p.type === 'shot' && p.age > p.straight * 1.6) dmg *= lerp(1, 0.5, clamp((p.age - p.straight * 1.6) / 0.16, 0, 1));
           if (p.vol) dmg = this._volDmg(p.vol, e, dmg);
+          else if (p.fvol) this._volAdd(p.fvol, e, dmg);
           if (dmg > 0) this.applyHit(p.owner, e, dmg, p.wid || p.type);
           G.fx?.burst(_v, _v2.copy(p.vel).normalize().negate(), p.owner.color, { count: 6, speed: 3, size: 0.07 });
           if (p.type !== 'blast') emit('weapon:impact', { pos: _v.clone(), normal: _v2.clone(), team: p.team, kind: p.type === 'drop' || p.type === 'slosh' ? 'drop' : 'shot', radius: p.radius * 0.5, victim: e });
@@ -1669,6 +1705,7 @@ export class Projectiles {
       if (p.head) this._sloshSplash(p, hit.point, null);
     } else area = G.paint.splat(_v, rad, p.team, { seed: p.seed, stretch: _dir, stretchAmt: 0.7 });
     p.owner.addTurf(area);
+    if (p.fvol) this._flickSplash(p, hit.point, hit.normal, rad);
     if (p.type !== 'blast') emit('weapon:impact', { pos: hit.point.clone(), normal: hit.normal.clone(), team: p.team, kind: p.type === 'drop' || p.type === 'slosh' ? 'drop' : 'shot', radius: rad });
     const near = p.owner.isLocal || G.camera.position.distanceToSquared(hit.point) < 22 * 22;
     if (near) {
